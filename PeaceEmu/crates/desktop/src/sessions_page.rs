@@ -183,7 +183,14 @@ impl DesktopApp {
                             }
                             let was_active = self.controller.active_session() == Some(id);
                             if was_active {
-                                let _ = self.release_game_inputs();
+                                if let Err(error) = self.release_game_inputs() {
+                                    self.message = if french {
+                                        format!("Fermeture annulée ; impossible de libérer les commandes : {error}")
+                                    } else {
+                                        format!("Close cancelled; could not release held inputs: {error}")
+                                    };
+                                    return;
+                                }
                             }
                             match self.controller.close_session(id) {
                                 Ok(()) => {
@@ -245,26 +252,22 @@ impl DesktopApp {
                                 return;
                             }
                             let was_active = self.controller.active_session() == Some(id);
-                            let release_error = if was_active {
-                                self.release_game_inputs().err()
-                            } else {
-                                None
-                            };
+                            if was_active {
+                                if let Err(error) = self.release_game_inputs() {
+                                    self.message = if french {
+                                        format!("Fermeture annulée ; impossible de libérer les commandes : {error}")
+                                    } else {
+                                        format!("Close cancelled; could not release held inputs: {error}")
+                                    };
+                                    return;
+                                }
+                            }
                             match self.controller.close_session(id) {
                                 Ok(()) => {
-                                    self.message = match (french, release_error) {
-                                        (true, Some(error)) => {
-                                            format!("Session {} fermée, mais {error}", id.get())
-                                        }
-                                        (true, None) => {
-                                            format!("Session {} fermée.", id.get())
-                                        }
-                                        (false, Some(error)) => {
-                                            if french { format!("Session {} fermée, mais {error}", id.get()) } else { format!("Session {} closed, but {error}", id.get()) }
-                                        }
-                                        (false, None) => {
-                                            format!("Closed session {}.", id.get())
-                                        }
+                                    self.message = if french {
+                                        format!("Session {} fermée.", id.get())
+                                    } else {
+                                        format!("Closed session {}.", id.get())
                                     };
                                     if was_active {
                                         self.audio_output.clear();
