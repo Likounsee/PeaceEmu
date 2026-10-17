@@ -99,12 +99,15 @@ impl DesktopApp {
                 .rounding(egui::Rounding::same(12.0))
                 .inner_margin(egui::Margin::same(14.0))
                 .show(ui, |ui| {
-                ui.heading(self.language_pack.text("ui.sessions_page.005"));
-                ui.label(self.language_pack.text("ui.sessions_page.006"));
-                if ui.button(self.language_pack.text("ui.sessions_page.007")).clicked() {
-                    self.navigate_to(DesktopPage::Library);
-                }
-            });
+                    ui.heading(self.language_pack.text("ui.sessions_page.005"));
+                    ui.label(self.language_pack.text("ui.sessions_page.006"));
+                    if ui
+                        .button(self.language_pack.text("ui.sessions_page.007"))
+                        .clicked()
+                    {
+                        self.navigate_to(DesktopPage::Library);
+                    }
+                });
         }
         for summary in sessions {
             let id = summary.id;

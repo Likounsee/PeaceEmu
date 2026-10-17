@@ -422,12 +422,12 @@ impl DesktopApp {
             theme::card(ui, palette, |ui| {
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.library_page.006"))
-                    .size(16.0)
-                    .strong(),
+                        .size(16.0)
+                        .strong(),
                 );
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.library_page.007"))
-                    .color(palette.text_dim),
+                        .color(palette.text_dim),
                 );
             });
             return;
@@ -484,7 +484,10 @@ impl DesktopApp {
                 .add_enabled_ui(file_available, |ui| {
                     ui.add_sized(
                         egui::vec2(ui.available_width(), 36.0),
-                        theme::primary_button(palette, self.language_pack.text("ui.library_page.008")),
+                        theme::primary_button(
+                            palette,
+                            self.language_pack.text("ui.library_page.008"),
+                        ),
                     )
                 })
                 .inner;
@@ -527,8 +530,7 @@ impl DesktopApp {
 
             ui.add_space(4.0);
             egui::CollapsingHeader::new(
-                egui::RichText::new(self.language_pack.text("ui.library_page.010"))
-                .strong(),
+                egui::RichText::new(self.language_pack.text("ui.library_page.010")).strong(),
             )
             .default_open(false)
             .show(ui, |ui| {
@@ -543,27 +545,34 @@ impl DesktopApp {
                         ui,
                         palette,
                         self.language_pack.text("ui.library_page.012"),
-                        format_hint.as_deref().unwrap_or(self.language_pack.text("ui.library_page.013")),
+                        format_hint
+                            .as_deref()
+                            .unwrap_or(self.language_pack.text("ui.library_page.013")),
                     );
                     detail_row(
                         ui,
                         palette,
                         self.language_pack.text("ui.library_page.014"),
-                        system_hint.as_deref().unwrap_or(self.language_pack.text("ui.library_page.015")),
+                        system_hint
+                            .as_deref()
+                            .unwrap_or(self.language_pack.text("ui.library_page.015")),
                     );
                     let detected = match detection {
-                        ContentFormatDetection::Pending => (self.language_pack.text("ui.library_page.016"))
-                        .to_owned(),
-                        ContentFormatDetection::NoMatch => (self.language_pack.text("ui.library_page.017"))
-                        .to_owned(),
+                        ContentFormatDetection::Pending => {
+                            (self.language_pack.text("ui.library_page.016")).to_owned()
+                        }
+                        ContentFormatDetection::NoMatch => {
+                            (self.language_pack.text("ui.library_page.017")).to_owned()
+                        }
                         ContentFormatDetection::Detected(format) => format.to_string(),
                         ContentFormatDetection::Ambiguous(formats) => format!(
                             "{} {}",
                             self.language_pack.text("ui.library_page.018"),
                             formats.join(", ")
                         ),
-                        ContentFormatDetection::NeedsMoreData => (self.language_pack.text("ui.library_page.019"))
-                        .to_owned(),
+                        ContentFormatDetection::NeedsMoreData => {
+                            (self.language_pack.text("ui.library_page.019")).to_owned()
+                        }
                     };
                     detail_row(
                         ui,
@@ -572,10 +581,12 @@ impl DesktopApp {
                         &detected,
                     );
                     let validation_text = match validation {
-                        ContentValidation::Pending => (self.language_pack.text("ui.library_page.021"))
-                        .to_owned(),
-                        ContentValidation::Accepted => (self.language_pack.text("ui.library_page.022"))
-                        .to_owned(),
+                        ContentValidation::Pending => {
+                            (self.language_pack.text("ui.library_page.021")).to_owned()
+                        }
+                        ContentValidation::Accepted => {
+                            (self.language_pack.text("ui.library_page.022")).to_owned()
+                        }
                         ContentValidation::Rejected(detail) => format!(
                             "{} {}",
                             self.language_pack.text("ui.library_page.023"),
