@@ -161,30 +161,24 @@ impl DesktopApp {
 
         let language_label = self.language_pack.text("ui.appearance_page.010").to_owned();
         let language_description = self.language_pack.text("ui.appearance_page.011").to_owned();
-        theme::setting_row(
-            ui,
-            &palette,
-            &language_label,
-            &language_description,
-            |ui| {
-                let previous_language = self.language.clone();
-                egui::ComboBox::from_id_source("application-language")
-                    .selected_text(self.language_pack.text("ui.appearance_page.012"))
-                    .width(200.0)
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.language, "fr".to_owned(), "Français");
-                        ui.selectable_value(&mut self.language, "en".to_owned(), "English");
-                    });
-                if previous_language != self.language {
-                    self.message = if self.language == "fr" {
-                        "Langue modifiée.".to_owned()
-                    } else {
-                        "Language changed.".to_owned()
-                    };
-                    self.save_preferences();
-                }
-            },
-        );
+        theme::setting_row(ui, &palette, &language_label, &language_description, |ui| {
+            let previous_language = self.language.clone();
+            egui::ComboBox::from_id_source("application-language")
+                .selected_text(self.language_pack.text("ui.appearance_page.012"))
+                .width(200.0)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.language, "fr".to_owned(), "Français");
+                    ui.selectable_value(&mut self.language, "en".to_owned(), "English");
+                });
+            if previous_language != self.language {
+                self.message = if self.language == "fr" {
+                    "Langue modifiée.".to_owned()
+                } else {
+                    "Language changed.".to_owned()
+                };
+                self.save_preferences();
+            }
+        });
 
         ui.add_space(12.0);
         ui.horizontal(|ui| {

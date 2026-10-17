@@ -124,9 +124,7 @@ impl DesktopApp {
                         ui.set_width(SIDEBAR_WIDTH - 2.0 * SIDEBAR_PADDING);
                         match self.active_page {
                             DesktopPage::Library => self.show_library_sidebar(ui, palette),
-                            DesktopPage::Settings => {
-                                self.show_settings_sidebar(ui, palette)
-                            }
+                            DesktopPage::Settings => self.show_settings_sidebar(ui, palette),
                             _ => {}
                         }
                     });
