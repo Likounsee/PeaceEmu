@@ -26,41 +26,25 @@ impl DesktopApp {
                 ui.columns(2, |columns| {
                     columns[0].vertical(|ui| {
                         ui.label(
-                            egui::RichText::new(if french {
-                                "VOTRE ESPACE D’ÉMULATION"
-                            } else {
-                                "YOUR EMULATION WORKSPACE"
-                            })
+                            egui::RichText::new(self.language_pack.text("ui.home_page.001"))
                             .size(11.0)
                             .strong()
                             .color(accent),
                         );
                         ui.add_space(8.0);
                         ui.heading(
-                            egui::RichText::new(if french {
-                                "Vos jeux. Un seul endroit."
-                            } else {
-                                "Your games. One place."
-                            })
+                            egui::RichText::new(self.language_pack.text("ui.home_page.002"))
                             .size(28.0)
                             .strong(),
                         );
                         ui.add_space(4.0);
-                        ui.label(if french {
-                            "Organisez votre bibliothèque et retrouvez vos sessions en un instant."
-                        } else {
-                            "Organize your library and get back to your sessions in seconds."
-                        });
+                        ui.label(self.language_pack.text("ui.home_page.003"));
                         ui.add_space(16.0);
                         ui.horizontal_wrapped(|ui| {
                             if ui
                                 .add(
                                     egui::Button::new(
-                                        egui::RichText::new(if french {
-                                            "Importer des jeux"
-                                        } else {
-                                            "Import games"
-                                        })
+                                        egui::RichText::new(self.language_pack.text("ui.home_page.004"))
                                         .strong(),
                                     )
                                     .fill(accent)
@@ -72,11 +56,7 @@ impl DesktopApp {
                             }
                             if ui
                                 .add(
-                                    egui::Button::new(if french {
-                                        "Ouvrir la bibliothèque"
-                                    } else {
-                                        "Open library"
-                                    })
+                                    egui::Button::new(self.language_pack.text("ui.home_page.005"))
                                     .min_size(egui::vec2(150.0, 38.0)),
                                 )
                                 .clicked()
@@ -99,21 +79,13 @@ impl DesktopApp {
                                 ui.horizontal(|ui| {
                                     ui.vertical(|ui| {
                                         ui.label(
-                                            egui::RichText::new(if french {
-                                                "PRÊT À JOUER"
-                                            } else {
-                                                "READY TO PLAY"
-                                            })
+                                            egui::RichText::new(self.language_pack.text("ui.home_page.006"))
                                             .size(10.0)
                                             .strong()
                                             .color(accent),
                                         );
                                         ui.label(
-                                            egui::RichText::new(if french {
-                                                "Votre collection"
-                                            } else {
-                                                "Your collection"
-                                            })
+                                            egui::RichText::new(self.language_pack.text("ui.home_page.007"))
                                             .size(15.0)
                                             .strong(),
                                         );
@@ -165,11 +137,7 @@ impl DesktopApp {
                                 ui.label(
                                     egui::RichText::new(if self.controller.session_count() > 0 {
                                         "Session active"
-                                    } else if french {
-                                        "Aucune session en cours"
-                                    } else {
-                                        "No active session"
-                                    })
+                                    } else self.language_pack.text("ui.home_page.008"))
                                     .size(11.0)
                                     .color(muted),
                                 );
@@ -183,31 +151,19 @@ impl DesktopApp {
         // At-a-glance metrics
         let metrics = [
             (
-                if french { "BIBLIOTHÈQUE" } else { "LIBRARY" },
+                self.language_pack.text("ui.home_page.009"),
                 self.controller.library().len().to_string(),
-                if french {
-                    "jeux importés"
-                } else {
-                    "imported items"
-                },
+                self.language_pack.text("ui.home_page.010"),
             ),
             (
                 "SESSIONS",
                 self.controller.session_count().to_string(),
-                if french {
-                    "sessions ouvertes"
-                } else {
-                    "open sessions"
-                },
+                self.language_pack.text("ui.home_page.011"),
             ),
             (
-                if french { "SYSTÈMES" } else { "SYSTEMS" },
+                self.language_pack.text("ui.home_page.012"),
                 self.registry.system_ids().count().to_string(),
-                if french {
-                    "cœurs enregistrés"
-                } else {
-                    "registered cores"
-                },
+                self.language_pack.text("ui.home_page.013"),
             ),
         ];
         let columns = if ui.available_width() < 620.0 { 1 } else { 3 };
@@ -232,18 +188,10 @@ impl DesktopApp {
 
         ui.add_space(18.0);
         ui.horizontal_wrapped(|ui| {
-            ui.heading(if french {
-                "Reprendre"
-            } else {
-                "Pick up where you left off"
-            });
+            ui.heading(self.language_pack.text("ui.home_page.014"));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .link(if french {
-                        "Toute la bibliothèque"
-                    } else {
-                        "View library"
-                    })
+                    .link(self.language_pack.text("ui.home_page.015"))
                     .clicked()
                 {
                     self.navigate_to(DesktopPage::Library);
@@ -275,26 +223,14 @@ impl DesktopApp {
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
                             ui.label(
-                                egui::RichText::new(if french {
-                                    "Votre bibliothèque commence ici"
-                                } else {
-                                    "Your library starts here"
-                                })
+                                egui::RichText::new(self.language_pack.text("ui.home_page.016"))
                                 .strong()
                                 .size(16.0),
                             );
-                            ui.label(if french {
-                                "Importez une ROM .gb ou .gbc pour l’ajouter à votre collection."
-                            } else {
-                                "Import a .gb or .gbc ROM to add it to your collection."
-                            });
+                            ui.label(self.language_pack.text("ui.home_page.017"));
                             ui.add_space(6.0);
                             if ui
-                                .button(if french {
-                                    "Parcourir les fichiers…"
-                                } else {
-                                    "Browse files…"
-                                })
+                                .button(self.language_pack.text("ui.home_page.018"))
                                 .clicked()
                             {
                                 self.choose_content_file();
@@ -337,7 +273,7 @@ impl DesktopApp {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     if ui
-                                        .button(if french { "Lancer" } else { "Launch" })
+                                        .button(self.language_pack.text("ui.home_page.019"))
                                         .clicked()
                                     {
                                         self.content_path = path.display().to_string();
@@ -362,19 +298,11 @@ impl DesktopApp {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new(if french { "ÉTAT DU PROJET" } else { "PROJECT STATUS" })
+                        ui.label(egui::RichText::new(self.language_pack.text("ui.home_page.020"))
                             .size(10.0).strong().color(muted));
                         ui.add_space(4.0);
-                        ui.label(egui::RichText::new(if french {
-                            "Développement en cours"
-                        } else {
-                            "Actively in development"
-                        }).strong().size(15.0));
-                        ui.label(if french {
-                            "La bibliothèque et la gestion des sessions sont disponibles. La compatibilité dépend des cœurs intégrés."
-                        } else {
-                            "Library and session management are available. Compatibility depends on the cores included in this build."
-                        });
+                        ui.label(egui::RichText::new(self.language_pack.text("ui.home_page.021")).strong().size(15.0));
+                        ui.label(self.language_pack.text("ui.home_page.022"));
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         egui::Frame::none()
@@ -382,7 +310,7 @@ impl DesktopApp {
                             .rounding(egui::Rounding::same(20.0))
                             .inner_margin(egui::Margin { left: 10.0, right: 10.0, top: 6.0, bottom: 6.0 })
                             .show(ui, |ui| {
-                                ui.label(egui::RichText::new(if french { "EXPÉRIMENTAL" } else { "EXPERIMENTAL" })
+                                ui.label(egui::RichText::new(self.language_pack.text("ui.home_page.023"))
                                     .size(10.0).strong().color(accent));
                             });
                     });

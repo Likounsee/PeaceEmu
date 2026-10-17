@@ -6,14 +6,14 @@ impl DesktopApp {
     pub(super) fn show_game(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_wrapped(|ui| {
             ui.vertical(|ui| {
-                ui.heading(if self.language == "fr" { "Moniteur de session" } else { "Session monitor" });
-                ui.label(if self.language == "fr" { "Consultez le cycle de vie des sessions et les capacités multimédias. Cette version ne permet pas encore de jouer aux jeux Game Boy." } else { "Inspect session lifecycle and media capabilities. This build does not yet provide playable Game Boy emulation." });
+                ui.heading(self.language_pack.text("ui.game_page.001"));
+                ui.label(self.language_pack.text("ui.game_page.002"));
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(if self.language == "fr" { "Gérer les sessions" } else { "Manage sessions" }).clicked() {
+                if ui.button(self.language_pack.text("ui.game_page.003")).clicked() {
                     self.navigate_to(DesktopPage::Sessions);
                 }
-                if ui.button(if self.language == "fr" { "Ouvrir la bibliothèque" } else { "Open library" }).clicked() {
+                if ui.button(self.language_pack.text("ui.game_page.004")).clicked() {
                     self.navigate_to(DesktopPage::Library);
                 }
             });
@@ -45,52 +45,32 @@ impl DesktopApp {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if state == SessionState::Running
                                 && ui
-                                    .button(if self.language == "fr" {
-                                        "Mettre en pause"
-                                    } else {
-                                        "Pause"
-                                    })
+                                    .button(self.language_pack.text("ui.game_page.005"))
                                     .clicked()
                             {
                                 self.session_action(id, SessionAction::Pause);
                             } else if state == SessionState::Paused
                                 && ui
-                                    .button(if self.language == "fr" {
-                                        "Reprendre"
-                                    } else {
-                                        "Resume"
-                                    })
+                                    .button(self.language_pack.text("ui.game_page.006"))
                                     .clicked()
                             {
                                 self.session_action(id, SessionAction::Resume);
                             }
                             if content_loaded && save_states {
                                 if ui
-                                    .button(if self.language == "fr" {
-                                        "Sauvegarder l’état"
-                                    } else {
-                                        "Save"
-                                    })
+                                    .button(self.language_pack.text("ui.game_page.007"))
                                     .clicked()
                                 {
                                     self.save_state_action(id);
                                 }
                                 if ui
-                                    .button(if self.language == "fr" {
-                                        "Charger l’état"
-                                    } else {
-                                        "Load state"
-                                    })
+                                    .button(self.language_pack.text("ui.game_page.008"))
                                     .clicked()
                                 {
                                     self.load_state_action(id);
                                 }
                                 if ui
-                                    .button(if self.language == "fr" {
-                                        "Arrêter et sauvegarder"
-                                    } else {
-                                        "Stop and Save"
-                                    })
+                                    .button(self.language_pack.text("ui.game_page.009"))
                                     .clicked()
                                 {
                                     self.session_action(id, SessionAction::StopAndSave);
@@ -99,22 +79,14 @@ impl DesktopApp {
                             if content_loaded
                                 && persistent_saves
                                 && ui
-                                    .button(if self.language == "fr" {
-                                        "Sauvegarder la partie"
-                                    } else {
-                                        "Save game"
-                                    })
+                                    .button(self.language_pack.text("ui.game_page.010"))
                                     .clicked()
                             {
                                 self.save_game_data_action(id);
                             }
                             if state != SessionState::Empty
                                 && ui
-                                    .button(if self.language == "fr" {
-                                        "Réinitialiser"
-                                    } else {
-                                        "Reset"
-                                    })
+                                    .button(self.language_pack.text("ui.game_page.011"))
                                     .clicked()
                             {
                                 self.session_action(id, SessionAction::Reset);
@@ -124,50 +96,22 @@ impl DesktopApp {
                     ui.separator();
                     ui.horizontal_wrapped(|ui| {
                         ui.label(if summary.video_available {
-                            if self.language == "fr" {
-                                "Vidéo : disponible"
-                            } else {
-                                "Video: available"
-                            }
+                            self.language_pack.text("ui.game_page.012")
                         } else {
-                            if self.language == "fr" {
-                                "Vidéo : non implémentée par ce cœur"
-                            } else {
-                                "Video: not implemented by this core"
-                            }
+                            self.language_pack.text("ui.game_page.013")
                         });
                         ui.separator();
                         ui.label(if summary.audio_available {
-                            if self.language == "fr" {
-                                "Audio : sortie du cœur déclarée ; lecture intégrée"
-                            } else {
-                                "Audio: core output declared; host playback integrated"
-                            }
+                            self.language_pack.text("ui.game_page.014")
                         } else {
-                            if self.language == "fr" {
-                                "Audio : indisponible"
-                            } else {
-                                "Audio: unavailable"
-                            }
+                            self.language_pack.text("ui.game_page.015")
                         });
                         ui.separator();
                         ui.label(if summary.persistent_saves {
-                            if self.language == "fr" {
-                                "Sauvegardes en jeu : disponibles"
-                            } else {
-                                "In-game saves: available"
-                            }
-                        } else if self.language == "fr" {
-                            "Sauvegardes en jeu : non prises en charge"
-                        } else {
-                            "In-game saves: not supported by this core"
-                        });
+                            self.language_pack.text("ui.game_page.016")
+                        } else self.language_pack.text("ui.game_page.017"));
                         ui.separator();
-                        ui.label(if self.language == "fr" {
-                            "Entrée : clavier activé si pris en charge"
-                        } else {
-                            "Input: keyboard mapping enabled when supported"
-                        });
+                        ui.label(self.language_pack.text("ui.game_page.018"));
                     });
                 });
         } else {
@@ -175,9 +119,9 @@ impl DesktopApp {
                 .rounding(egui::Rounding::same(12.0))
                 .inner_margin(egui::Margin::same(14.0))
                 .show(ui, |ui| {
-                ui.heading(if self.language == "fr" { "Aucune session de jeu active" } else { "No active game session" });
-                ui.label(if self.language == "fr" { "Importez un fichier .gb ou .gbc et ouvrez une session pour tester le prototype actuel." } else { "Import a local .gb or .gbc file and open a session to inspect the current prototype workflow." });
-                if ui.button(if self.language == "fr" { "Ouvrir la bibliothèque" } else { "Browse library" }).clicked() {
+                ui.heading(self.language_pack.text("ui.game_page.019"));
+                ui.label(self.language_pack.text("ui.game_page.020"));
+                if ui.button(self.language_pack.text("ui.game_page.021")).clicked() {
                     self.navigate_to(DesktopPage::Library);
                 }
             });
@@ -266,45 +210,25 @@ impl DesktopApp {
                                 egui::Color32::from_rgb(83, 171, 137),
                             );
                             ui.add_space(10.0);
-                            ui.label(egui::RichText::new(if self.language == "fr" {
-                                "APERÇU DU MONITEUR"
-                            } else {
-                                "MONITOR PREVIEW"
-                            }).size(10.0).strong().color(ui.visuals().weak_text_color()));
+                            ui.label(egui::RichText::new(self.language_pack.text("ui.game_page.022")).size(10.0).strong().color(ui.visuals().weak_text_color()));
                         });
                         columns[1].vertical(|ui| {
                             ui.add_space(14.0);
-                            ui.label(egui::RichText::new(if self.language == "fr" {
-                                "EN ATTENTE DU CŒUR"
-                            } else {
-                                "WAITING FOR CORE"
-                            }).size(10.0).strong().color(self.accent_color));
+                            ui.label(egui::RichText::new(self.language_pack.text("ui.game_page.023")).size(10.0).strong().color(self.accent_color));
                             ui.add_space(6.0);
-                            ui.heading(if self.language == "fr" {
-                                "Votre écran de jeu apparaîtra ici"
-                            } else {
-                                "Your game display will appear here"
-                            });
+                            ui.heading(self.language_pack.text("ui.game_page.024"));
                             ui.add_space(6.0);
-                            ui.label(if self.language == "fr" {
-                                "Le cœur Game Boy actuel n’émet pas encore les images nécessaires à une session jouable."
-                            } else {
-                                "The current Game Boy core does not yet emit the frames needed for playable sessions."
-                            });
+                            ui.label(self.language_pack.text("ui.game_page.025"));
                             ui.add_space(14.0);
                             egui::Frame::group(ui.style())
                                 .rounding(egui::Rounding::same(9.0))
                                 .inner_margin(egui::Margin::same(12.0))
                                 .show(ui, |ui| {
-                                    ui.label(egui::RichText::new(if self.language == "fr" {
-                                        "COMMANDES PRÉVUES"
-                                    } else {
-                                        "PLANNED CONTROLS"
-                                    }).size(10.0).strong());
+                                    ui.label(egui::RichText::new(self.language_pack.text("ui.game_page.026")).size(10.0).strong());
                                     ui.add_space(8.0);
                                     ui.horizontal_wrapped(|ui| {
                                         for (key, action) in [
-                                            (if self.language == "fr" { "Flèches directionnelles" } else { "Arrow keys" }, if self.language == "fr" { "Déplacement" } else { "Move" }),
+                                            (self.language_pack.text("ui.game_page.027"), self.language_pack.text("ui.game_page.028")),
                                             ("Z / X", "Action"),
                                             ("Entrée", "Start"),
                                             ("Retour", "Select"),
@@ -323,13 +247,9 @@ impl DesktopApp {
         });
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
-            ui.label(if self.language == "fr" {
-                "État des médias :"
-            } else {
-                "Media status:"
-            });
+            ui.label(self.language_pack.text("ui.game_page.029"));
             ui.label(&self.media_status);
         });
-        ui.small(if self.language == "fr" { "Les commandes clavier sont transmises sous forme de transitions sémantiques uniquement si le cœur prend en charge les entrées. Le son est lu lorsque le cœur émet du PCM et qu’un périphérique audio est disponible." } else { "Keyboard controls are forwarded as semantic input transitions only when the core declares input support. Audio plays when the core emits PCM and a host output device is available." });
+        ui.small(self.language_pack.text("ui.game_page.030"));
     }
 }

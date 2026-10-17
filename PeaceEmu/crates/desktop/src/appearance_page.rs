@@ -80,16 +80,12 @@ impl DesktopApp {
         let previous_accent_color = self.accent_color;
 
         ui.label(
-            egui::RichText::new(if french { "Apparence" } else { "Appearance" })
+            egui::RichText::new(self.language_pack.text("ui.appearance_page.001"))
                 .size(30.0)
                 .strong(),
         );
         ui.label(
-            egui::RichText::new(if french {
-                "Modifiez l’aspect d’PeaceEmu sur cet ordinateur. Vos choix sont enregistrés localement."
-            } else {
-                "Change how PeaceEmu looks on this computer. Your choices are saved locally."
-            })
+            egui::RichText::new(self.language_pack.text("ui.appearance_page.002"))
             .color(palette.text_dim),
         );
         ui.add_space(8.0);
@@ -98,22 +94,14 @@ impl DesktopApp {
         theme::setting_row(
             ui,
             &palette,
-            if french {
-                "Thème de l’interface"
-            } else {
-                "Interface theme"
-            },
-            if french {
-                "Choisissez le mode clair ou sombre."
-            } else {
-                "Choose the light or dark appearance."
-            },
+            self.language_pack.text("ui.appearance_page.003"),
+            self.language_pack.text("ui.appearance_page.004"),
             |ui| {
                 let accent = self.accent_color;
                 ui.horizontal(|ui| {
                     for (dark, label) in [
-                        (false, if french { "Clair" } else { "Light" }),
-                        (true, if french { "Sombre" } else { "Dark" }),
+                        (false, self.language_pack.text("ui.appearance_page.005")),
+                        (true, self.language_pack.text("ui.appearance_page.006")),
                     ] {
                         ui.vertical(|ui| {
                             let selected = self.dark_mode == dark;
@@ -137,16 +125,8 @@ impl DesktopApp {
         theme::setting_row(
             ui,
             &palette,
-            if french {
-                "Couleur d’accentuation"
-            } else {
-                "Accent colour"
-            },
-            if french {
-                "Utilisée pour les boutons et les sélections."
-            } else {
-                "Used for buttons and selections."
-            },
+            self.language_pack.text("ui.appearance_page.007"),
+            self.language_pack.text("ui.appearance_page.008"),
             |ui| {
                 ui.horizontal_wrapped(|ui| {
                     for (name, color) in ACCENT_PRESETS {
@@ -168,7 +148,7 @@ impl DesktopApp {
                     }
                 });
                 ui.horizontal(|ui| {
-                    ui.label(if french { "Personnalisée" } else { "Custom" });
+                    ui.label(self.language_pack.text("ui.appearance_page.009"));
                     ui.color_edit_button_srgba(&mut self.accent_color);
                     ui.monospace(format!(
                         "#{:02X}{:02X}{:02X}",
@@ -183,24 +163,12 @@ impl DesktopApp {
         theme::setting_row(
             ui,
             &palette,
-            if french {
-                "Langue de l’application"
-            } else {
-                "Application language"
-            },
-            if french {
-                "Langue des menus et des messages."
-            } else {
-                "Language of menus and messages."
-            },
+            self.language_pack.text("ui.appearance_page.010"),
+            self.language_pack.text("ui.appearance_page.011"),
             |ui| {
                 let previous_language = self.language.clone();
                 egui::ComboBox::from_id_source("application-language")
-                    .selected_text(if self.language == "fr" {
-                        "Français"
-                    } else {
-                        "English"
-                    })
+                    .selected_text(self.language_pack.text("ui.appearance_page.012"))
                     .width(200.0)
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut self.language, "fr".to_owned(), "Français");
@@ -220,11 +188,7 @@ impl DesktopApp {
         ui.add_space(12.0);
         ui.horizontal(|ui| {
             if ui
-                .button(if french {
-                    "Rétablir les valeurs par défaut"
-                } else {
-                    "Reset to defaults"
-                })
+                .button(self.language_pack.text("ui.appearance_page.013"))
                 .clicked()
             {
                 self.dark_mode = true;
@@ -232,11 +196,7 @@ impl DesktopApp {
                 self.ui_scale = 1.0;
             }
             ui.label(
-                egui::RichText::new(if french {
-                    "Les changements s’appliquent immédiatement."
-                } else {
-                    "Changes apply immediately."
-                })
+                egui::RichText::new(self.language_pack.text("ui.appearance_page.014"))
                 .size(13.0)
                 .color(palette.text_dim),
             );
