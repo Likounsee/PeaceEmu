@@ -234,8 +234,8 @@ impl DesktopApp {
             if update_state == UpdateState::Available && !has_download {
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.settings_page.010"))
-                    .size(13.0)
-                    .color(palette.text_dim),
+                        .size(13.0)
+                        .color(palette.text_dim),
                 );
             }
 
@@ -256,10 +256,7 @@ impl DesktopApp {
                     true,
                 );
                 if let Some(url) = release_notes_url.as_ref() {
-                    ui.hyperlink_to(
-                        self.language_pack.text("ui.settings_page.013"),
-                        url,
-                    );
+                    ui.hyperlink_to(self.language_pack.text("ui.settings_page.013"), url);
                 }
             }
             if let Some(path) = self.staged_update_path.as_ref() {
@@ -273,14 +270,14 @@ impl DesktopApp {
                 );
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.settings_page.015"))
-                    .size(13.0)
-                    .color(palette.text_dim),
+                        .size(13.0)
+                        .color(palette.text_dim),
                 );
             }
             ui.label(
                 egui::RichText::new(self.language_pack.text("ui.settings_page.016"))
-                .size(12.0)
-                .color(palette.text_dim),
+                    .size(12.0)
+                    .color(palette.text_dim),
             );
         });
 

@@ -120,11 +120,8 @@ mod tests {
         let directory = temporary_directory();
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("actual.json"), "{}").unwrap();
-        std::os::unix::fs::symlink(
-            directory.join("actual.json"),
-            directory.join("en.json"),
-        )
-        .unwrap();
+        std::os::unix::fs::symlink(directory.join("actual.json"), directory.join("en.json"))
+            .unwrap();
 
         assert_eq!(
             LanguagePack::load_from_directory("en", &directory)
