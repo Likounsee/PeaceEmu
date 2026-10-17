@@ -4,7 +4,6 @@ use super::*;
 
 impl DesktopApp {
     pub(super) fn show_home(&mut self, ui: &mut egui::Ui) {
-        let french = self.language == "fr";
         let accent = self.accent_color;
         let panel = ui.visuals().faint_bg_color;
         let border = ui.visuals().widgets.noninteractive.bg_stroke;

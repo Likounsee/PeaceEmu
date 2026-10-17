@@ -28,12 +28,11 @@ impl DesktopPage {
 impl DesktopApp {
     pub(super) fn show_shell(&mut self, context: &egui::Context) {
         let palette = Palette::new(self.dark_mode, self.accent_color);
-        let french = self.language == "fr";
-        self.show_rail(context, &palette, french);
-        self.show_context_sidebar(context, &palette, french);
+        self.show_rail(context, &palette);
+        self.show_context_sidebar(context, &palette);
     }
 
-    fn show_rail(&mut self, context: &egui::Context, palette: &Palette, french: bool) {
+    fn show_rail(&mut self, context: &egui::Context, palette: &Palette) {
         egui::SidePanel::left("rail")
             .resizable(false)
             .exact_width(RAIL_WIDTH)
@@ -104,7 +103,7 @@ impl DesktopApp {
             });
     }
 
-    fn show_context_sidebar(&mut self, context: &egui::Context, palette: &Palette, french: bool) {
+    fn show_context_sidebar(&mut self, context: &egui::Context, palette: &Palette) {
         let visible = self.sidebar_open && self.active_page.has_sidebar();
         // The sidebar only ever changes width: it slides open and closed sideways.
         let openness =
@@ -124,9 +123,9 @@ impl DesktopApp {
                     .show(ui, |ui| {
                         ui.set_width(SIDEBAR_WIDTH - 2.0 * SIDEBAR_PADDING);
                         match self.active_page {
-                            DesktopPage::Library => self.show_library_sidebar(ui, palette, french),
+                            DesktopPage::Library => self.show_library_sidebar(ui, palette),
                             DesktopPage::Settings => {
-                                self.show_settings_sidebar(ui, palette, french)
+                                self.show_settings_sidebar(ui, palette)
                             }
                             _ => {}
                         }
@@ -134,7 +133,7 @@ impl DesktopApp {
             });
     }
 
-    fn show_library_sidebar(&mut self, ui: &mut egui::Ui, palette: &Palette, french: bool) {
+    fn show_library_sidebar(&mut self, ui: &mut egui::Ui, palette: &Palette) {
         let mut all = 0usize;
         let mut game_boy = 0usize;
         let mut game_boy_color = 0usize;
@@ -187,7 +186,7 @@ impl DesktopApp {
         }
     }
 
-    fn show_settings_sidebar(&mut self, ui: &mut egui::Ui, palette: &Palette, french: bool) {
+    fn show_settings_sidebar(&mut self, ui: &mut egui::Ui, palette: &Palette) {
         ui.label(
             egui::RichText::new(self.language_pack.text("ui.shell.006"))
                 .size(18.0)

@@ -74,7 +74,6 @@ fn paint_theme_preview(
 impl DesktopApp {
     pub(super) fn show_appearance(&mut self, ui: &mut egui::Ui) {
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
-        let french = self.language == "fr";
         let previous_dark_mode = self.dark_mode;
         let previous_ui_scale = self.ui_scale;
         let previous_accent_color = self.accent_color;
@@ -160,11 +159,13 @@ impl DesktopApp {
             },
         );
 
+        let language_label = self.language_pack.text("ui.appearance_page.010").to_owned();
+        let language_description = self.language_pack.text("ui.appearance_page.011").to_owned();
         theme::setting_row(
             ui,
             &palette,
-            self.language_pack.text("ui.appearance_page.010"),
-            self.language_pack.text("ui.appearance_page.011"),
+            &language_label,
+            &language_description,
             |ui| {
                 let previous_language = self.language.clone();
                 egui::ComboBox::from_id_source("application-language")

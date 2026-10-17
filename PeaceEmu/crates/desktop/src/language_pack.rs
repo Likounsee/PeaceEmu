@@ -60,7 +60,7 @@ impl LanguagePack {
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
     }
 
-    pub(crate) fn text(&self, key: &str) -> &str {
+    pub(crate) fn text<'a>(&'a self, key: &'a str) -> &'a str {
         self.strings.get(key).map(String::as_str).unwrap_or(key)
     }
 }
