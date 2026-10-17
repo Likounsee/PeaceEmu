@@ -1,13 +1,12 @@
 # PeaceEmu
 
 <p align="center">
-  <img src="PeaceEmu/crates/desktop/assets/peaceemu-logo.png" alt="PeaceEmu" width="420">
+  <img src="PeaceEmu/crates/desktop/assets/branding/bird + text.png" alt="PeaceEmu" width="420">
 </p>
 
 <p align="center"><strong>A modular multi-console emulation project.</strong></p>
 
 **PeaceEmu is an in-development, modular multi-console emulation project.** Its long-term goal is to host independently testable emulation cores behind a shared application and tooling layer. The repository is at the foundation stage; no console is claimed as supported until a real core and reproducible tests demonstrate that support.
-
 
 ## Goals
 
