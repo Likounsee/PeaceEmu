@@ -1,4 +1,5 @@
 //! Runtime-loaded language packs. Translation data stays outside the executable.
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,31 +16,48 @@ impl LanguagePack {
     pub(crate) fn load(language: &str) -> Self {
         let language = if language == "fr" { "fr" } else { "en" };
         let mut candidates = Vec::new();
-        if let Ok(executable) = std::env::current_exe() {
-            if let Some(directory) = executable.parent() {
-                candidates.push(directory.join("languages"));
-            }
+        if let Some(directory) = std::env::current_exe()
+            .ok()
+            .and_then(|executable| executable.parent().map(Path::to_path_buf))
+        {
+            candidates.push(directory.join("languages"));
         }
         candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/languages"));
+
         for directory in candidates {
             if let Ok(strings) = Self::load_from_directory(language, &directory) {
                 return Self { strings };
             }
         }
-        Self { strings: HashMap::new() }
+
+        Self {
+            strings: HashMap::new(),
+        }
     }
 
-    fn load_from_directory(language: &str, directory: &Path) -> std::io::Result<HashMap<String, String>> {
+    fn load_from_directory(
+        language: &str,
+        directory: &Path,
+    ) -> std::io::Result<HashMap<String, String>> {
         let path = directory.join(format!("{language}.json"));
         let metadata = fs::symlink_metadata(&path)?;
         if !metadata.file_type().is_file() || metadata.len() > MAX_LANGUAGE_PACK_BYTES {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "language pack must be a regular file no larger than 1 MiB"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "language pack must be a regular file no larger than 1 MiB",
+            ));
         }
+
         let bytes = fs::read(&path)?;
         if bytes.len() as u64 > MAX_LANGUAGE_PACK_BYTES {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "language pack exceeds the 1 MiB limit"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "language pack exceeds the 1 MiB limit",
+            ));
         }
-        serde_json::from_slice(&bytes).map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+
+        serde_json::from_slice(&bytes)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
     }
 
     pub(crate) fn text(&self, key: &str) -> &str {
@@ -53,16 +71,29 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temporary_directory() -> PathBuf {
-        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
-        std::env::temp_dir().join(format!("peaceemu-language-pack-{}-{nonce}", std::process::id()))
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "peaceemu-language-pack-{}-{nonce}",
+            std::process::id()
+        ))
     }
 
     #[test]
     fn reads_translations_from_an_external_json_file() {
         let directory = temporary_directory();
         fs::create_dir_all(&directory).unwrap();
-        fs::write(directory.join("fr.json"), r#"{"settings.application.title":"Application"}"#).unwrap();
-        let pack = LanguagePack { strings: LanguagePack::load_from_directory("fr", &directory).unwrap() };
+        fs::write(
+            directory.join("fr.json"),
+            r#"{"settings.application.title":"Application"}"#,
+        )
+        .unwrap();
+
+        let pack = LanguagePack {
+            strings: LanguagePack::load_from_directory("fr", &directory).unwrap(),
+        };
         assert_eq!(pack.text("settings.application.title"), "Application");
         assert_eq!(pack.text("missing.key"), "missing.key");
         fs::remove_dir_all(directory).unwrap();
@@ -73,7 +104,13 @@ mod tests {
         let directory = temporary_directory();
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("en.json"), "{not-json").unwrap();
-        assert_eq!(LanguagePack::load_from_directory("en", &directory).unwrap_err().kind(), std::io::ErrorKind::InvalidData);
+
+        assert_eq!(
+            LanguagePack::load_from_directory("en", &directory)
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::InvalidData
+        );
         fs::remove_dir_all(directory).unwrap();
     }
 
@@ -83,8 +120,18 @@ mod tests {
         let directory = temporary_directory();
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("actual.json"), "{}").unwrap();
-        std::os::unix::fs::symlink(directory.join("actual.json"), directory.join("en.json")).unwrap();
-        assert_eq!(LanguagePack::load_from_directory("en", &directory).unwrap_err().kind(), std::io::ErrorKind::InvalidData);
+        std::os::unix::fs::symlink(
+            directory.join("actual.json"),
+            directory.join("en.json"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            LanguagePack::load_from_directory("en", &directory)
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::InvalidData
+        );
         fs::remove_dir_all(directory).unwrap();
     }
 }

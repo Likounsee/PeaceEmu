@@ -68,12 +68,8 @@ impl DesktopApp {
 
         ui.label(egui::RichText::new(self.language_pack.text("settings.application.title")).size(30.0).strong());
         ui.label(
-            egui::RichText::new(if french {
-                self.language_pack.text("settings.application.description")
-            } else {
-                self.language_pack.text("settings.application.description")
-            })
-            .color(palette.text_dim),
+            egui::RichText::new(self.language_pack.text("settings.application.description"))
+                .color(palette.text_dim),
         );
         ui.add_space(8.0);
         ui.separator();
@@ -82,12 +78,8 @@ impl DesktopApp {
         section_heading(
             ui,
             &palette,
-            if french { self.language_pack.text("settings.about.title") } else { self.language_pack.text("settings.about.title") },
-            if french {
-                self.language_pack.text("settings.about.description")
-            } else {
-                self.language_pack.text("settings.about.description")
-            },
+            self.language_pack.text("settings.about.title"),
+            self.language_pack.text("settings.about.description"),
         );
         theme::card(ui, &palette, |ui| {
             ui.set_width(ui.available_width());
@@ -98,30 +90,18 @@ impl DesktopApp {
                         theme::badge(ui, &format!("v{current}"), palette.text_dim);
                         theme::badge(
                             ui,
-                            if french {
-                                self.language_pack.text("status.experimental")
-                            } else {
-                                self.language_pack.text("status.experimental")
-                            },
+                            self.language_pack.text("status.experimental"),
                             palette.warning,
                         );
                     });
                     ui.label(
-                        egui::RichText::new(if french {
-                            self.language_pack.text("about.development")
-                        } else {
-                            self.language_pack.text("about.development")
-                        })
+                        egui::RichText::new(self.language_pack.text("about.development"))
                         .color(palette.text_dim),
                     );
                 });
             });
             ui.add_space(6.0);
-            ui.label(if french {
-                self.language_pack.text("about.core_notice")
-            } else {
-                self.language_pack.text("about.core_notice")
-            });
+            ui.label(self.language_pack.text("about.core_notice"));
             ui.label(
                 egui::RichText::new(if french {
                     "Les chemins de la bibliothèque et les préférences visuelles sont enregistrés dans votre configuration utilisateur."
@@ -133,19 +113,11 @@ impl DesktopApp {
             );
             ui.add_space(4.0);
             if ui
-                .button(if french {
-                    self.language_pack.text("settings.save")
-                } else {
-                    self.language_pack.text("settings.save")
-                })
+                .button(self.language_pack.text("settings.save"))
                 .clicked()
                 && self.save_preferences()
             {
-                self.message = if french {
-                    self.language_pack.text("settings.saved").to_owned()
-                } else {
-                    self.language_pack.text("settings.saved").to_owned()
-                };
+                self.message = self.language_pack.text("settings.saved").to_owned();
             }
         });
 
