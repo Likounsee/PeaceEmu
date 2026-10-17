@@ -678,6 +678,42 @@ mod tests {
     }
 
     #[test]
+    fn detail_status_labels_are_localized_and_do_not_overstate_validation() {
+        assert_eq!(
+            super::availability_label(ContentAvailability::Available, true),
+            "Fichier trouvé · validation au lancement"
+        );
+        assert_eq!(
+            super::availability_label(ContentAvailability::Available, false),
+            "File found · validated at launch"
+        );
+        assert_eq!(
+            super::availability_label(ContentAvailability::Missing, true),
+            "Introuvable · à réimporter"
+        );
+        assert_eq!(
+            super::availability_label(ContentAvailability::Missing, false),
+            "Missing · re-import required"
+        );
+        assert_eq!(
+            super::availability_label(ContentAvailability::NotRegularFile, true),
+            "Indisponible · ce n’est pas un fichier"
+        );
+        assert_eq!(
+            super::availability_label(ContentAvailability::NotRegularFile, false),
+            "Unavailable · not a regular file"
+        );
+        assert_eq!(
+            super::availability_label(ContentAvailability::Unavailable, true),
+            "Indisponible · lecture impossible"
+        );
+        assert_eq!(
+            super::availability_label(ContentAvailability::Unavailable, false),
+            "Unavailable · cannot inspect file"
+        );
+    }
+
+    #[test]
     fn path_availability_classifies_files_directories_and_missing_paths() {
         let missing = unique_temp_path("availability-missing");
         assert_eq!(path_availability(&missing), ContentAvailability::Missing);
