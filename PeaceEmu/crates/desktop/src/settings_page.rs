@@ -92,17 +92,6 @@ impl DesktopApp {
         theme::card(ui, &palette, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                let (slot, _) =
-                    ui.allocate_exact_size(egui::vec2(56.0, 56.0), egui::Sense::hover());
-                ui.painter()
-                    .rect_filled(slot, egui::Rounding::same(14.0), palette.accent);
-                ui.painter().text(
-                    slot.center(),
-                    egui::Align2::CENTER_CENTER,
-                    "A",
-                    egui::FontId::proportional(30.0),
-                    palette.on_accent,
-                );
                 ui.vertical(|ui| {
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new("PeaceEmu").size(20.0).strong());
