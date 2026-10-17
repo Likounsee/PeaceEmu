@@ -300,8 +300,8 @@ impl DesktopApp {
             });
             ui.label(
                 egui::RichText::new(self.language_pack.text("ui.settings_page.021"))
-                .size(13.0)
-                .color(palette.text_dim),
+                    .size(13.0)
+                    .color(palette.text_dim),
             );
         });
 
