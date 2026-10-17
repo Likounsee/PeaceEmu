@@ -54,7 +54,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let app = DesktopApp::new()?;
-    let icon_image = image::load_from_memory(include_bytes!("../assets/peaceemu-logo.png"))?.into_rgba8();
+    let icon_image = image::load_from_memory(include_bytes!(
+        "../assets/peaceemu-logo.png",
+    ))?
+    .into_rgba8();
     let (icon_width, icon_height) = (icon_image.width(), icon_image.height());
     let icon = egui::IconData {
         rgba: icon_image.into_raw(),
