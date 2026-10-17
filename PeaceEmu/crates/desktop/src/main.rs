@@ -511,21 +511,16 @@ impl DesktopApp {
             return;
         }
 
-        // Release held controls before creating/switching to another session. If this
-        // fails, abort the launch: reporting the failure after switching sessions could
-        // leave the previous session with logically held input and no safe recovery path.
-        if let Some(previous_id) = self.controller.active_session() {
-            if let Err(error) = self.controller.release_inputs(previous_id) {
-                self.message = if self.language == "fr" {
-                    format!("Lancement annulé : impossible de libérer les entrées de la session {} : {error}", previous_id.get())
-                } else {
-                    format!(
-                        "Launch cancelled: could not release inputs from session {}: {error}",
-                        previous_id.get()
-                    )
-                };
-                return;
-            }
+        // Release held controls in every session before creating/switching sessions.
+        // Input may have been sent to a non-active session earlier; failing to release
+        // that session before a launch could leave a control logically held.
+        if let Err(error) = self.release_game_inputs() {
+            self.message = if self.language == "fr" {
+                format!("Lancement annulé : impossible de libérer les entrées : {error}")
+            } else {
+                format!("Launch cancelled: could not release held inputs: {error}")
+            };
+            return;
         }
 
         #[cfg(feature = "game-boy-color-module")]
