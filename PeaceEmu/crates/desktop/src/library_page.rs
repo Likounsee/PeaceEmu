@@ -301,12 +301,9 @@ impl DesktopApp {
         ui.horizontal_wrapped(|ui| {
             for (title, path, size) in entries {
                 let selected = self.selected_content.as_ref() == Some(path);
-                let availability = self
-                    .controller
-                    .library()
-                    .get(path)
-                    .map(|entry| entry.availability())
-                    .unwrap_or_else(|| path_availability(path));
+                // Re-check the filesystem instead of trusting the library scan:
+                // files can be moved or removed while the library screen stays open.
+                let availability = path_availability(path);
                 let file_available = availability == ContentAvailability::Available;
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(card_width, 170.0), egui::Sense::click());
@@ -437,10 +434,10 @@ impl DesktopApp {
                 entry.availability(),
             )
         });
-        let file_available = metadata.as_ref().map_or_else(
-            || path.is_file(),
-            |meta| meta.4 == ContentAvailability::Available,
-        );
+        // Availability is deliberately live: cached scan results become stale if
+        // the user moves, removes, or replaces a ROM while this view is open.
+        let availability = path_availability(&path);
+        let file_available = availability == ContentAvailability::Available;
 
         theme::card(ui, palette, |ui| {
             let width = ui.available_width();
@@ -464,18 +461,15 @@ impl DesktopApp {
                 egui::RichText::new(format!("{extension} · {}", format_size(size)))
                     .color(palette.text_dim),
             );
-            match &metadata {
-                Some((_, _, _, _, availability)) => theme::badge(
-                    ui,
-                    availability_label(*availability, french),
-                    if *availability == ContentAvailability::Available {
-                        palette.success
-                    } else {
-                        palette.warning
-                    },
-                ),
-                None => theme::badge(ui, content_path_status(&path), palette.warning),
-            }
+            theme::badge(
+                ui,
+                availability_label(availability, french),
+                if file_available {
+                    palette.success
+                } else {
+                    palette.warning
+                },
+            );
             ui.add_space(4.0);
 
             let launch = ui
