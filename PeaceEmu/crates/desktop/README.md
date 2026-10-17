@@ -36,3 +36,8 @@ cargo clippy --manifest-path crates/desktop/Cargo.toml --all-targets -- -D warni
 ## Validation
 
 Tests in the repository are not considered validated until they have been run successfully. Check the GitHub Actions results for the exact commit and supported operating systems before claiming the desktop build is green.
+
+
+## External language packs
+
+French and English UI translation catalogs are stored as separate JSON files in `assets/languages/`. The desktop app loads `languages/<language>.json` next to the executable at runtime; the source-tree asset directory is used only for development. The Windows installer stages and installs the language directory separately, so these translation catalogs are not embedded in the executable. Invalid or missing packs do not crash startup.

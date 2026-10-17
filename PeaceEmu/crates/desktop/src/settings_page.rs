@@ -66,12 +66,12 @@ impl DesktopApp {
         let french = self.language == "fr";
         let current = option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0");
 
-        ui.label(egui::RichText::new("Application").size(30.0).strong());
+        ui.label(egui::RichText::new(self.language_pack.text("settings.application.title")).size(30.0).strong());
         ui.label(
             egui::RichText::new(if french {
-                "Informations, mises à jour et diagnostic de l’application."
+                self.language_pack.text("settings.application.description")
             } else {
-                "Application information, updates and diagnostics."
+                self.language_pack.text("settings.application.description")
             })
             .color(palette.text_dim),
         );
@@ -82,11 +82,11 @@ impl DesktopApp {
         section_heading(
             ui,
             &palette,
-            if french { "À propos" } else { "About" },
+            if french { self.language_pack.text("settings.about.title") } else { self.language_pack.text("settings.about.title") },
             if french {
-                "Version installée et état du projet."
+                self.language_pack.text("settings.about.description")
             } else {
-                "Installed version and project status."
+                self.language_pack.text("settings.about.description")
             },
         );
         theme::card(ui, &palette, |ui| {
@@ -99,18 +99,18 @@ impl DesktopApp {
                         theme::badge(
                             ui,
                             if french {
-                                "Expérimental"
+                                self.language_pack.text("status.experimental")
                             } else {
-                                "Experimental"
+                                self.language_pack.text("status.experimental")
                             },
                             palette.warning,
                         );
                     });
                     ui.label(
                         egui::RichText::new(if french {
-                            "PeaceEmu est en cours de développement."
+                            self.language_pack.text("about.development")
                         } else {
-                            "PeaceEmu is under active development."
+                            self.language_pack.text("about.development")
                         })
                         .color(palette.text_dim),
                     );
@@ -118,9 +118,9 @@ impl DesktopApp {
             });
             ui.add_space(6.0);
             ui.label(if french {
-                "Le cœur Game Boy Color est expérimental ; le lancement d’une ROM ne garantit pas sa compatibilité."
+                self.language_pack.text("about.core_notice")
             } else {
-                "The Game Boy Color core is experimental; launching a ROM does not imply compatibility."
+                self.language_pack.text("about.core_notice")
             });
             ui.label(
                 egui::RichText::new(if french {
@@ -134,17 +134,17 @@ impl DesktopApp {
             ui.add_space(4.0);
             if ui
                 .button(if french {
-                    "Enregistrer les paramètres"
+                    self.language_pack.text("settings.save")
                 } else {
-                    "Save settings now"
+                    self.language_pack.text("settings.save")
                 })
                 .clicked()
                 && self.save_preferences()
             {
                 self.message = if french {
-                    "Paramètres enregistrés.".to_owned()
+                    self.language_pack.text("settings.saved").to_owned()
                 } else {
-                    "Settings saved.".to_owned()
+                    self.language_pack.text("settings.saved").to_owned()
                 };
             }
         });

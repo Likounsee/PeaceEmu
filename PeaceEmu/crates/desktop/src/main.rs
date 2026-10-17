@@ -25,6 +25,7 @@ mod game_saves;
 mod game_view;
 mod home_page;
 mod library_page;
+mod language_pack;
 pub mod manifest_ed25519;
 mod preferences;
 mod save_states;
@@ -147,6 +148,7 @@ struct DesktopApp {
     message: String,
     dark_mode: bool,
     language: String,
+    language_pack: language_pack::LanguagePack,
     ui_scale: f32,
     accent_color: egui::Color32,
     config_path: Option<PathBuf>,
@@ -345,6 +347,7 @@ impl DesktopApp {
         } else {
             message = "Preferences unavailable: no user config directory was found.".to_owned();
         }
+        let language_pack = language_pack::LanguagePack::load(&language);
         let mut app = Self {
             controller,
             registry,
@@ -358,6 +361,7 @@ impl DesktopApp {
             message,
             dark_mode,
             language,
+            language_pack,
             ui_scale,
             accent_color,
             config_path,
@@ -1181,6 +1185,9 @@ impl eframe::App for DesktopApp {
                     });
             });
 
+        if self.language != previous_language {
+            self.language_pack = language_pack::LanguagePack::load(&self.language);
+        }
         if self.dark_mode != previous_dark_mode
             || (self.ui_scale - previous_ui_scale).abs() > f32::EPSILON
             || self.accent_color != previous_accent_color

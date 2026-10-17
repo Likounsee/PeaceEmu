@@ -1,0 +1,11 @@
+{
+  "settings.application.title": "Application",
+  "settings.application.description": "Informations, mises à jour et diagnostic de l’application.",
+  "settings.about.title": "À propos",
+  "settings.about.description": "Version installée et état du projet.",
+  "status.experimental": "Expérimental",
+  "about.development": "PeaceEmu est en cours de développement.",
+  "about.core_notice": "Le cœur Game Boy Color est expérimental ; le lancement d’une ROM ne garantit pas sa compatibilité.",
+  "settings.save": "Enregistrer les paramètres",
+  "settings.saved": "Paramètres enregistrés."
+}

@@ -3,6 +3,7 @@
 use super::*;
 use host_app::library::{ContentAvailability, ContentFormatDetection, ContentValidation};
 
+#[cfg(test)]
 fn content_path_status(path: &Path) -> &'static str {
     match std::fs::metadata(path) {
         Ok(metadata) if metadata.is_file() => "File exists · launch validation pending",

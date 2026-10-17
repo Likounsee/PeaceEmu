@@ -61,6 +61,7 @@ jobs:
           $stageDir = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE "stage"))
           New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
           Copy-Item $exe (Join-Path $stageDir "desktop-app.exe")
+          Copy-Item "PeaceEmu/crates/desktop/assets/languages" (Join-Path $stageDir "languages") -Recurse
           Copy-Item "PeaceEmu/crates/desktop/assets/branding/bird.png" (Join-Path $stageDir "bird.png")
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
