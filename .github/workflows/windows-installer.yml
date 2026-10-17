@@ -61,7 +61,7 @@ jobs:
           $stageDir = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE "stage"))
           New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
           Copy-Item $exe (Join-Path $stageDir "desktop-app.exe")
-          Copy-Item "PeaceEmu/crates/desktop/assets/peaceemu-logo.png" (Join-Path $stageDir "peaceemu-logo.png")
+          Copy-Item "PeaceEmu/crates/desktop/assets/branding/bird.png" (Join-Path $stageDir "bird.png")
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Install Inno Setup
@@ -72,7 +72,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           Add-Type -AssemblyName System.Drawing
-          $source = [System.Drawing.Image]::FromFile((Join-Path $env:GITHUB_WORKSPACE "PeaceEmu/crates/desktop/assets/peaceemu-logo.png"))
+          $source = [System.Drawing.Image]::FromFile((Join-Path $env:GITHUB_WORKSPACE "PeaceEmu/crates/desktop/assets/branding/bird.png"))
           $bitmap = New-Object System.Drawing.Bitmap(256, 256, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
           $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
           try {
