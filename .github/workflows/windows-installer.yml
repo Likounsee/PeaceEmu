@@ -103,7 +103,44 @@ jobs:
           [Array]::Copy($offsetBytes, 0, $icon, 18, 4)
           [Array]::Copy($png, 0, $icon, 22, $png.Length)
           [System.IO.File]::WriteAllBytes($iconPath, $icon)
-          Write-Host "Generated PeaceEmu.ico from the committed logo."
+          # Validate the ICO directory and embedded PNG payload, not just file existence.
+          $iconBytes = [System.IO.File]::ReadAllBytes($iconPath)
+          if ($iconBytes.Length -lt 30) { throw "Generated ICO is too small to contain a valid image." }
+          if ([BitConverter]::ToUInt16($iconBytes, 0) -ne 0 -or
+              [BitConverter]::ToUInt16($iconBytes, 2) -ne 1 -or
+              [BitConverter]::ToUInt16($iconBytes, 4) -ne 1) {
+            throw "Generated ICO has an invalid directory header."
+          }
+          $entryWidth = [int]$iconBytes[6]
+          $entryHeight = [int]$iconBytes[7]
+          if (($entryWidth -ne 0 -and $entryWidth -ne 256) -or
+              ($entryHeight -ne 0 -and $entryHeight -ne 256)) {
+            throw "Generated ICO directory entry does not declare a 256x256 image."
+          }
+          if ([BitConverter]::ToUInt16($iconBytes, 10) -ne 1 -or
+              [BitConverter]::ToUInt16($iconBytes, 12) -ne 32) {
+            throw "Generated ICO directory entry must declare one 32-bit image plane."
+          }
+          $payloadSize = [BitConverter]::ToUInt32($iconBytes, 14)
+          $payloadOffset = [BitConverter]::ToUInt32($iconBytes, 18)
+          if ($payloadOffset -ne 22 -or $payloadSize -ne ($iconBytes.Length - $payloadOffset)) {
+            throw "Generated ICO image payload has inconsistent size or offset."
+          }
+          $pngSignature = [byte[]](137, 80, 78, 71, 13, 10, 26, 10)
+          for ($i = 0; $i -lt $pngSignature.Length; $i++) {
+            if ($iconBytes[$payloadOffset + $i] -ne $pngSignature[$i]) {
+              throw "Generated ICO payload is not a PNG image."
+            }
+          }
+          if ([System.Text.Encoding]::ASCII.GetString($iconBytes, 12 + $payloadOffset, 4) -ne "IHDR") {
+            throw "Embedded PNG is missing its IHDR chunk."
+          }
+          $pngWidth = [System.Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($iconBytes, $payloadOffset + 16))
+          $pngHeight = [System.Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($iconBytes, $payloadOffset + 20))
+          if ($pngWidth -ne 256 -or $pngHeight -ne 256) {
+            throw "Embedded icon PNG has unexpected dimensions: ${pngWidth}x${pngHeight}."
+          }
+          Write-Host "Validated generated PeaceEmu.ico: 256x256 RGBA PNG payload, $payloadSize bytes."
       - name: Compile Windows installer
         shell: pwsh
         run: |
