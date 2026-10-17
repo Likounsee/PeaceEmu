@@ -219,5 +219,6 @@
   "ui.systems_page.028": "Les cœurs compilés et les paquets installés sont suivis séparément.",
   "ui.systems_page.029": "Aucun paquet de module externe n’est enregistré comme installé.",
   "ui.systems_page.030": "Cœur également intégré",
-  "ui.systems_page.031": "Paquet externe"
+  "ui.systems_page.031": "Paquet externe",
+  "ui.main.006": "Sessions"
 }

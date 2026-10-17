@@ -219,5 +219,6 @@
   "ui.systems_page.028": "Built-in cores and installed packages are tracked separately.",
   "ui.systems_page.029": "No external module package is recorded as installed.",
   "ui.systems_page.030": "Core also bundled",
-  "ui.systems_page.031": "External package"
+  "ui.systems_page.031": "External package",
+  "ui.main.006": "Sessions"
 }

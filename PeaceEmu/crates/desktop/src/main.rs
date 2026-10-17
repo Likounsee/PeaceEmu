@@ -236,24 +236,14 @@ enum SettingsSection {
 }
 
 impl DesktopPage {
-    fn title(self, french: bool) -> &'static str {
+    fn title<'a>(self, language_pack: &'a language_pack::LanguagePack) -> &'a str {
         match self {
-            Self::Home => {
-                self.language_pack.text("ui.main.001")
-            }
-            Self::Library => {
-                self.language_pack.text("ui.main.002")
-            }
-            Self::Sessions => "Sessions",
-            Self::Game => {
-                self.language_pack.text("ui.main.003")
-            }
-            Self::Systems => {
-                self.language_pack.text("ui.main.004")
-            }
-            Self::Settings => {
-                self.language_pack.text("ui.main.005")
-            }
+            Self::Home => language_pack.text("ui.main.001"),
+            Self::Library => language_pack.text("ui.main.002"),
+            Self::Sessions => language_pack.text("ui.main.006"),
+            Self::Game => language_pack.text("ui.main.003"),
+            Self::Systems => language_pack.text("ui.main.004"),
+            Self::Settings => language_pack.text("ui.main.005"),
         }
     }
 }

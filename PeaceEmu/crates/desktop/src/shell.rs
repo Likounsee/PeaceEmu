@@ -56,7 +56,7 @@ impl DesktopApp {
                         palette,
                         page.icon(),
                         self.active_page == page,
-                        page.title(french),
+                        page.title(&self.language_pack),
                     )
                     .clicked()
                     {
@@ -69,7 +69,7 @@ impl DesktopApp {
                         palette,
                         Icon::Settings,
                         self.active_page == DesktopPage::Settings,
-                        DesktopPage::Settings.title(french),
+                        DesktopPage::Settings.title(&self.language_pack),
                     )
                     .clicked()
                     {
