@@ -59,7 +59,7 @@ fn availability_label(availability: ContentAvailability, french: bool) -> &'stat
         // A filesystem check proves that a regular file exists, not that its
         // contents are a valid ROM or that an installed core can launch it.
         (ContentAvailability::Available, true) => "Fichier trouvé · validation au lancement",
-        (ContentAvailability::Available, false) => "File found · validated at launch",
+        (ContentAvailability::Available, false) => "File found · validation pending at launch",
         (ContentAvailability::Missing, true) => "Introuvable · à réimporter",
         (ContentAvailability::Missing, false) => "Missing · re-import required",
         (ContentAvailability::NotRegularFile, true) => "Indisponible · ce n’est pas un fichier",
@@ -91,6 +91,25 @@ fn path_availability(path: &Path) -> ContentAvailability {
     }
 }
 
+/// Return the current size only when the path is still a regular file.
+/// Indexed sizes become stale when a ROM is replaced or removed while the app is open.
+fn live_path_size(path: &Path) -> Option<u64> {
+    std::fs::metadata(path)
+        .ok()
+        .filter(|metadata| metadata.is_file())
+        .map(|metadata| metadata.len())
+}
+
+fn display_path_size(size: Option<u64>, french: bool) -> String {
+    size.map(format_size).unwrap_or_else(|| {
+        if french {
+            "Taille indisponible".to_owned()
+        } else {
+            "Size unavailable".to_owned()
+        }
+    })
+}
+
 fn detail_row(ui: &mut egui::Ui, palette: &theme::Palette, label: &str, value: &str) {
     ui.label(
         egui::RichText::new(label)
@@ -109,7 +128,7 @@ impl DesktopApp {
             .controller
             .library()
             .entries()
-            .map(|entry| entry.size_bytes())
+            .filter_map(|entry| live_path_size(entry.path()))
             .sum();
 
         ui.horizontal(|ui| {
@@ -194,7 +213,7 @@ impl DesktopApp {
                 (
                     entry.title().to_owned(),
                     entry.path().to_path_buf(),
-                    entry.size_bytes(),
+                    live_path_size(entry.path()),
                 )
             })
             .filter(|(title, path, _)| {
@@ -249,7 +268,7 @@ impl DesktopApp {
         &mut self,
         ui: &mut egui::Ui,
         palette: &theme::Palette,
-        entries: &[(String, PathBuf, u64)],
+        entries: &[(String, PathBuf, Option<u64>)],
         total: usize,
         french: bool,
     ) {
@@ -353,7 +372,7 @@ impl DesktopApp {
                 painter.text(
                     rect.min + egui::vec2(12.0, 132.0),
                     egui::Align2::LEFT_TOP,
-                    format!("{extension} · {}", format_size(*size)),
+                    format!("{extension} · {}", display_path_size(*size, french)),
                     egui::FontId::proportional(12.0),
                     palette.text_dim,
                 );
@@ -402,7 +421,7 @@ impl DesktopApp {
                 .library()
                 .entries()
                 .find(|entry| entry.path() == path)
-                .map(|entry| (path, entry.title().to_owned(), entry.size_bytes()))
+                .map(|entry| (path.clone(), entry.title().to_owned(), live_path_size(&path)))
         });
         let Some((path, title, size)) = selected else {
             theme::card(ui, palette, |ui| {
@@ -460,7 +479,7 @@ impl DesktopApp {
                 .unwrap_or("?")
                 .to_ascii_uppercase();
             ui.label(
-                egui::RichText::new(format!("{extension} · {}", format_size(size)))
+                egui::RichText::new(format!("{extension} · {}", display_path_size(size, french)))
                     .color(palette.text_dim),
             );
             theme::badge(
@@ -641,7 +660,7 @@ impl DesktopApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{card_availability_label, content_path_status, path_availability};
+    use super::{card_availability_label, content_path_status, display_path_size, live_path_size, path_availability};
     use host_app::library::ContentAvailability;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -685,7 +704,7 @@ mod tests {
         );
         assert_eq!(
             super::availability_label(ContentAvailability::Available, false),
-            "File found · validated at launch"
+            "File found · validation pending at launch"
         );
         assert_eq!(
             super::availability_label(ContentAvailability::Missing, true),
@@ -711,6 +730,21 @@ mod tests {
             super::availability_label(ContentAvailability::Unavailable, false),
             "Unavailable · cannot inspect file"
         );
+    }
+
+    #[test]
+    fn live_size_tracks_replaced_files_and_avoids_stale_sizes_for_missing_paths() {
+        let path = unique_temp_path("live-size");
+        assert_eq!(live_path_size(&path), None);
+        assert_eq!(display_path_size(None, true), "Taille indisponible");
+        assert_eq!(display_path_size(None, false), "Size unavailable");
+
+        std::fs::write(&path, b"abc").expect("create temporary file");
+        assert_eq!(live_path_size(&path), Some(3));
+        std::fs::write(&path, b"replacement").expect("replace temporary file contents");
+        assert_eq!(live_path_size(&path), Some(11));
+        std::fs::remove_file(&path).expect("remove temporary file");
+        assert_eq!(live_path_size(&path), None);
     }
 
     #[test]
