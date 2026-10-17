@@ -241,9 +241,14 @@ jobs:
           $startMenuShortcut = Get-ChildItem -Path $startMenuRoots -Filter "PeaceEmu.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
           if (!$startMenuShortcut) { throw "Start Menu shortcut was not created." }
           $shell = New-Object -ComObject WScript.Shell
-          $shortcutTarget = $shell.CreateShortcut($startMenuShortcut.FullName).TargetPath
+          $shortcut = $shell.CreateShortcut($startMenuShortcut.FullName)
+          $shortcutTarget = $shortcut.TargetPath
           if ([IO.Path]::GetFullPath($shortcutTarget) -ne [IO.Path]::GetFullPath($installedExe)) {
             throw "Start Menu shortcut targets '$shortcutTarget' instead of the installed executable."
+          }
+          $shortcutIconPath = ($shortcut.IconLocation -split ",", 2)[0].Trim('"')
+          if ([IO.Path]::GetFullPath($shortcutIconPath) -ne [IO.Path]::GetFullPath($installedIcon)) {
+            throw "Start Menu shortcut icon '$shortcutIconPath' does not point to the installed PeaceEmu.ico."
           }
 
           # Capture CLI output to files rather than PowerShell pipes. Rust's stdout
