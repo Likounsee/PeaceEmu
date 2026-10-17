@@ -9,22 +9,14 @@ impl DesktopApp {
         ui.horizontal_wrapped(|ui| {
             ui.vertical(|ui| {
                 ui.label(
-                    egui::RichText::new(if french { "ACTIVITÉ" } else { "ACTIVITY" })
+                    egui::RichText::new(self.language_pack.text("ui.sessions_page.001"))
                         .size(10.0)
                         .strong()
                         .color(self.accent_color),
                 );
                 ui.add_space(3.0);
-                ui.heading(if french {
-                    "Gestionnaire de sessions"
-                } else {
-                    "Session manager"
-                });
-                ui.label(if french {
-                    "Suivez l’état des sessions et contrôlez leur cycle de vie."
-                } else {
-                    "Inspect session state and control each session lifecycle."
-                });
+                ui.heading(self.language_pack.text("ui.sessions_page.002"));
+                ui.label(self.language_pack.text("ui.sessions_page.003"));
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 egui::Frame::group(ui.style())
@@ -51,11 +43,7 @@ impl DesktopApp {
                 if ui
                     .add_enabled(
                         session_count > 0,
-                        egui::Button::new(if self.language == "fr" {
-                            "Tout fermer"
-                        } else {
-                            "Close all"
-                        }),
+                        egui::Button::new(self.language_pack.text("ui.sessions_page.004")),
                     )
                     .clicked()
                 {
@@ -111,9 +99,9 @@ impl DesktopApp {
                 .rounding(egui::Rounding::same(12.0))
                 .inner_margin(egui::Margin::same(14.0))
                 .show(ui, |ui| {
-                ui.heading(if self.language == "fr" { "Aucune session ouverte" } else { "No open sessions" });
-                ui.label(if self.language == "fr" { "Ouvrez une session à partir d’un fichier importé pour consulter son état et ses capacités." } else { "Open a session from an imported local file to inspect lifecycle and capability reporting." });
-                if ui.button(if self.language == "fr" { "Ouvrir la bibliothèque" } else { "Browse library" }).clicked() {
+                ui.heading(self.language_pack.text("ui.sessions_page.005"));
+                ui.label(self.language_pack.text("ui.sessions_page.006"));
+                if ui.button(self.language_pack.text("ui.sessions_page.007")).clicked() {
                     self.navigate_to(DesktopPage::Library);
                 }
             });
@@ -146,25 +134,25 @@ impl DesktopApp {
                     ui.vertical(|ui| {
                         ui.strong(format!("Session {}", id.get()));
                         ui.label(&system_name);
-                        ui.small(if self.language == "fr" { "En pause" } else { "Paused" });
-                        if ui.button(if self.language == "fr" { "Reprendre" } else { "Resume" }).clicked() {
+                        ui.small(self.language_pack.text("ui.sessions_page.008"));
+                        if ui.button(self.language_pack.text("ui.sessions_page.009")).clicked() {
                             self.session_action(id, SessionAction::Resume);
                         }
                         if content_loaded && save_states {
-                            if ui.button(if french { "Sauvegarder l’état" } else { "Save" }).clicked() {
+                            if ui.button(self.language_pack.text("ui.sessions_page.010")).clicked() {
                                 self.save_state_action(id);
                             }
-                            if ui.button(if french { "Charger l’état" } else { "Load state" }).clicked() {
+                            if ui.button(self.language_pack.text("ui.sessions_page.011")).clicked() {
                                 self.load_state_action(id);
                             }
-                            if ui.button(if french { "Arrêter et sauvegarder" } else { "Stop and Save" }).clicked() {
+                            if ui.button(self.language_pack.text("ui.sessions_page.012")).clicked() {
                                 self.session_action(id, SessionAction::StopAndSave);
                             }
                         }
-                        if content_loaded && persistent_saves && ui.button(if french { "Sauvegarder la partie" } else { "Save game" }).clicked() {
+                        if content_loaded && persistent_saves && ui.button(self.language_pack.text("ui.sessions_page.013")).clicked() {
                             self.save_game_data_action(id);
                         }
-                        if ui.button(if self.language == "fr" { "Fermer" } else { "Close" }).clicked() {
+                        if ui.button(self.language_pack.text("ui.sessions_page.014")).clicked() {
                             if let Err(error) = self.save_dirty_game_data_for_session(id) {
                                 self.message = if french {
                                     format!("Fermeture annulée ; sauvegarde en jeu impossible : {error}")
@@ -234,7 +222,7 @@ impl DesktopApp {
                     }
                     ui.label(&system_name);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(if self.language == "fr" { "Fermer" } else { "Close" }).clicked() {
+                        if ui.button(self.language_pack.text("ui.sessions_page.015")).clicked() {
                             if let Err(error) = self.save_dirty_game_data_for_session(id) {
                                 self.message = if french {
                                     format!("Fermeture annulée ; sauvegarde en jeu impossible : {error}")
@@ -290,17 +278,13 @@ impl DesktopApp {
                 {
                     ui.label(if french { format!("Source : {}", content_path.display()) } else { format!("Source: {}", content_path.display()) });
                 } else if content_loaded {
-                    ui.label(if french {
-                        "Source : chemin indisponible pour cette session"
-                    } else {
-                        "Source: path unavailable for this session"
-                    });
+                    ui.label(self.language_pack.text("ui.sessions_page.016"));
                 }
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {
                     ui.label(format!(
                         "{}: {state:?}",
-                        if french { "État" } else { "State" }
+                        self.language_pack.text("ui.sessions_page.017")
                     ));
                     ui.separator();
                     ui.label(if french {
@@ -314,27 +298,27 @@ impl DesktopApp {
                     } else {
                         "Content: not loaded"
                     });
-                    if state == SessionState::Running && ui.button(if self.language == "fr" { "Mettre en pause" } else { "Pause" }).clicked() {
+                    if state == SessionState::Running && ui.button(self.language_pack.text("ui.sessions_page.018")).clicked() {
                         self.session_action(id, SessionAction::Pause);
                     }
-                    if state == SessionState::Paused && ui.button(if self.language == "fr" { "Reprendre" } else { "Resume" }).clicked() {
+                    if state == SessionState::Paused && ui.button(self.language_pack.text("ui.sessions_page.019")).clicked() {
                         self.session_action(id, SessionAction::Resume);
                     }
                     if content_loaded && save_states {
-                        if ui.button(if french { "Sauvegarder" } else { "Save" }).clicked() {
+                        if ui.button(self.language_pack.text("ui.sessions_page.020")).clicked() {
                             self.save_state_action(id);
                         }
-                        if ui.button(if french { "Charger l’état" } else { "Load state" }).clicked() {
+                        if ui.button(self.language_pack.text("ui.sessions_page.021")).clicked() {
                             self.load_state_action(id);
                         }
-                        if ui.button(if french { "Arrêter et sauvegarder" } else { "Stop and Save" }).clicked() {
+                        if ui.button(self.language_pack.text("ui.sessions_page.022")).clicked() {
                             self.session_action(id, SessionAction::StopAndSave);
                         }
                     }
-                    if content_loaded && persistent_saves && ui.button(if french { "Sauvegarder la partie" } else { "Save game" }).clicked() {
+                    if content_loaded && persistent_saves && ui.button(self.language_pack.text("ui.sessions_page.023")).clicked() {
                         self.save_game_data_action(id);
                     }
-                    if state != SessionState::Empty && ui.button(if self.language == "fr" { "Réinitialiser" } else { "Reset" }).clicked() {
+                    if state != SessionState::Empty && ui.button(self.language_pack.text("ui.sessions_page.024")).clicked() {
                         self.session_action(id, SessionAction::Reset);
                     }
                 });
@@ -368,11 +352,7 @@ impl DesktopApp {
                         egui::Color32::LIGHT_RED,
                         format!(
                             "{}: {error}",
-                            if french {
-                                "Dernière erreur d’exécution/média"
-                            } else {
-                                "Last execution/media tick error"
-                            }
+                            self.language_pack.text("ui.sessions_page.025")
                         ),
                     );
                 }
@@ -381,59 +361,35 @@ impl DesktopApp {
                         egui::Color32::LIGHT_RED,
                         format!(
                             "{}: {error}",
-                            if french { "Dernière erreur du cœur" } else { "Last core error" }
+                            self.language_pack.text("ui.sessions_page.026")
                         ),
                     );
                 }
-                egui::CollapsingHeader::new(if french {
-                    "Diagnostics de session"
-                } else {
-                    "Session diagnostics"
-                })
+                egui::CollapsingHeader::new(self.language_pack.text("ui.sessions_page.027"))
                     .id_source(("session_diagnostics", id))
                     .default_open(false)
                     .show(ui, |ui| {
                         ui.label(format!(
                             "{}: {}",
-                            if french {
-                                "Identifiant de session"
-                            } else {
-                                "Session identifier"
-                            },
+                            self.language_pack.text("ui.sessions_page.028"),
                             id.get()
                         ));
                         ui.label(format!(
                             "{}: {}",
-                            if french {
-                                "Sélectionnée par l’hôte"
-                            } else {
-                                "Selected by host"
-                            },
+                            self.language_pack.text("ui.sessions_page.029"),
                             self.controller.active_session() == Some(id)
                         ));
                         ui.label(format!(
                             "{}: {state:?}",
-                            if french {
-                                "État du cycle de vie"
-                            } else {
-                                "Lifecycle state"
-                            }
+                            self.language_pack.text("ui.sessions_page.030")
                         ));
                         ui.label(format!(
                             "{}: {content_loaded}",
-                            if french {
-                                "Contenu chargé"
-                            } else {
-                                "Content loaded"
-                            }
+                            self.language_pack.text("ui.sessions_page.031")
                         ));
                         ui.label(format!(
                             "{}: {}",
-                            if french {
-                                "Capacité de sortie vidéo"
-                            } else {
-                                "Video output capability"
-                            },
+                            self.language_pack.text("ui.sessions_page.032"),
                             if french {
                                 if video_available {
                                     "déclarée disponible"
@@ -448,11 +404,7 @@ impl DesktopApp {
                         ));
                         ui.label(format!(
                             "{}: {}",
-                            if french {
-                                "Capacité de sortie audio"
-                            } else {
-                                "Audio output capability"
-                            },
+                            self.language_pack.text("ui.sessions_page.033"),
                             if french {
                                 if audio_available {
                                     "déclarée disponible"
@@ -466,10 +418,10 @@ impl DesktopApp {
                             }
                         ));
                         if !video_available {
-                            ui.label(if self.language == "fr" { "La sortie vidéo est indisponible : ce cœur ne déclare pas cette capacité." } else { "Video output is unavailable because this core does not declare the capability." });
+                            ui.label(self.language_pack.text("ui.sessions_page.034"));
                         }
                         if !audio_available {
-                            ui.label(if self.language == "fr" { "La sortie audio est indisponible : ce cœur ne déclare pas cette capacité." } else { "Audio output is unavailable because this core does not declare the capability." });
+                            ui.label(self.language_pack.text("ui.sessions_page.035"));
                         }
                         if let Some(error) = &tick_error {
                             ui.colored_label(
@@ -477,19 +429,15 @@ impl DesktopApp {
                                 if french { format!("Dernière erreur d’exécution/média : {error}") } else { format!("Most recent tick/media failure: {error}") },
                             );
                         } else {
-                            ui.label(if self.language == "fr" { "Dernière erreur d’exécution/média : aucune" } else { "Most recent tick/media failure: none recorded" });
+                            ui.label(self.language_pack.text("ui.sessions_page.036"));
                         }
                         if let Some(error) = &core_diagnostic {
                             ui.colored_label(
                                 egui::Color32::LIGHT_RED,
-                                format!("{}: {error}", if french {
-                                "Diagnostic du cœur"
-                            } else {
-                                "Core diagnostic"
-                            }),
+                                format!("{}: {error}", self.language_pack.text("ui.sessions_page.037")),
                             );
                         } else {
-                            ui.label(if self.language == "fr" { "Diagnostic du cœur : aucun" } else { "Core diagnostic: none recorded" });
+                            ui.label(self.language_pack.text("ui.sessions_page.038"));
                         }
                         let source_path = self
                             .session_content_paths
@@ -505,11 +453,7 @@ impl DesktopApp {
                             });
                         let tick_diagnostic = tick_error
                             .as_deref()
-                            .unwrap_or(if french {
-                                "aucune enregistrée"
-                            } else {
-                                "none recorded"
-                            });
+                            .unwrap_or(self.language_pack.text("ui.sessions_page.039"));
                         let core_diagnostic_text = core_diagnostic
                             .as_deref()
                             .unwrap_or("none recorded");
@@ -526,7 +470,7 @@ impl DesktopApp {
                             tick_diagnostic,
                             core_diagnostic_text,
                         );
-                        if ui.button(if self.language == "fr" { "Copier le diagnostic de session" } else { "Copy session diagnostics" }).clicked() {
+                        if ui.button(self.language_pack.text("ui.sessions_page.040")).clicked() {
                             ui.output_mut(|output| output.copied_text = report);
                             self.message = if french {
                                 format!(

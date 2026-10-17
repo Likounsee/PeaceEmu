@@ -239,40 +239,20 @@ impl DesktopPage {
     fn title(self, french: bool) -> &'static str {
         match self {
             Self::Home => {
-                if french {
-                    "Accueil"
-                } else {
-                    "Overview"
-                }
+                self.language_pack.text("ui.main.001")
             }
             Self::Library => {
-                if french {
-                    "Bibliothèque"
-                } else {
-                    "Game library"
-                }
+                self.language_pack.text("ui.main.002")
             }
             Self::Sessions => "Sessions",
             Self::Game => {
-                if french {
-                    "Jeu"
-                } else {
-                    "Game"
-                }
+                self.language_pack.text("ui.main.003")
             }
             Self::Systems => {
-                if french {
-                    "Systèmes"
-                } else {
-                    "Systems"
-                }
+                self.language_pack.text("ui.main.004")
             }
             Self::Settings => {
-                if french {
-                    "Paramètres"
-                } else {
-                    "Settings"
-                }
+                self.language_pack.text("ui.main.005")
             }
         }
     }

@@ -135,7 +135,7 @@ impl DesktopApp {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 ui.label(
-                    egui::RichText::new(if french { "Bibliothèque" } else { "Library" })
+                    egui::RichText::new(self.language_pack.text("ui.library_page.001"))
                         .size(30.0)
                         .strong(),
                 );
@@ -152,11 +152,7 @@ impl DesktopApp {
                 if ui
                     .add(theme::primary_button(
                         &palette,
-                        if french {
-                            "Importer des ROM"
-                        } else {
-                            "Import ROMs…"
-                        },
+                        self.language_pack.text("ui.library_page.002"),
                     ))
                     .clicked()
                 {
@@ -171,11 +167,7 @@ impl DesktopApp {
         ui.horizontal_wrapped(|ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut self.library_filter)
-                    .hint_text(if french {
-                        "Rechercher un titre ou un chemin..."
-                    } else {
-                        "Search titles and file paths..."
-                    })
+                    .hint_text(self.language_pack.text("ui.library_page.003"))
                     .desired_width(ui.available_width().min(260.0)),
             );
             egui::ComboBox::from_id_source("library_format_filter")
@@ -197,7 +189,7 @@ impl DesktopApp {
                     }
                 });
             if ui
-                .button(if french { "Effacer" } else { "Clear" })
+                .button(self.language_pack.text("ui.library_page.004"))
                 .clicked()
             {
                 self.library_filter.clear();
@@ -299,11 +291,7 @@ impl DesktopApp {
                     && ui
                         .add(theme::primary_button(
                             palette,
-                            if french {
-                                "Parcourir les ROM"
-                            } else {
-                                "Browse for ROMs…"
-                            },
+                            self.language_pack.text("ui.library_page.005"),
                         ))
                         .clicked()
                 {
@@ -433,20 +421,12 @@ impl DesktopApp {
         let Some((path, title, size)) = selected else {
             theme::card(ui, palette, |ui| {
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Aucun jeu sélectionné"
-                    } else {
-                        "No game selected"
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.library_page.006"))
                     .size(16.0)
                     .strong(),
                 );
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Cliquez sur un jeu pour voir ses détails. Double-cliquez pour le lancer."
-                    } else {
-                        "Click a game to see its details. Double-click to launch it."
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.library_page.007"))
                     .color(palette.text_dim),
                 );
             });
@@ -504,7 +484,7 @@ impl DesktopApp {
                 .add_enabled_ui(file_available, |ui| {
                     ui.add_sized(
                         egui::vec2(ui.available_width(), 36.0),
-                        theme::primary_button(palette, if french { "Lancer" } else { "Launch" }),
+                        theme::primary_button(palette, self.language_pack.text("ui.library_page.008")),
                     )
                 })
                 .inner;
@@ -514,11 +494,7 @@ impl DesktopApp {
             }
             let forget = ui.add_sized(
                 egui::vec2(ui.available_width(), 36.0),
-                egui::Button::new(if french {
-                    "Retirer de la bibliothèque"
-                } else {
-                    "Remove from library"
-                }),
+                egui::Button::new(self.language_pack.text("ui.library_page.009")),
             );
             if forget.clicked() {
                 match self.controller.forget_content(&path) {
@@ -551,11 +527,7 @@ impl DesktopApp {
 
             ui.add_space(4.0);
             egui::CollapsingHeader::new(
-                egui::RichText::new(if french {
-                    "Infos techniques"
-                } else {
-                    "Technical details"
-                })
+                egui::RichText::new(self.language_pack.text("ui.library_page.010"))
                 .strong(),
             )
             .default_open(false)
@@ -563,98 +535,50 @@ impl DesktopApp {
                 detail_row(
                     ui,
                     palette,
-                    if french { "Chemin" } else { "Path" },
+                    self.language_pack.text("ui.library_page.011"),
                     &path.display().to_string(),
                 );
                 if let Some((format_hint, system_hint, detection, validation, _)) = &metadata {
                     detail_row(
                         ui,
                         palette,
-                        if french {
-                            "Extension reconnue"
-                        } else {
-                            "Extension hint"
-                        },
-                        format_hint.as_deref().unwrap_or(if french {
-                            "extension inconnue"
-                        } else {
-                            "unknown extension"
-                        }),
+                        self.language_pack.text("ui.library_page.012"),
+                        format_hint.as_deref().unwrap_or(self.language_pack.text("ui.library_page.013")),
                     );
                     detail_row(
                         ui,
                         palette,
-                        if french {
-                            "Système compatible"
-                        } else {
-                            "Compatibility hint"
-                        },
-                        system_hint.as_deref().unwrap_or(if french {
-                            "indéterminé"
-                        } else {
-                            "undetermined"
-                        }),
+                        self.language_pack.text("ui.library_page.014"),
+                        system_hint.as_deref().unwrap_or(self.language_pack.text("ui.library_page.015")),
                     );
                     let detected = match detection {
-                        ContentFormatDetection::Pending => (if french {
-                            "Pas encore analysé"
-                        } else {
-                            "Not probed yet"
-                        })
+                        ContentFormatDetection::Pending => (self.language_pack.text("ui.library_page.016"))
                         .to_owned(),
-                        ContentFormatDetection::NoMatch => (if french {
-                            "Aucune sonde enregistrée ne correspond"
-                        } else {
-                            "No registered probe matched"
-                        })
+                        ContentFormatDetection::NoMatch => (self.language_pack.text("ui.library_page.017"))
                         .to_owned(),
                         ContentFormatDetection::Detected(format) => format.to_string(),
                         ContentFormatDetection::Ambiguous(formats) => format!(
                             "{} {}",
-                            if french {
-                                "Sondes ambiguës :"
-                            } else {
-                                "Ambiguous probes:"
-                            },
+                            self.language_pack.text("ui.library_page.018"),
                             formats.join(", ")
                         ),
-                        ContentFormatDetection::NeedsMoreData => (if french {
-                            "La sonde a besoin de plus de données"
-                        } else {
-                            "Probe needs more data"
-                        })
+                        ContentFormatDetection::NeedsMoreData => (self.language_pack.text("ui.library_page.019"))
                         .to_owned(),
                     };
                     detail_row(
                         ui,
                         palette,
-                        if french {
-                            "Format détecté"
-                        } else {
-                            "Detected format"
-                        },
+                        self.language_pack.text("ui.library_page.020"),
                         &detected,
                     );
                     let validation_text = match validation {
-                        ContentValidation::Pending => (if french {
-                            "En attente jusqu’au lancement"
-                        } else {
-                            "Pending until launch"
-                        })
+                        ContentValidation::Pending => (self.language_pack.text("ui.library_page.021"))
                         .to_owned(),
-                        ContentValidation::Accepted => (if french {
-                            "Acceptée au dernier lancement"
-                        } else {
-                            "Accepted at last launch"
-                        })
+                        ContentValidation::Accepted => (self.language_pack.text("ui.library_page.022"))
                         .to_owned(),
                         ContentValidation::Rejected(detail) => format!(
                             "{} {}",
-                            if french {
-                                "Refusée au dernier lancement :"
-                            } else {
-                                "Rejected at last launch:"
-                            },
+                            self.language_pack.text("ui.library_page.023"),
                             detail
                         ),
                     };
