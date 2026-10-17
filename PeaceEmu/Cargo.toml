@@ -10,6 +10,6 @@ exclude = ["crates/desktop"]
 
 [workspace.package]
 edition = "2021"
-license = "MIT OR Apache-2.0"
+license = "LicenseRef-Proprietary"
 rust-version = "1.78"
 repository = "https://github.com/Likounsee/PeaceEmu"
