@@ -86,7 +86,7 @@ impl DesktopApp {
         );
         ui.label(
             egui::RichText::new(self.language_pack.text("ui.appearance_page.002"))
-            .color(palette.text_dim),
+                .color(palette.text_dim),
         );
         ui.add_space(8.0);
         ui.separator();
@@ -197,8 +197,8 @@ impl DesktopApp {
             }
             ui.label(
                 egui::RichText::new(self.language_pack.text("ui.appearance_page.014"))
-                .size(13.0)
-                .color(palette.text_dim),
+                    .size(13.0)
+                    .color(palette.text_dim),
             );
         });
 

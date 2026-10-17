@@ -27,15 +27,15 @@ impl DesktopApp {
                     columns[0].vertical(|ui| {
                         ui.label(
                             egui::RichText::new(self.language_pack.text("ui.home_page.001"))
-                            .size(11.0)
-                            .strong()
-                            .color(accent),
+                                .size(11.0)
+                                .strong()
+                                .color(accent),
                         );
                         ui.add_space(8.0);
                         ui.heading(
                             egui::RichText::new(self.language_pack.text("ui.home_page.002"))
-                            .size(28.0)
-                            .strong(),
+                                .size(28.0)
+                                .strong(),
                         );
                         ui.add_space(4.0);
                         ui.label(self.language_pack.text("ui.home_page.003"));
@@ -44,7 +44,9 @@ impl DesktopApp {
                             if ui
                                 .add(
                                     egui::Button::new(
-                                        egui::RichText::new(self.language_pack.text("ui.home_page.004"))
+                                        egui::RichText::new(
+                                            self.language_pack.text("ui.home_page.004"),
+                                        )
                                         .strong(),
                                     )
                                     .fill(accent)
@@ -57,7 +59,7 @@ impl DesktopApp {
                             if ui
                                 .add(
                                     egui::Button::new(self.language_pack.text("ui.home_page.005"))
-                                    .min_size(egui::vec2(150.0, 38.0)),
+                                        .min_size(egui::vec2(150.0, 38.0)),
                                 )
                                 .clicked()
                             {
@@ -79,13 +81,17 @@ impl DesktopApp {
                                 ui.horizontal(|ui| {
                                     ui.vertical(|ui| {
                                         ui.label(
-                                            egui::RichText::new(self.language_pack.text("ui.home_page.006"))
+                                            egui::RichText::new(
+                                                self.language_pack.text("ui.home_page.006"),
+                                            )
                                             .size(10.0)
                                             .strong()
                                             .color(accent),
                                         );
                                         ui.label(
-                                            egui::RichText::new(self.language_pack.text("ui.home_page.007"))
+                                            egui::RichText::new(
+                                                self.language_pack.text("ui.home_page.007"),
+                                            )
                                             .size(15.0)
                                             .strong(),
                                         );
@@ -137,7 +143,9 @@ impl DesktopApp {
                                 ui.label(
                                     egui::RichText::new(if self.controller.session_count() > 0 {
                                         "Session active"
-                                    } else { self.language_pack.text("ui.home_page.008") })
+                                    } else {
+                                        self.language_pack.text("ui.home_page.008")
+                                    })
                                     .size(11.0)
                                     .color(muted),
                                 );
@@ -224,8 +232,8 @@ impl DesktopApp {
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(self.language_pack.text("ui.home_page.016"))
-                                .strong()
-                                .size(16.0),
+                                    .strong()
+                                    .size(16.0),
                             );
                             ui.label(self.language_pack.text("ui.home_page.017"));
                             ui.add_space(6.0);
@@ -298,20 +306,39 @@ impl DesktopApp {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new(self.language_pack.text("ui.home_page.020"))
-                            .size(10.0).strong().color(muted));
+                        ui.label(
+                            egui::RichText::new(self.language_pack.text("ui.home_page.020"))
+                                .size(10.0)
+                                .strong()
+                                .color(muted),
+                        );
                         ui.add_space(4.0);
-                        ui.label(egui::RichText::new(self.language_pack.text("ui.home_page.021")).strong().size(15.0));
+                        ui.label(
+                            egui::RichText::new(self.language_pack.text("ui.home_page.021"))
+                                .strong()
+                                .size(15.0),
+                        );
                         ui.label(self.language_pack.text("ui.home_page.022"));
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         egui::Frame::none()
                             .fill(accent.gamma_multiply(0.16))
                             .rounding(egui::Rounding::same(20.0))
-                            .inner_margin(egui::Margin { left: 10.0, right: 10.0, top: 6.0, bottom: 6.0 })
+                            .inner_margin(egui::Margin {
+                                left: 10.0,
+                                right: 10.0,
+                                top: 6.0,
+                                bottom: 6.0,
+                            })
                             .show(ui, |ui| {
-                                ui.label(egui::RichText::new(self.language_pack.text("ui.home_page.023"))
-                                    .size(10.0).strong().color(accent));
+                                ui.label(
+                                    egui::RichText::new(
+                                        self.language_pack.text("ui.home_page.023"),
+                                    )
+                                    .size(10.0)
+                                    .strong()
+                                    .color(accent),
+                                );
                             });
                     });
                 });
