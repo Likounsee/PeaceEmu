@@ -105,12 +105,12 @@ impl DesktopApp {
             ui.vertical(|ui| {
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.systems_page.001"))
-                    .size(30.0)
-                    .strong(),
+                        .size(30.0)
+                        .strong(),
                 );
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.systems_page.002"))
-                    .color(palette.text_dim),
+                        .color(palette.text_dim),
                 );
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
@@ -210,7 +210,7 @@ impl DesktopApp {
                 ui.set_width(ui.available_width());
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.systems_page.012"))
-                    .color(palette.text_dim),
+                        .color(palette.text_dim),
                 );
             });
         }
@@ -275,7 +275,9 @@ impl DesktopApp {
                         ui.label(
                             egui::RichText::new(if is_selected {
                                 self.language_pack.text("ui.systems_page.016")
-                            } else { self.language_pack.text("ui.systems_page.017") })
+                            } else {
+                                self.language_pack.text("ui.systems_page.017")
+                            })
                             .size(13.0)
                             .color(palette.text_dim),
                         );
@@ -298,7 +300,10 @@ impl DesktopApp {
                                 caps.content_loading,
                             ),
                             (self.language_pack.text("ui.systems_page.020"), caps.input),
-                            (self.language_pack.text("ui.systems_page.021"), caps.video_output),
+                            (
+                                self.language_pack.text("ui.systems_page.021"),
+                                caps.video_output,
+                            ),
                             ("Audio", caps.audio_output),
                             (
                                 self.language_pack.text("ui.systems_page.022"),
@@ -404,7 +409,7 @@ impl DesktopApp {
             if state.installed_modules().is_empty() {
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.systems_page.029"))
-                    .color(palette.text_dim),
+                        .color(palette.text_dim),
                 );
             } else {
                 for installed in state.installed_modules() {
@@ -417,7 +422,9 @@ impl DesktopApp {
                         ui.label(
                             egui::RichText::new(if bundled {
                                 self.language_pack.text("ui.systems_page.030")
-                            } else { self.language_pack.text("ui.systems_page.031") })
+                            } else {
+                                self.language_pack.text("ui.systems_page.031")
+                            })
                             .size(13.0)
                             .color(palette.text_dim),
                         );

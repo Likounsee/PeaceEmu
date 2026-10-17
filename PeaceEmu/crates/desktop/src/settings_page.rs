@@ -421,8 +421,8 @@ impl DesktopApp {
                 ui.separator();
                 ui.label(
                     egui::RichText::new(self.language_pack.text("ui.settings_page.036"))
-                    .strong()
-                    .color(palette.danger),
+                        .strong()
+                        .color(palette.danger),
                 );
                 for (session_id, error) in self.last_tick_errors.iter().take(5) {
                     ui.label(if french {

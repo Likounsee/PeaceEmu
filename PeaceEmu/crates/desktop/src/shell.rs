@@ -154,8 +154,8 @@ impl DesktopApp {
         );
         ui.label(
             egui::RichText::new(self.language_pack.text("ui.shell.004"))
-            .size(13.0)
-            .color(palette.text_dim),
+                .size(13.0)
+                .color(palette.text_dim),
         );
         ui.add_space(8.0);
         ui.spacing_mut().item_spacing.y = 2.0;
@@ -195,8 +195,8 @@ impl DesktopApp {
         );
         ui.label(
             egui::RichText::new(self.language_pack.text("ui.shell.007"))
-            .size(13.0)
-            .color(palette.text_dim),
+                .size(13.0)
+                .color(palette.text_dim),
         );
         ui.add_space(8.0);
         ui.spacing_mut().item_spacing.y = 2.0;
