@@ -67,6 +67,28 @@ fn availability_label(availability: ContentAvailability, french: bool) -> &'stat
     }
 }
 
+fn card_availability_label(availability: ContentAvailability, french: bool) -> &'static str {
+    match (availability, french) {
+        (ContentAvailability::Available, true) => "Prête",
+        (ContentAvailability::Available, false) => "Ready",
+        (ContentAvailability::Missing, true) => "Introuvable",
+        (ContentAvailability::Missing, false) => "Missing",
+        (ContentAvailability::NotRegularFile, true) => "Pas un fichier",
+        (ContentAvailability::NotRegularFile, false) => "Not a file",
+        (ContentAvailability::Unavailable, true) => "Lecture impossible",
+        (ContentAvailability::Unavailable, false) => "Cannot inspect",
+    }
+}
+
+fn path_availability(path: &Path) -> ContentAvailability {
+    match std::fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => ContentAvailability::Available,
+        Ok(_) => ContentAvailability::NotRegularFile,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => ContentAvailability::Missing,
+        Err(_) => ContentAvailability::Unavailable,
+    }
+}
+
 fn detail_row(ui: &mut egui::Ui, palette: &theme::Palette, label: &str, value: &str) {
     ui.label(
         egui::RichText::new(label)
@@ -279,10 +301,13 @@ impl DesktopApp {
         ui.horizontal_wrapped(|ui| {
             for (title, path, size) in entries {
                 let selected = self.selected_content.as_ref() == Some(path);
-                let file_available = self.controller.library().get(path).map_or_else(
-                    || path.is_file(),
-                    |entry| entry.availability() == ContentAvailability::Available,
-                );
+                let availability = self
+                    .controller
+                    .library()
+                    .get(path)
+                    .map(|entry| entry.availability())
+                    .unwrap_or_else(|| path_availability(path));
+                let file_available = availability == ContentAvailability::Available;
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(card_width, 170.0), egui::Sense::click());
                 let painter = ui.painter();
@@ -337,7 +362,7 @@ impl DesktopApp {
                     painter.text(
                         rect.min + egui::vec2(12.0, 150.0),
                         egui::Align2::LEFT_TOP,
-                        if french { "Introuvable" } else { "Missing" },
+                        card_availability_label(availability, french),
                         egui::FontId::proportional(11.0),
                         palette.warning,
                     );
@@ -620,7 +645,8 @@ impl DesktopApp {
 
 #[cfg(test)]
 mod tests {
-    use super::content_path_status;
+    use super::{card_availability_label, content_path_status, path_availability};
+    use host_app::library::ContentAvailability;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -633,6 +659,42 @@ mod tests {
             "desktop-library-{label}-{}-{nonce}",
             std::process::id()
         ))
+    }
+
+    #[test]
+    fn card_status_distinguishes_missing_files_from_other_unavailable_paths() {
+        assert_eq!(
+            card_availability_label(ContentAvailability::Missing, true),
+            "Introuvable"
+        );
+        assert_eq!(
+            card_availability_label(ContentAvailability::NotRegularFile, false),
+            "Not a file"
+        );
+        assert_eq!(
+            card_availability_label(ContentAvailability::Unavailable, false),
+            "Cannot inspect"
+        );
+        assert_eq!(
+            card_availability_label(ContentAvailability::Available, false),
+            "Ready"
+        );
+    }
+
+    #[test]
+    fn path_availability_classifies_files_directories_and_missing_paths() {
+        let missing = unique_temp_path("availability-missing");
+        assert_eq!(path_availability(&missing), ContentAvailability::Missing);
+
+        let directory = unique_temp_path("availability-directory");
+        std::fs::create_dir(&directory).expect("create temporary directory");
+        assert_eq!(path_availability(&directory), ContentAvailability::NotRegularFile);
+        std::fs::remove_dir(&directory).expect("remove temporary directory");
+
+        let file = unique_temp_path("availability-file");
+        std::fs::write(&file, b"rom").expect("create temporary file");
+        assert_eq!(path_availability(&file), ContentAvailability::Available);
+        std::fs::remove_file(&file).expect("remove temporary file");
     }
 
     #[test]
