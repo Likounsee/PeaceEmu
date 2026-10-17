@@ -137,7 +137,7 @@ impl DesktopApp {
                                 ui.label(
                                     egui::RichText::new(if self.controller.session_count() > 0 {
                                         "Session active"
-                                    } else self.language_pack.text("ui.home_page.008"))
+                                    } else { self.language_pack.text("ui.home_page.008") })
                                     .size(11.0)
                                     .color(muted),
                                 );

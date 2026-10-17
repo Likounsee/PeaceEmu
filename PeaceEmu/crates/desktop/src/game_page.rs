@@ -109,7 +109,7 @@ impl DesktopApp {
                         ui.separator();
                         ui.label(if summary.persistent_saves {
                             self.language_pack.text("ui.game_page.016")
-                        } else self.language_pack.text("ui.game_page.017"));
+                        } else { self.language_pack.text("ui.game_page.017") });
                         ui.separator();
                         ui.label(self.language_pack.text("ui.game_page.018"));
                     });

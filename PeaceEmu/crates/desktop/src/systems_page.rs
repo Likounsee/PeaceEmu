@@ -275,7 +275,7 @@ impl DesktopApp {
                         ui.label(
                             egui::RichText::new(if is_selected {
                                 self.language_pack.text("ui.systems_page.016")
-                            } else self.language_pack.text("ui.systems_page.017"))
+                            } else { self.language_pack.text("ui.systems_page.017") })
                             .size(13.0)
                             .color(palette.text_dim),
                         );
@@ -417,7 +417,7 @@ impl DesktopApp {
                         ui.label(
                             egui::RichText::new(if bundled {
                                 self.language_pack.text("ui.systems_page.030")
-                            } else self.language_pack.text("ui.systems_page.031"))
+                            } else { self.language_pack.text("ui.systems_page.031") })
                             .size(13.0)
                             .color(palette.text_dim),
                         );
