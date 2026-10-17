@@ -201,15 +201,11 @@ impl DesktopApp {
             let is_bundled = registered.contains(&id);
             let installed_version = state.installed_version(&module_id).map(str::to_owned);
             let mut is_selected = selected.contains(&module_id);
-            let descriptor = self.registry.registered_descriptor(
-                self.registry
-                    .system_ids()
-                    .find(|system_id| system_id.as_str() == id)
-                    .unwrap_or_else(|| {
-                        // The descriptor is only queried for registered IDs below.
-                        self.registry.system_ids().next().unwrap_or_else(|| unreachable!())
-                    }),
-            );
+            let descriptor = self
+                .registry
+                .system_ids()
+                .find(|system_id| system_id.as_str() == id)
+                .and_then(|system_id| self.registry.registered_descriptor(*system_id));
 
             theme::card(ui, &palette, |ui| {
                 ui.set_width(ui.available_width());
