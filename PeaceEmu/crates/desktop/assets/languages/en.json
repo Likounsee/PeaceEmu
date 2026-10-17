@@ -7,5 +7,6 @@
   "about.development": "PeaceEmu is under active development.",
   "about.core_notice": "The Game Boy Color core is experimental; launching a ROM does not imply compatibility.",
   "settings.save": "Save settings now",
-  "settings.saved": "Settings saved."
+  "settings.saved": "Settings saved.",
+  "about.paths_saved": "Imported library paths and appearance preferences are saved in your user configuration."
 }

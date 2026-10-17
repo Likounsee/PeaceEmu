@@ -66,7 +66,11 @@ impl DesktopApp {
         let french = self.language == "fr";
         let current = option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0");
 
-        ui.label(egui::RichText::new(self.language_pack.text("settings.application.title")).size(30.0).strong());
+        ui.label(
+            egui::RichText::new(self.language_pack.text("settings.application.title"))
+                .size(30.0)
+                .strong(),
+        );
         ui.label(
             egui::RichText::new(self.language_pack.text("settings.application.description"))
                 .color(palette.text_dim),
@@ -96,20 +100,16 @@ impl DesktopApp {
                     });
                     ui.label(
                         egui::RichText::new(self.language_pack.text("about.development"))
-                        .color(palette.text_dim),
+                            .color(palette.text_dim),
                     );
                 });
             });
             ui.add_space(6.0);
             ui.label(self.language_pack.text("about.core_notice"));
             ui.label(
-                egui::RichText::new(if french {
-                    "Les chemins de la bibliothèque et les préférences visuelles sont enregistrés dans votre configuration utilisateur."
-                } else {
-                    "Imported library paths and appearance preferences are saved in your user configuration."
-                })
-                .size(13.0)
-                .color(palette.text_dim),
+                egui::RichText::new(self.language_pack.text("about.paths_saved"))
+                    .size(13.0)
+                    .color(palette.text_dim),
             );
             ui.add_space(4.0);
             if ui

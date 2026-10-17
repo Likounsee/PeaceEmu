@@ -7,5 +7,6 @@
   "about.development": "PeaceEmu est en cours de développement.",
   "about.core_notice": "Le cœur Game Boy Color est expérimental ; le lancement d’une ROM ne garantit pas sa compatibilité.",
   "settings.save": "Enregistrer les paramètres",
-  "settings.saved": "Paramètres enregistrés."
+  "settings.saved": "Paramètres enregistrés.",
+  "about.paths_saved": "Les chemins de la bibliothèque et les préférences visuelles sont enregistrés dans votre configuration utilisateur."
 }
