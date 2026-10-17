@@ -421,7 +421,13 @@ impl DesktopApp {
                 .library()
                 .entries()
                 .find(|entry| entry.path() == path)
-                .map(|entry| (path.clone(), entry.title().to_owned(), live_path_size(&path)))
+                .map(|entry| {
+                    (
+                        path.clone(),
+                        entry.title().to_owned(),
+                        live_path_size(&path),
+                    )
+                })
         });
         let Some((path, title, size)) = selected else {
             theme::card(ui, palette, |ui| {
@@ -660,7 +666,10 @@ impl DesktopApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{card_availability_label, content_path_status, display_path_size, live_path_size, path_availability};
+    use super::{
+        card_availability_label, content_path_status, display_path_size, live_path_size,
+        path_availability,
+    };
     use host_app::library::ContentAvailability;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -754,7 +763,10 @@ mod tests {
 
         let directory = unique_temp_path("availability-directory");
         std::fs::create_dir(&directory).expect("create temporary directory");
-        assert_eq!(path_availability(&directory), ContentAvailability::NotRegularFile);
+        assert_eq!(
+            path_availability(&directory),
+            ContentAvailability::NotRegularFile
+        );
         std::fs::remove_dir(&directory).expect("remove temporary directory");
 
         let file = unique_temp_path("availability-file");
