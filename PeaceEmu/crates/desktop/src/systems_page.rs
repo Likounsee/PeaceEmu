@@ -1,47 +1,14 @@
-//! Systems and module management page for the PeaceEmu desktop frontend.
-//!
-//! Layout: header with a systems counter, three summary cards, one card per
-//! registered core (tile, status badge, on/off switch, capability badges),
-//! then the retained-but-missing selections and the installed packages.
-//! All colours come from the shared [`theme::Palette`].
+//! Unified module inventory and lifecycle overview.
 
 use super::*;
 use emulation_core::module_management::ModuleId;
 use emulation_core::module_state_store::{default_user_state_path, ModuleStateStore};
+use std::collections::BTreeSet;
 
-/// A pill-shaped on/off switch. Returns `true` on the frame it is toggled.
-fn toggle_switch(ui: &mut egui::Ui, palette: &theme::Palette, on: &mut bool) -> bool {
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(40.0, 22.0), egui::Sense::click());
-    let mut toggled = false;
-    if response.clicked() {
-        *on = !*on;
-        toggled = true;
-    }
-    let openness = ui.ctx().animate_bool_with_time(response.id, *on, 0.12);
-    let radius = rect.height() / 2.0;
-    let off_track = if palette.dark {
-        palette.border
-    } else {
-        egui::Color32::from_rgb(212, 212, 216)
-    };
-    let track = if *on { palette.accent } else { off_track };
-    ui.painter()
-        .rect_filled(rect, egui::Rounding::same(radius), track);
-    let knob_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), openness);
-    ui.painter().circle_filled(
-        egui::pos2(knob_x, rect.center().y),
-        radius - 3.0,
-        egui::Color32::WHITE,
-    );
-    let _ = response.on_hover_cursor(egui::CursorIcon::PointingHand);
-    toggled
-}
-
-/// Square tile showing the first two letters of a core identifier.
 fn module_tile(ui: &mut egui::Ui, palette: &theme::Palette, name: &str) {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(42.0, 42.0), egui::Sense::hover());
     ui.painter()
-        .rect_filled(rect, egui::Rounding::same(10.0), palette.accent_subtle);
+        .rect_filled(rect, egui::Rounding::same(9.0), palette.accent_subtle);
     let initials: String = name
         .chars()
         .filter(|character| character.is_alphanumeric())
@@ -52,87 +19,25 @@ fn module_tile(ui: &mut egui::Ui, palette: &theme::Palette, name: &str) {
         rect.center(),
         egui::Align2::CENTER_CENTER,
         initials,
-        egui::FontId::proportional(16.0),
+        egui::FontId::proportional(15.0),
         palette.text,
     );
 }
 
-/// A small summary card: label, big number, detail line.
-fn stat_card(
-    ui: &mut egui::Ui,
-    palette: &theme::Palette,
-    label: &str,
-    value: String,
-    detail: &str,
-) {
-    theme::card(ui, palette, |ui| {
-        ui.set_width(ui.available_width());
-        ui.label(
-            egui::RichText::new(label)
-                .size(11.0)
-                .strong()
-                .color(palette.text_dim),
-        );
-        ui.label(egui::RichText::new(value).size(28.0).strong());
-        ui.label(
-            egui::RichText::new(detail)
-                .size(12.0)
-                .color(palette.text_dim),
-        );
-    });
-}
-
-fn section_heading(ui: &mut egui::Ui, palette: &theme::Palette, title: &str, description: &str) {
-    ui.add_space(18.0);
-    ui.label(egui::RichText::new(title).size(17.0).strong());
-    ui.label(
-        egui::RichText::new(description)
-            .size(13.0)
-            .color(palette.text_dim),
-    );
-    ui.add_space(4.0);
+fn status_badge(ui: &mut egui::Ui, text: &str, color: egui::Color32) {
+    theme::badge(ui, text, color);
 }
 
 impl DesktopApp {
     pub(super) fn show_systems(&mut self, ui: &mut egui::Ui) {
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
         let french = self.language == "fr";
-        let system_ids: Vec<_> = self.registry.system_ids().collect();
-        let system_count = system_ids.len();
+        let registered: BTreeSet<String> = self
+            .registry
+            .system_ids()
+            .map(|id| id.as_str().to_owned())
+            .collect();
 
-        // ---------------------------------------------------------------- Header
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    egui::RichText::new(self.language_pack.text("ui.systems_page.001"))
-                        .size(30.0)
-                        .strong(),
-                );
-                ui.label(
-                    egui::RichText::new(self.language_pack.text("ui.systems_page.002"))
-                        .color(palette.text_dim),
-                );
-            });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                let noun = if french {
-                    if system_count == 1 {
-                        "système"
-                    } else {
-                        "systèmes"
-                    }
-                } else if system_count == 1 {
-                    "system"
-                } else {
-                    "systems"
-                };
-                theme::badge(ui, &format!("{system_count} {noun}"), palette.accent);
-            });
-        });
-        ui.add_space(6.0);
-        ui.separator();
-        ui.add_space(6.0);
-
-        // ----------------------------------------------------------- Module state
         let state_path = match default_user_state_path() {
             Ok(path) => path,
             Err(error) => {
@@ -169,100 +74,216 @@ impl DesktopApp {
             }
         };
 
+        // One inventory combines compiled modules and persisted package records,
+        // so installed modules don't disappear merely because a core isn't bundled.
+        let mut module_ids = registered.clone();
+        module_ids.extend(
+            state
+                .installed_modules()
+                .iter()
+                .map(|module| module.id.as_str().to_owned()),
+        );
+        module_ids.extend(
+            state
+                .selected_modules()
+                .iter()
+                .map(|module| module.as_str().to_owned()),
+        );
+
         let mut selected = state.selected_modules().to_vec();
         let mut changed = false;
+        let installed_count = state.installed_modules().len();
+        let selected_count = selected.len();
 
-        // --------------------------------------------------------- Summary cards
-        let stats = [
-            (
-                self.language_pack.text("ui.systems_page.004"),
-                system_count.to_string(),
-                self.language_pack.text("ui.systems_page.005"),
-            ),
-            (
-                self.language_pack.text("ui.systems_page.006"),
-                selected.len().to_string(),
-                self.language_pack.text("ui.systems_page.007"),
-            ),
-            (
-                self.language_pack.text("ui.systems_page.008"),
-                state.installed_modules().len().to_string(),
-                self.language_pack.text("ui.systems_page.009"),
-            ),
-        ];
-        let columns = if ui.available_width() < 620.0 { 1 } else { 3 };
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label(
+                    egui::RichText::new(self.language_pack.text("ui.systems_page.001"))
+                        .size(29.0)
+                        .strong(),
+                );
+                ui.label(
+                    egui::RichText::new(if french {
+                        "Tous vos modules dans une seule liste : état, version, activation et téléchargement."
+                    } else {
+                        "All modules in one list: status, version, activation and downloads."
+                    })
+                    .color(palette.text_dim),
+                );
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                theme::badge(
+                    ui,
+                    &if french {
+                        format!("{} module(s)", module_ids.len())
+                    } else {
+                        format!("{} module(s)", module_ids.len())
+                    },
+                    palette.accent,
+                );
+            });
+        });
+        ui.add_space(10.0);
+
+        let columns = if ui.available_width() < 700.0 { 1 } else { 3 };
         ui.columns(columns, |cols| {
+            let stats = [
+                (
+                    if french { "DISPONIBLES" } else { "AVAILABLE" },
+                    registered.len().to_string(),
+                    if french { "présents dans cette compilation" } else { "bundled in this build" },
+                ),
+                (
+                    if french { "ACTIVÉS" } else { "ENABLED" },
+                    selected_count.to_string(),
+                    if french { "préférences enregistrées" } else { "saved selections" },
+                ),
+                (
+                    if french { "INSTALLÉS" } else { "INSTALLED" },
+                    installed_count.to_string(),
+                    if french { "paquets enregistrés" } else { "recorded packages" },
+                ),
+            ];
             for (index, (label, value, detail)) in stats.into_iter().enumerate() {
-                stat_card(&mut cols[index % columns], &palette, label, value, detail);
+                theme::card(&mut cols[index % columns], &palette, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.label(
+                        egui::RichText::new(label)
+                            .size(10.0)
+                            .strong()
+                            .color(palette.text_dim),
+                    );
+                    ui.label(egui::RichText::new(value).size(25.0).strong());
+                    ui.label(
+                        egui::RichText::new(detail)
+                            .size(11.0)
+                            .color(palette.text_dim),
+                    );
+                });
             }
         });
 
-        // ------------------------------------------------------ Available modules
-        section_heading(
-            ui,
-            &palette,
-            self.language_pack.text("ui.systems_page.010"),
-            self.language_pack.text("ui.systems_page.011"),
-        );
+        ui.add_space(14.0);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(if french { "MODULE" } else { "MODULE" }).strong());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    egui::RichText::new(if french {
+                        "ACTIVATION"
+                    } else {
+                        "ACTIVATION"
+                    })
+                    .strong()
+                    .color(palette.text_dim),
+                );
+            });
+        });
+        ui.separator();
 
-        if system_ids.is_empty() {
+        if module_ids.is_empty() {
             theme::card(ui, &palette, |ui| {
                 ui.set_width(ui.available_width());
                 ui.label(
-                    egui::RichText::new(self.language_pack.text("ui.systems_page.012"))
-                        .color(palette.text_dim),
+                    egui::RichText::new(if french {
+                        "Aucun module n’est enregistré pour le moment."
+                    } else {
+                        "No modules are registered yet."
+                    })
+                    .color(palette.text_dim),
                 );
             });
         }
 
-        for id in &system_ids {
-            let Ok(module_id) = ModuleId::new(id.as_str().to_owned()) else {
-                ui.label(
-                    egui::RichText::new(format!(
-                        "{}: {}",
-                        self.language_pack.text("ui.systems_page.013"),
-                        id.as_str()
-                    ))
-                    .color(palette.danger),
-                );
+        for id in module_ids {
+            let Ok(module_id) = ModuleId::new(id.clone()) else {
                 continue;
             };
-            let available = self.registry.registered_descriptor(*id);
-            let is_available = available.is_some();
+            let is_bundled = registered.contains(&id);
             let installed_version = state.installed_version(&module_id).map(str::to_owned);
             let mut is_selected = selected.contains(&module_id);
+            let descriptor = self.registry.registered_descriptor(
+                self.registry
+                    .system_ids()
+                    .find(|system_id| system_id.as_str() == id)
+                    .unwrap_or_else(|| {
+                        // The descriptor is only queried for registered IDs below.
+                        self.registry.system_ids().next().unwrap_or_else(|| unreachable!())
+                    }),
+            );
+
             theme::card(ui, &palette, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    module_tile(ui, &palette, id.as_str());
+                    module_tile(ui, &palette, &id);
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new(id.as_str()).size(16.0).strong());
-                        if let Some(version) = installed_version.as_deref() {
-                            theme::badge(
-                                ui,
-                                &if french {
-                                    format!("Installé · version {version}")
+                        ui.label(egui::RichText::new(&id).size(15.0).strong());
+                        ui.horizontal_wrapped(|ui| {
+                            if let Some(version) = installed_version.as_deref() {
+                                status_badge(
+                                    ui,
+                                    &if french {
+                                        format!("Installé · v{version}")
+                                    } else {
+                                        format!("Installed · v{version}")
+                                    },
+                                    palette.success,
+                                );
+                            } else if is_bundled {
+                                status_badge(
+                                    ui,
+                                    if french { "Intégré à l’application" } else { "Bundled with app" },
+                                    palette.accent,
+                                );
+                            } else {
+                                status_badge(
+                                    ui,
+                                    if french { "Fichiers absents" } else { "Files missing" },
+                                    palette.warning,
+                                );
+                            }
+                            if is_selected {
+                                status_badge(
+                                    ui,
+                                    if french { "Activé" } else { "Enabled" },
+                                    palette.success,
+                                );
+                            } else {
+                                status_badge(
+                                    ui,
+                                    if french { "Désactivé" } else { "Disabled" },
+                                    palette.text_dim,
+                                );
+                            }
+                        });
+                        ui.add_space(3.0);
+                        ui.label(
+                            egui::RichText::new(if let Some(version) = installed_version.as_deref() {
+                                if french {
+                                    format!("Version locale : {version}")
                                 } else {
-                                    format!("Installed · version {version}")
-                                },
-                                palette.success,
-                            );
-                        } else if is_available {
-                            theme::badge(
-                                ui,
-                                self.language_pack.text("ui.systems_page.014"),
-                                palette.accent,
-                            );
-                        } else {
-                            theme::badge(
-                                ui,
-                                self.language_pack.text("ui.systems_page.015"),
-                                palette.warning,
-                            );
-                        }
+                                    format!("Local version: {version}")
+                                }
+                            } else if is_bundled {
+                                if french { "Version fournie avec cette compilation".to_owned() } else { "Version supplied with this build".to_owned() }
+                            } else if french {
+                                "Aucune version locale détectée".to_owned()
+                            } else {
+                                "No local version detected".to_owned()
+                            })
+                            .size(12.0)
+                            .color(palette.text_dim),
+                        );
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if toggle_switch(ui, &palette, &mut is_selected) {
+                        let can_toggle = is_bundled;
+                        let response = ui.add_enabled(
+                            can_toggle,
+                            egui::Checkbox::new(
+                                &mut is_selected,
+                                if french { "Utiliser" } else { "Use" },
+                            ),
+                        );
+                        if response.changed() {
                             changed = true;
                             if is_selected {
                                 if !selected.contains(&module_id) {
@@ -272,109 +293,72 @@ impl DesktopApp {
                                 selected.retain(|selected_id| selected_id != &module_id);
                             }
                         }
-                        ui.label(
-                            egui::RichText::new(if is_selected {
-                                self.language_pack.text("ui.systems_page.016")
-                            } else {
-                                self.language_pack.text("ui.systems_page.017")
-                            })
-                            .size(13.0)
-                            .color(palette.text_dim),
-                        );
                     });
                 });
-                if let Some(descriptor) = available {
-                    let caps = descriptor.capabilities;
-                    ui.add_space(4.0);
-                    ui.separator();
+
+                ui.add_space(5.0);
+                ui.separator();
+                ui.horizontal_wrapped(|ui| {
                     ui.label(
-                        egui::RichText::new(self.language_pack.text("ui.systems_page.018"))
-                            .size(11.0)
+                        egui::RichText::new(if french { "Téléchargement" } else { "Download" })
                             .strong()
-                            .color(palette.text_dim),
+                            .size(12.0),
                     );
+                    if installed_version.is_some() {
+                        status_badge(
+                            ui,
+                            if french { "Déjà installé" } else { "Already installed" },
+                            palette.success,
+                        );
+                    } else if is_bundled {
+                        status_badge(
+                            ui,
+                            if french { "Inclus dans l’application" } else { "Included with app" },
+                            palette.accent,
+                        );
+                    } else {
+                        status_badge(
+                            ui,
+                            if french { "Source de téléchargement non configurée" } else { "Download source not configured" },
+                            palette.warning,
+                        );
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let button = egui::Button::new(if french {
+                            "Télécharger"
+                        } else {
+                            "Download"
+                        });
+                        let response = ui.add_enabled(false, button);
+                        response.on_hover_text(if french {
+                            "Le catalogue et l’installation distante ne sont pas encore reliés à cette page."
+                        } else {
+                            "The remote catalogue and installer are not connected to this page yet."
+                        });
+                    });
+                });
+
+                if let Some(descriptor) = descriptor {
+                    let caps = descriptor.capabilities;
+                    ui.add_space(5.0);
                     ui.horizontal_wrapped(|ui| {
                         for (label, enabled) in [
-                            (
-                                self.language_pack.text("ui.systems_page.019"),
-                                caps.content_loading,
-                            ),
-                            (self.language_pack.text("ui.systems_page.020"), caps.input),
-                            (
-                                self.language_pack.text("ui.systems_page.021"),
-                                caps.video_output,
-                            ),
-                            ("Audio", caps.audio_output),
-                            (
-                                self.language_pack.text("ui.systems_page.022"),
-                                caps.save_states,
-                            ),
-                            (
-                                self.language_pack.text("ui.systems_page.023"),
-                                caps.persistent_saves,
-                            ),
+                            (if french { "Contenu" } else { "Content" }, caps.content_loading),
+                            (if french { "Entrées" } else { "Input" }, caps.input),
+                            (if french { "Vidéo" } else { "Video" }, caps.video_output),
+                            (if french { "Audio" } else { "Audio" }, caps.audio_output),
+                            (if french { "États" } else { "Save states" }, caps.save_states),
+                            (if french { "Sauvegardes" } else { "Saves" }, caps.persistent_saves),
                         ] {
-                            // The marker keeps the state readable without colour.
-                            if enabled {
-                                theme::badge(ui, &format!("● {label}"), palette.success);
-                            } else {
-                                theme::badge(ui, &format!("○ {label}"), palette.text_dim);
-                            }
+                            status_badge(
+                                ui,
+                                &format!("{} {label}", if enabled { "●" } else { "○" }),
+                                if enabled { palette.success } else { palette.text_dim },
+                            );
                         }
                     });
                 }
             });
-        }
-
-        // Keep persisted selections visible even when this build does not ship
-        // the corresponding core. Hiding them would make old preferences look lost.
-        let unavailable_selected: Vec<_> = selected
-            .iter()
-            .filter(|selected_id| {
-                !system_ids
-                    .iter()
-                    .any(|system_id| system_id.as_str() == selected_id.as_str())
-            })
-            .cloned()
-            .collect();
-        if !unavailable_selected.is_empty() {
-            section_heading(
-                ui,
-                &palette,
-                self.language_pack.text("ui.systems_page.024"),
-                self.language_pack.text("ui.systems_page.025"),
-            );
-            let mut deselected_unavailable = Vec::new();
-            for selected_id in unavailable_selected {
-                let mut keep_selected = true;
-                theme::card(ui, &palette, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        module_tile(ui, &palette, selected_id.as_str());
-                        ui.vertical(|ui| {
-                            ui.label(
-                                egui::RichText::new(selected_id.as_str())
-                                    .size(16.0)
-                                    .strong(),
-                            );
-                            theme::badge(
-                                ui,
-                                self.language_pack.text("ui.systems_page.026"),
-                                palette.warning,
-                            );
-                        });
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if toggle_switch(ui, &palette, &mut keep_selected) {
-                                deselected_unavailable.push(selected_id.clone());
-                            }
-                        });
-                    });
-                });
-            }
-            if !deselected_unavailable.is_empty() {
-                selected.retain(|id| !deselected_unavailable.contains(id));
-                changed = true;
-            }
         }
 
         if changed {
@@ -396,42 +380,6 @@ impl DesktopApp {
                 }
             }
         }
-
-        // ------------------------------------------------------ Installed modules
-        section_heading(
-            ui,
-            &palette,
-            self.language_pack.text("ui.systems_page.027"),
-            self.language_pack.text("ui.systems_page.028"),
-        );
-        theme::card(ui, &palette, |ui| {
-            ui.set_width(ui.available_width());
-            if state.installed_modules().is_empty() {
-                ui.label(
-                    egui::RichText::new(self.language_pack.text("ui.systems_page.029"))
-                        .color(palette.text_dim),
-                );
-            } else {
-                for installed in state.installed_modules() {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(egui::RichText::new(installed.id.as_str()).strong());
-                        theme::badge(ui, &format!("v{}", installed.version), palette.text_dim);
-                        let bundled = system_ids
-                            .iter()
-                            .any(|system_id| system_id.as_str() == installed.id.as_str());
-                        ui.label(
-                            egui::RichText::new(if bundled {
-                                self.language_pack.text("ui.systems_page.030")
-                            } else {
-                                self.language_pack.text("ui.systems_page.031")
-                            })
-                            .size(13.0)
-                            .color(palette.text_dim),
-                        );
-                    });
-                }
-            }
-        });
         ui.add_space(16.0);
     }
 }
