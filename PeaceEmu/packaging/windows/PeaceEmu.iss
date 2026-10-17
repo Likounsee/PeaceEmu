@@ -47,6 +47,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 ; Keep the executable as a required source so packaging fails if staging is broken.
 Source: "{#StageDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; The shortcut and uninstaller icons must exist inside the installed directory.
+Source: "{#IconFile}"; DestDir: "{app}"; DestName: "PeaceEmu.ico"; Flags: ignoreversion
 ; Bundle staged runtime DLLs, native dependencies, and resources as well. The
 ; installer must not rely on files from the repository or a developer's PATH.
 ; Debug symbols are intentionally not shipped.
