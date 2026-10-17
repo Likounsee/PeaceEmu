@@ -80,11 +80,7 @@ impl DesktopApp {
                         palette,
                         Icon::Fullscreen,
                         self.fullscreen,
-                        if french {
-                            "Plein écran (F11)"
-                        } else {
-                            "Fullscreen (F11)"
-                        },
+                        self.language_pack.text("ui.shell.001"),
                     )
                     .clicked()
                     {
@@ -98,11 +94,7 @@ impl DesktopApp {
                             palette,
                             Icon::Sidebar,
                             self.sidebar_open,
-                            if french {
-                                "Afficher ou masquer la barre latérale"
-                            } else {
-                                "Show or hide the sidebar"
-                            },
+                            self.language_pack.text("ui.shell.002"),
                         )
                         .clicked()
                     {
@@ -156,16 +148,12 @@ impl DesktopApp {
             }
         }
         ui.label(
-            egui::RichText::new(if french { "Bibliothèque" } else { "Library" })
+            egui::RichText::new(self.language_pack.text("ui.shell.003"))
                 .size(18.0)
                 .strong(),
         );
         ui.label(
-            egui::RichText::new(if french {
-                "Filtrer par format"
-            } else {
-                "Filter by format"
-            })
+            egui::RichText::new(self.language_pack.text("ui.shell.004"))
             .size(13.0)
             .color(palette.text_dim),
         );
@@ -174,7 +162,7 @@ impl DesktopApp {
         for (format, label, count) in [
             (
                 LibraryFormat::All,
-                if french { "Tous les jeux" } else { "All games" },
+                self.language_pack.text("ui.shell.005"),
                 all,
             ),
             (LibraryFormat::GameBoy, "Game Boy (.gb)", game_boy),
@@ -201,16 +189,12 @@ impl DesktopApp {
 
     fn show_settings_sidebar(&mut self, ui: &mut egui::Ui, palette: &Palette, french: bool) {
         ui.label(
-            egui::RichText::new(if french { "Paramètres" } else { "Settings" })
+            egui::RichText::new(self.language_pack.text("ui.shell.006"))
                 .size(18.0)
                 .strong(),
         );
         ui.label(
-            egui::RichText::new(if french {
-                "Préférences de l’application"
-            } else {
-                "Application preferences"
-            })
+            egui::RichText::new(self.language_pack.text("ui.shell.007"))
             .size(13.0)
             .color(palette.text_dim),
         );
@@ -219,7 +203,7 @@ impl DesktopApp {
         for (section, label, icon) in [
             (
                 SettingsSection::Appearance,
-                if french { "Apparence" } else { "Appearance" },
+                self.language_pack.text("ui.shell.008"),
                 Icon::Settings,
             ),
             (SettingsSection::Application, "Application", Icon::Systems),

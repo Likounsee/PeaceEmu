@@ -104,20 +104,12 @@ impl DesktopApp {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Systèmes et modules"
-                    } else {
-                        "Systems and modules"
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.systems_page.001"))
                     .size(30.0)
                     .strong(),
                 );
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Disponibilité issue des cœurs enregistrés ; sélection conservée dans votre profil."
-                    } else {
-                        "Availability comes from registered cores; selection is persisted in your profile."
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.systems_page.002"))
                     .color(palette.text_dim),
                 );
             });
@@ -171,11 +163,7 @@ impl DesktopApp {
                         .strong()
                         .color(palette.danger),
                     );
-                    ui.label(if french {
-                        "Le fichier d’état est conservé pour permettre sa récupération ; aucune sélection n’a été écrasée."
-                    } else {
-                        "The state file was preserved for recovery; no selection was overwritten."
-                    });
+                    ui.label(self.language_pack.text("ui.systems_page.003"));
                 });
                 return;
             }
@@ -187,31 +175,19 @@ impl DesktopApp {
         // --------------------------------------------------------- Summary cards
         let stats = [
             (
-                if french { "CŒURS" } else { "CORES" },
+                self.language_pack.text("ui.systems_page.004"),
                 system_count.to_string(),
-                if french {
-                    "enregistrés dans cette compilation"
-                } else {
-                    "registered in this build"
-                },
+                self.language_pack.text("ui.systems_page.005"),
             ),
             (
-                if french { "ACTIVÉS" } else { "ENABLED" },
+                self.language_pack.text("ui.systems_page.006"),
                 selected.len().to_string(),
-                if french {
-                    "modules sélectionnés"
-                } else {
-                    "selected modules"
-                },
+                self.language_pack.text("ui.systems_page.007"),
             ),
             (
-                if french { "PAQUETS" } else { "PACKAGES" },
+                self.language_pack.text("ui.systems_page.008"),
                 state.installed_modules().len().to_string(),
-                if french {
-                    "paquets installés"
-                } else {
-                    "installed packages"
-                },
+                self.language_pack.text("ui.systems_page.009"),
             ),
         ];
         let columns = if ui.available_width() < 620.0 { 1 } else { 3 };
@@ -225,27 +201,15 @@ impl DesktopApp {
         section_heading(
             ui,
             &palette,
-            if french {
-                "Modules disponibles"
-            } else {
-                "Available modules"
-            },
-            if french {
-                "Activez uniquement les modules que vous souhaitez utiliser. Cette sélection enregistre votre préférence : elle ne télécharge ni n’installe de paquet."
-            } else {
-                "Enable only the modules you want to use. This records your preference only: it does not download or install a package."
-            },
+            self.language_pack.text("ui.systems_page.010"),
+            self.language_pack.text("ui.systems_page.011"),
         );
 
         if system_ids.is_empty() {
             theme::card(ui, &palette, |ui| {
                 ui.set_width(ui.available_width());
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Aucun cœur n’est enregistré dans cette compilation."
-                    } else {
-                        "No emulation core is registered in this build."
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.systems_page.012"))
                     .color(palette.text_dim),
                 );
             });
@@ -256,11 +220,7 @@ impl DesktopApp {
                 ui.label(
                     egui::RichText::new(format!(
                         "{}: {}",
-                        if french {
-                            "Identifiant non valide"
-                        } else {
-                            "Invalid module ID"
-                        },
+                        self.language_pack.text("ui.systems_page.013"),
                         id.as_str()
                     ))
                     .color(palette.danger),
@@ -290,21 +250,13 @@ impl DesktopApp {
                         } else if is_available {
                             theme::badge(
                                 ui,
-                                if french {
-                                    "Intégré à cette compilation"
-                                } else {
-                                    "Built into this build"
-                                },
+                                self.language_pack.text("ui.systems_page.014"),
                                 palette.accent,
                             );
                         } else {
                             theme::badge(
                                 ui,
-                                if french {
-                                    "Non disponible"
-                                } else {
-                                    "Unavailable"
-                                },
+                                self.language_pack.text("ui.systems_page.015"),
                                 palette.warning,
                             );
                         }
@@ -322,16 +274,8 @@ impl DesktopApp {
                         }
                         ui.label(
                             egui::RichText::new(if is_selected {
-                                if french {
-                                    "Activé"
-                                } else {
-                                    "Enabled"
-                                }
-                            } else if french {
-                                "Désactivé"
-                            } else {
-                                "Disabled"
-                            })
+                                self.language_pack.text("ui.systems_page.016")
+                            } else self.language_pack.text("ui.systems_page.017"))
                             .size(13.0)
                             .color(palette.text_dim),
                         );
@@ -342,7 +286,7 @@ impl DesktopApp {
                     ui.add_space(4.0);
                     ui.separator();
                     ui.label(
-                        egui::RichText::new(if french { "CAPACITÉS" } else { "CAPABILITIES" })
+                        egui::RichText::new(self.language_pack.text("ui.systems_page.018"))
                             .size(11.0)
                             .strong()
                             .color(palette.text_dim),
@@ -350,26 +294,18 @@ impl DesktopApp {
                     ui.horizontal_wrapped(|ui| {
                         for (label, enabled) in [
                             (
-                                if french { "Contenu" } else { "Content" },
+                                self.language_pack.text("ui.systems_page.019"),
                                 caps.content_loading,
                             ),
-                            (if french { "Entrées" } else { "Input" }, caps.input),
-                            (if french { "Vidéo" } else { "Video" }, caps.video_output),
+                            (self.language_pack.text("ui.systems_page.020"), caps.input),
+                            (self.language_pack.text("ui.systems_page.021"), caps.video_output),
                             ("Audio", caps.audio_output),
                             (
-                                if french {
-                                    "États de sauvegarde"
-                                } else {
-                                    "Save states"
-                                },
+                                self.language_pack.text("ui.systems_page.022"),
                                 caps.save_states,
                             ),
                             (
-                                if french {
-                                    "Sauvegardes persistantes"
-                                } else {
-                                    "Persistent saves"
-                                },
+                                self.language_pack.text("ui.systems_page.023"),
                                 caps.persistent_saves,
                             ),
                         ] {
@@ -400,16 +336,8 @@ impl DesktopApp {
             section_heading(
                 ui,
                 &palette,
-                if french {
-                    "Sélections conservées"
-                } else {
-                    "Retained selections"
-                },
-                if french {
-                    "Sélections conservées mais indisponibles dans cette compilation."
-                } else {
-                    "Selections retained but unavailable in this build."
-                },
+                self.language_pack.text("ui.systems_page.024"),
+                self.language_pack.text("ui.systems_page.025"),
             );
             let mut deselected_unavailable = Vec::new();
             for selected_id in unavailable_selected {
@@ -426,11 +354,7 @@ impl DesktopApp {
                             );
                             theme::badge(
                                 ui,
-                                if french {
-                                    "Cœur absent"
-                                } else {
-                                    "Core not bundled"
-                                },
+                                self.language_pack.text("ui.systems_page.026"),
                                 palette.warning,
                             );
                         });
@@ -472,26 +396,14 @@ impl DesktopApp {
         section_heading(
             ui,
             &palette,
-            if french {
-                "Modules installés"
-            } else {
-                "Installed modules"
-            },
-            if french {
-                "Les cœurs compilés et les paquets installés sont suivis séparément."
-            } else {
-                "Built-in cores and installed packages are tracked separately."
-            },
+            self.language_pack.text("ui.systems_page.027"),
+            self.language_pack.text("ui.systems_page.028"),
         );
         theme::card(ui, &palette, |ui| {
             ui.set_width(ui.available_width());
             if state.installed_modules().is_empty() {
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Aucun paquet de module externe n’est enregistré comme installé."
-                    } else {
-                        "No external module package is recorded as installed."
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.systems_page.029"))
                     .color(palette.text_dim),
                 );
             } else {
@@ -504,16 +416,8 @@ impl DesktopApp {
                             .any(|system_id| system_id.as_str() == installed.id.as_str());
                         ui.label(
                             egui::RichText::new(if bundled {
-                                if french {
-                                    "Cœur également intégré"
-                                } else {
-                                    "Core also bundled"
-                                }
-                            } else if french {
-                                "Paquet externe"
-                            } else {
-                                "External package"
-                            })
+                                self.language_pack.text("ui.systems_page.030")
+                            } else self.language_pack.text("ui.systems_page.031"))
                             .size(13.0)
                             .color(palette.text_dim),
                         );

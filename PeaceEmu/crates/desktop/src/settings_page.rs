@@ -125,16 +125,8 @@ impl DesktopApp {
         section_heading(
             ui,
             &palette,
-            if french {
-                "Mises à jour de l’application"
-            } else {
-                "Application updates"
-            },
-            if french {
-                "Le manifeste officiel est vérifié au démarrage ; vous pouvez relancer la vérification ici. Les modules sont téléchargés séparément."
-            } else {
-                "The official stable manifest is checked at startup; you can also run a check here. Module downloads are independent."
-            },
+            self.language_pack.text("ui.settings_page.001"),
+            self.language_pack.text("ui.settings_page.002"),
         );
         let checking = self.update_check_receiver.is_some();
         let downloading = self.update_download_receiver.is_some();
@@ -169,43 +161,27 @@ impl DesktopApp {
                 match update_state {
                     UpdateState::Checking => theme::badge(
                         ui,
-                        if french {
-                            "Vérification…"
-                        } else {
-                            "Checking…"
-                        },
+                        self.language_pack.text("ui.settings_page.003"),
                         palette.accent,
                     ),
                     UpdateState::Available => theme::badge(
                         ui,
-                        if french {
-                            "Mise à jour disponible"
-                        } else {
-                            "Update available"
-                        },
+                        self.language_pack.text("ui.settings_page.004"),
                         palette.accent,
                     ),
                     UpdateState::UpToDate => theme::badge(
                         ui,
-                        if french { "À jour" } else { "Up to date" },
+                        self.language_pack.text("ui.settings_page.005"),
                         palette.success,
                     ),
                     UpdateState::InstalledIsNewer => theme::badge(
                         ui,
-                        if french {
-                            "Plus récente que le manifeste"
-                        } else {
-                            "Newer than the manifest"
-                        },
+                        self.language_pack.text("ui.settings_page.006"),
                         palette.warning,
                     ),
                     UpdateState::Unknown => theme::badge(
                         ui,
-                        if french {
-                            "Non vérifié"
-                        } else {
-                            "Not checked"
-                        },
+                        self.language_pack.text("ui.settings_page.007"),
                         palette.text_dim,
                     ),
                 }
@@ -220,11 +196,7 @@ impl DesktopApp {
                 if ui
                     .add_enabled(
                         !checking,
-                        egui::Button::new(if french {
-                            "Rechercher des mises à jour"
-                        } else {
-                            "Check for updates"
-                        }),
+                        egui::Button::new(self.language_pack.text("ui.settings_page.008")),
                     )
                     .clicked()
                 {
@@ -238,11 +210,7 @@ impl DesktopApp {
                                 !downloading,
                                 theme::primary_button(
                                     &palette,
-                                    if french {
-                                        "Télécharger et vérifier la mise à jour"
-                                    } else {
-                                        "Download and verify update"
-                                    },
+                                    self.language_pack.text("ui.settings_page.009"),
                                 ),
                             )
                             .clicked()
@@ -265,11 +233,7 @@ impl DesktopApp {
             });
             if update_state == UpdateState::Available && !has_download {
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Aucun fichier de mise à jour installable n’est publié pour cette plateforme."
-                    } else {
-                        "No installable update artifact is currently published for this platform."
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.settings_page.010"))
                     .size(13.0)
                     .color(palette.text_dim),
                 );
@@ -280,32 +244,20 @@ impl DesktopApp {
                 key_value(
                     ui,
                     &palette,
-                    if french {
-                        "Version installée"
-                    } else {
-                        "Installed version"
-                    },
+                    self.language_pack.text("ui.settings_page.011"),
                     current,
                     true,
                 );
                 key_value(
                     ui,
                     &palette,
-                    if french {
-                        "Version du manifeste"
-                    } else {
-                        "Manifest version"
-                    },
+                    self.language_pack.text("ui.settings_page.012"),
                     &version.to_string(),
                     true,
                 );
                 if let Some(url) = release_notes_url.as_ref() {
                     ui.hyperlink_to(
-                        if french {
-                            "Notes de version"
-                        } else {
-                            "Release notes"
-                        },
+                        self.language_pack.text("ui.settings_page.013"),
                         url,
                     );
                 }
@@ -315,30 +267,18 @@ impl DesktopApp {
                 key_value(
                     ui,
                     &palette,
-                    if french {
-                        "Fichier vérifié préparé"
-                    } else {
-                        "Verified staged file"
-                    },
+                    self.language_pack.text("ui.settings_page.014"),
                     &path.display().to_string(),
                     true,
                 );
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Le fichier est vérifié, mais n’a pas été installé ni exécuté."
-                    } else {
-                        "The file is verified but has not been installed or executed."
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.settings_page.015"))
                     .size(13.0)
                     .color(palette.text_dim),
                 );
             }
             ui.label(
-                egui::RichText::new(if french {
-                    "L’installation automatique et le retour arrière ne sont pas encore activés."
-                } else {
-                    "Automatic installation and rollback are not enabled yet."
-                })
+                egui::RichText::new(self.language_pack.text("ui.settings_page.016"))
                 .size(12.0)
                 .color(palette.text_dim),
             );
@@ -348,37 +288,21 @@ impl DesktopApp {
         section_heading(
             ui,
             &palette,
-            if french {
-                "Paramètres du cœur"
-            } else {
-                "Core settings"
-            },
-            if french {
-                "Séparés de l’apparence de l’application."
-            } else {
-                "Kept separate from the application appearance."
-            },
+            self.language_pack.text("ui.settings_page.017"),
+            self.language_pack.text("ui.settings_page.018"),
         );
         theme::card(ui, &palette, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal_wrapped(|ui| {
                 theme::badge(
                     ui,
-                    if french { "Bientôt" } else { "Coming soon" },
+                    self.language_pack.text("ui.settings_page.019"),
                     palette.text_dim,
                 );
-                ui.label(if french {
-                    "Aucun réglage matériel propre au cœur n’est actuellement proposé."
-                } else {
-                    "No core-specific hardware settings are currently exposed."
-                });
+                ui.label(self.language_pack.text("ui.settings_page.020"));
             });
             ui.label(
-                egui::RichText::new(if french {
-                    "Ces réglages apparaîtront lorsqu’un futur cœur d’émulation les prendra en charge."
-                } else {
-                    "These settings will appear when a future emulation core supports them."
-                })
+                egui::RichText::new(self.language_pack.text("ui.settings_page.021"))
                 .size(13.0)
                 .color(palette.text_dim),
             );
@@ -389,18 +313,10 @@ impl DesktopApp {
             ui,
             &palette,
             "Diagnostic",
-            if french {
-                "Informations locales pour diagnostiquer les problèmes de démarrage et de session."
-            } else {
-                "Local runtime information to help troubleshoot startup and session issues."
-            },
+            self.language_pack.text("ui.settings_page.022"),
         );
-        let none_text = if french { "aucune" } else { "none" };
-        let unavailable_text = if french {
-            "indisponible"
-        } else {
-            "unavailable"
-        };
+        let none_text = self.language_pack.text("ui.settings_page.023");
+        let unavailable_text = self.language_pack.text("ui.settings_page.024");
         let platform = format!("{} / {}", std::env::consts::OS, std::env::consts::ARCH);
         let library_items = self.controller.library().len().to_string();
         let open_sessions = self.controller.session_summaries().len().to_string();
@@ -426,62 +342,42 @@ impl DesktopApp {
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "Version de l’application"
-                } else {
-                    "Application version"
-                },
+                self.language_pack.text("ui.settings_page.025"),
                 current,
                 true,
             );
             key_value(
                 ui,
                 &palette,
-                if french { "Plateforme" } else { "Platform" },
+                self.language_pack.text("ui.settings_page.026"),
                 &platform,
                 true,
             );
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "Éléments de la bibliothèque"
-                } else {
-                    "Library items"
-                },
+                self.language_pack.text("ui.settings_page.027"),
                 &library_items,
                 false,
             );
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "Sessions ouvertes"
-                } else {
-                    "Open sessions"
-                },
+                self.language_pack.text("ui.settings_page.028"),
                 &open_sessions,
                 false,
             );
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "Session active"
-                } else {
-                    "Active session"
-                },
+                self.language_pack.text("ui.settings_page.029"),
                 &active_session,
                 true,
             );
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "Erreurs d’exécution"
-                } else {
-                    "Execution errors"
-                },
+                self.language_pack.text("ui.settings_page.030"),
                 &error_count,
                 false,
             );
@@ -489,66 +385,42 @@ impl DesktopApp {
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "Fichier de configuration"
-                } else {
-                    "Configuration file"
-                },
+                self.language_pack.text("ui.settings_page.031"),
                 &config_path,
                 true,
             );
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "État des médias"
-                } else {
-                    "Media status"
-                },
+                self.language_pack.text("ui.settings_page.032"),
                 &self.media_status,
                 false,
             );
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "État des mises à jour"
-                } else {
-                    "Update status"
-                },
+                self.language_pack.text("ui.settings_page.033"),
                 &self.update_status,
                 false,
             );
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "Mise à jour préparée"
-                } else {
-                    "Staged update"
-                },
+                self.language_pack.text("ui.settings_page.034"),
                 &staged_path,
                 true,
             );
             key_value(
                 ui,
                 &palette,
-                if french {
-                    "Dernier message"
-                } else {
-                    "Latest message"
-                },
+                self.language_pack.text("ui.settings_page.035"),
                 &self.message,
                 false,
             );
             if !self.last_tick_errors.is_empty() {
                 ui.separator();
                 ui.label(
-                    egui::RichText::new(if french {
-                        "Erreurs récentes des sessions"
-                    } else {
-                        "Recent session errors"
-                    })
+                    egui::RichText::new(self.language_pack.text("ui.settings_page.036"))
                     .strong()
                     .color(palette.danger),
                 );
@@ -562,11 +434,7 @@ impl DesktopApp {
             }
             ui.add_space(4.0);
             if ui
-                .button(if french {
-                    "Copier le diagnostic"
-                } else {
-                    "Copy diagnostics to clipboard"
-                })
+                .button(self.language_pack.text("ui.settings_page.037"))
                 .clicked()
             {
                 let report = self.diagnostics_report(french);
