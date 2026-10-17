@@ -56,8 +56,10 @@ fn shorten(text: &str, max_chars: usize) -> String {
 
 fn availability_label(availability: ContentAvailability, french: bool) -> &'static str {
     match (availability, french) {
-        (ContentAvailability::Available, true) => "Prête à lancer",
-        (ContentAvailability::Available, false) => "Ready to launch",
+        // A filesystem check proves that a regular file exists, not that its
+        // contents are a valid ROM or that an installed core can launch it.
+        (ContentAvailability::Available, true) => "Fichier trouvé · validation au lancement",
+        (ContentAvailability::Available, false) => "File found · validated at launch",
         (ContentAvailability::Missing, true) => "Introuvable · à réimporter",
         (ContentAvailability::Missing, false) => "Missing · re-import required",
         (ContentAvailability::NotRegularFile, true) => "Indisponible · ce n’est pas un fichier",
@@ -69,8 +71,8 @@ fn availability_label(availability: ContentAvailability, french: bool) -> &'stat
 
 fn card_availability_label(availability: ContentAvailability, french: bool) -> &'static str {
     match (availability, french) {
-        (ContentAvailability::Available, true) => "Prête",
-        (ContentAvailability::Available, false) => "Ready",
+        (ContentAvailability::Available, true) => "Fichier trouvé",
+        (ContentAvailability::Available, false) => "File found",
         (ContentAvailability::Missing, true) => "Introuvable",
         (ContentAvailability::Missing, false) => "Missing",
         (ContentAvailability::NotRegularFile, true) => "Pas un fichier",
@@ -671,7 +673,7 @@ mod tests {
         );
         assert_eq!(
             card_availability_label(ContentAvailability::Available, false),
-            "Ready"
+            "File found"
         );
     }
 
