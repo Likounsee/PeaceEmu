@@ -191,9 +191,11 @@ impl DesktopApp {
                         self.language_pack.text("ui.settings_page.007"),
                         palette.text_dim,
                     ),
-                    UpdateState::Failed => {
-                        theme::badge(ui, self.language_pack.text("ui.settings_page.038"), palette.danger)
-                    }
+                    UpdateState::Failed => theme::badge(
+                        ui,
+                        self.language_pack.text("ui.settings_page.038"),
+                        palette.danger,
+                    ),
                 }
                 ui.label(
                     egui::RichText::new(&self.update_status)

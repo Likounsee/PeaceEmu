@@ -652,7 +652,6 @@ impl DesktopApp {
     }
 }
 
-
 #[cfg(test)]
 mod state_label_tests {
     use super::*;
@@ -663,7 +662,11 @@ mod state_label_tests {
             (SessionState::Empty, "Vide", "Empty"),
             (SessionState::Running, "En cours", "Running"),
             (SessionState::Paused, "En pause", "Paused"),
-            (SessionState::Halted, "Arrêtée par le cœur", "Halted by core"),
+            (
+                SessionState::Halted,
+                "Arrêtée par le cœur",
+                "Halted by core",
+            ),
             (SessionState::Stopped, "Arrêtée", "Stopped"),
         ];
         for (state, french, english) in cases {
