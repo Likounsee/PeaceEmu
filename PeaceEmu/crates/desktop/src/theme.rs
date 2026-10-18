@@ -550,6 +550,26 @@ pub fn nav_item(
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
+/// Logo shown at the top of the icon rail, decoded once and cached in egui's memory.
+///
+/// `bird.png` is currently very large (about 6 MB); a 256 px copy would keep the
+/// binary and the first frame lighter. Only change the path below to swap it.
+const LOGO_PNG: &[u8] = include_bytes!("../assets/branding/bird.png");
+
+pub fn logo_texture(context: &egui::Context) -> Option<egui::TextureHandle> {
+    let id = egui::Id::new("peaceemu_logo_texture");
+    if let Some(texture) = context.data(|data| data.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let decoded = image::load_from_memory_with_format(LOGO_PNG, image::ImageFormat::Png).ok()?;
+    let thumbnail = decoded.thumbnail(128, 128).to_rgba8();
+    let size = [thumbnail.width() as usize, thumbnail.height() as usize];
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, thumbnail.as_raw());
+    let texture = context.load_texture("peaceemu-logo", color_image, egui::TextureOptions::LINEAR);
+    context.data_mut(|data| data.insert_temp(id, texture.clone()));
+    Some(texture)
+}
+
 /// Flat cover colour derived from a title, so each game keeps a stable tile.
 pub fn cover_color(title: &str) -> Color32 {
     const COVERS: [(u8, u8, u8); 6] = [
