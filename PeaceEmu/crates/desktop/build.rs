@@ -29,9 +29,14 @@ fn main() {
 
 // ICO supports PNG payloads on modern Windows. Render the same official bird
 // artwork into a centered 256x256 transparent canvas before wrapping it as ICO.
-fn write_png_icon(path: &std::path::Path, source_png: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+fn write_png_icon(
+    path: &std::path::Path,
+    source_png: &[u8],
+) -> Result<(), Box<dyn std::error::Error>> {
     let source = image::load_from_memory(source_png)?;
-    let source = source.resize(232, 232, image::imageops::FilterType::Lanczos3).into_rgba8();
+    let source = source
+        .resize(232, 232, image::imageops::FilterType::Lanczos3)
+        .into_rgba8();
     let (width, height) = source.dimensions();
     let mut canvas = image::RgbaImage::from_pixel(256, 256, image::Rgba([0, 0, 0, 0]));
     image::imageops::overlay(
@@ -42,7 +47,8 @@ fn write_png_icon(path: &std::path::Path, source_png: &[u8]) -> Result<(), Box<d
     );
 
     let mut png = Cursor::new(Vec::new());
-    image::DynamicImage::ImageRgba8(canvas).write_to(&mut png, image::ImageOutputFormat::Png)?;
+    image::DynamicImage::ImageRgba8(canvas)
+        .write_to(&mut png, image::ImageOutputFormat::Png)?;
     let png = png.into_inner();
 
     let mut ico = Vec::with_capacity(22 + png.len());
@@ -73,11 +79,14 @@ mod tests {
         write_png_icon(&path, source).unwrap();
         let ico = fs::read(&path).unwrap();
         assert_eq!(&ico[..6], &[0, 0, 1, 0, 1, 0]);
-        assert_eq!(u32::from_le_bytes(ico[14..18].try_into().unwrap()) as usize, ico.len() - 22);
+        assert_eq!(
+            u32::from_le_bytes(ico[14..18].try_into().unwrap()) as usize,
+            ico.len() - 22
+        );
         assert_eq!(u32::from_le_bytes(ico[18..22].try_into().unwrap()), 22);
         assert_eq!(&ico[22..30], b"\x89PNG\r\n\x1a\n");
-        let dimensions = image::load_from_memory(&ico[22..]).unwrap().dimensions();
-        assert_eq!(dimensions, (256, 256));
+        let decoded = image::load_from_memory(&ico[22..]).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (256, 256));
         fs::remove_file(path).unwrap();
     }
 }
