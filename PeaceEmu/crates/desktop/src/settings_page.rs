@@ -285,6 +285,9 @@ impl DesktopApp {
                         .size(13.0)
                         .color(palette.text_dim),
                 );
+                if ui.button(if french { "Installer la mise à jour" } else { "Install update" }).clicked() {
+                    self.start_update_install(context);
+                }
             }
             ui.label(
                 egui::RichText::new(self.language_pack.text("ui.settings_page.016"))
