@@ -91,7 +91,10 @@ fn cli_message(argument: &str) -> Result<&'static str, String> {
     }
 }
 
-fn clear_tick_error_for_session(errors: &mut Vec<(SessionId, String)>, id: SessionId) {
+fn clear_tick_error_for_session<Id: Copy + PartialEq>(
+    errors: &mut Vec<(Id, String)>,
+    id: Id,
+) {
     errors.retain(|(error_id, _)| *error_id != id);
 }
 
@@ -2125,19 +2128,10 @@ mod preference_tests {
         assert!(receiver.is_none());
     }
 
-    #[cfg(feature = "game-boy-color-module")]
     #[test]
     fn clearing_one_session_tick_error_preserves_other_sessions() {
-        let mut controller =
-            ApplicationController::new(HostRuntime::new(HostRuntimeConfig::default()).unwrap());
-        let first = controller
-            .host_mut()
-            .create_session(Box::new(game_boy::GameBoyColorCore::new()))
-            .unwrap();
-        let second = controller
-            .host_mut()
-            .create_session(Box::new(game_boy::GameBoyColorCore::new()))
-            .unwrap();
+        let first = 1_u64;
+        let second = 2_u64;
         let mut errors = vec![
             (first, "first session failed".to_owned()),
             (second, "second session failed".to_owned()),
@@ -2146,6 +2140,40 @@ mod preference_tests {
         clear_tick_error_for_session(&mut errors, first);
 
         assert_eq!(errors, vec![(second, "second session failed".to_owned())]);
+    }
+
+    #[test]
+    fn desktop_page_modules_do_not_reach_into_runtime_internals() {
+        let pages = [
+            ("appearance_page.rs", include_str!("appearance_page.rs")),
+            ("game_page.rs", include_str!("game_page.rs")),
+            ("home_page.rs", include_str!("home_page.rs")),
+            ("library_page.rs", include_str!("library_page.rs")),
+            ("sessions_page.rs", include_str!("sessions_page.rs")),
+            ("settings_page.rs", include_str!("settings_page.rs")),
+            ("systems_page.rs", include_str!("systems_page.rs")),
+            ("shell.rs", include_str!("shell.rs")),
+            ("game_view.rs", include_str!("game_view.rs")),
+        ];
+        let forbidden = [
+            "HostRuntime",
+            "EmulationSession",
+            "emulation_core::host_runtime",
+            ".host(",
+            ".host_mut(",
+            ".session(",
+            ".session_mut(",
+        ];
+
+        for (path, source) in pages {
+            let compact: String = source.chars().filter(|ch| !ch.is_whitespace()).collect();
+            for token in forbidden {
+                assert!(
+                    !compact.contains(token),
+                    "{path} must use ApplicationController APIs; found forbidden token {token}"
+                );
+            }
+        }
     }
 
     #[test]

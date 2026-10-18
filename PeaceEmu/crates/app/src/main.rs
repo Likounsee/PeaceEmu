@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &registry,
     )?;
     println!("Content loaded into host session {}.", session_id.get());
-    println!("Host session limit: {}.", controller.host().max_sessions());
+    println!("Host session limit: {}.", controller.max_sessions());
     println!("This core is an early implementation, not yet a playable emulator.");
     println!("Commands: status, sessions, switch <id>, open <path>, import <path>, library, forget <path>, close [id|all], input <control> <press|release>, release-inputs, inputs, media, run <events>, save-state <path>, load-state <path>, pause, resume, reset, stop, step, quit");
     match controller.import_content(&options.path, MAX_CONTENT_BYTES as u64) {

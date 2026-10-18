@@ -220,16 +220,20 @@ impl ApplicationController {
         }
     }
 
-    /// Borrows the host runtime for read-only frontend diagnostics.
-    pub fn host(&self) -> &HostRuntime {
+    /// Returns the configured maximum number of simultaneously open sessions.
+    pub fn max_sessions(&self) -> usize {
+        self.host.max_sessions()
+    }
+
+    // Keep direct runtime access available only to this crate's unit tests. Production
+    // frontends must use explicit controller methods so lifecycle invariants stay centralized.
+    #[cfg(test)]
+    fn host(&self) -> &HostRuntime {
         &self.host
     }
 
-    /// Mutably borrows the host runtime for capability-specific commands.
-    ///
-    /// Prefer controller lifecycle methods for launching, selecting, and closing
-    /// sessions so that the active-session selection remains synchronized.
-    pub fn host_mut(&mut self) -> &mut HostRuntime {
+    #[cfg(test)]
+    fn host_mut(&mut self) -> &mut HostRuntime {
         &mut self.host
     }
 
