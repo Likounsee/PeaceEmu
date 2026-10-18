@@ -370,9 +370,10 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $tagVersion = $env:GITHUB_REF_NAME.Substring(1)
+          $branch = "PeaceEmu"
           $manifestPath = "PeaceEmu/update/stable.json"
           $desktopManifest = Get-Content "PeaceEmu/crates/desktop/Cargo.toml" -Raw
-          $versionMatch = [regex]::Match($desktopManifest, '(?m)^version\\s*=\\s*"([^"]+)"')
+          $versionMatch = [regex]::Match($desktopManifest, '(?m)^version\s*=\s*"([^"]+)"')
           if (!$versionMatch.Success) { throw "Could not read desktop package version." }
           $packageVersion = $versionMatch.Groups[1].Value
           if ($tagVersion -ne $packageVersion) {
@@ -387,7 +388,7 @@ jobs:
           }
           $actualSize = (Get-Item $assetPath).Length
           $actualHash = (Get-FileHash $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          $checksumParts = (Get-Content $checksumPath -Raw).Trim() -split '\\s+', 2
+          $checksumParts = (Get-Content $checksumPath -Raw).Trim() -split '\s+', 2
           if ($checksumParts.Count -ne 2 -or $checksumParts[0] -ne $actualHash -or $checksumParts[1] -ne $assetName) {
             throw "Installer checksum sidecar does not match the release artifact."
           }
