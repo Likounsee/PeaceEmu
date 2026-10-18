@@ -559,6 +559,7 @@ try {
 }
 
 /// Verifies a staged update without executing it or changing installed files.
+#[allow(dead_code)] // Used by the Windows-only installer launcher on Windows builds.
 pub(crate) fn verify_staged_file(
     path: &Path,
     expected_size: u64,
