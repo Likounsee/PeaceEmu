@@ -236,7 +236,7 @@ enum SettingsSection {
 }
 
 impl DesktopPage {
-    fn title<'a>(self, language_pack: &'a language_pack::LanguagePack) -> &'a str {
+    fn title(self, language_pack: &language_pack::LanguagePack) -> &str {
         match self {
             Self::Home => language_pack.text("ui.main.001"),
             Self::Library => language_pack.text("ui.main.002"),
