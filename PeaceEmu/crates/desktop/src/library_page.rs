@@ -171,21 +171,21 @@ impl DesktopApp {
                     .desired_width(ui.available_width().min(260.0)),
             );
             egui::ComboBox::from_id_source("library_format_filter")
-                .selected_text(self.library_format.label())
+                .selected_text(self.library_format.label(french))
                 .show_ui(ui, |ui| {
                     for format in [
                         LibraryFormat::All,
                         LibraryFormat::GameBoy,
                         LibraryFormat::GameBoyColor,
                     ] {
-                        ui.selectable_value(&mut self.library_format, format, format.label());
+                        ui.selectable_value(&mut self.library_format, format, format.label(french));
                     }
                 });
             egui::ComboBox::from_id_source("library_sort")
-                .selected_text(self.library_sort.label())
+                .selected_text(self.library_sort.label(french))
                 .show_ui(ui, |ui| {
                     for sort in [LibrarySort::Name, LibrarySort::Largest, LibrarySort::Path] {
-                        ui.selectable_value(&mut self.library_sort, sort, sort.label());
+                        ui.selectable_value(&mut self.library_sort, sort, sort.label(french));
                     }
                 });
             if ui
