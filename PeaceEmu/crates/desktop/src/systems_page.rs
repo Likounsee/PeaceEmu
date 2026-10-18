@@ -213,7 +213,7 @@ impl DesktopApp {
                 .registry
                 .system_ids()
                 .find(|system_id| system_id.as_str() == id)
-                .and_then(|system_id| self.registry.registered_descriptor(*system_id));
+                .and_then(|system_id| self.registry.registered_descriptor(system_id));
 
             theme::card(ui, &palette, |ui| {
                 ui.set_width(ui.available_width());
