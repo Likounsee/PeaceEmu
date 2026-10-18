@@ -444,14 +444,17 @@ impl DesktopApp {
             let mut first_imported_path = None;
             let mut failures = Vec::new();
             for path in paths {
-                match self
-                    .controller
-                    .import_content(&path, MAX_CONTENT_BYTES as u64)
-                {
-                    Ok(entry) => {
+                let result = validate_import_file(&path).and_then(|()| {
+                    self.controller
+                        .import_content(&path, MAX_CONTENT_BYTES as u64)
+                        .map(|entry| entry.path().to_path_buf())
+                        .map_err(|error| error.to_string())
+                });
+                match result {
+                    Ok(imported_path) => {
                         imported += 1;
                         if first_imported_path.is_none() {
-                            first_imported_path = Some(entry.path().to_path_buf());
+                            first_imported_path = Some(imported_path);
                         }
                     }
                     Err(error) => {
@@ -1521,7 +1524,7 @@ fn show_import_warning_dialog(
     // The dialog lives on a higher layer than the backdrop so that clicking the
     // backdrop can never raise it above the dialog.
     egui::Area::new(egui::Id::new("import_warning_dialog"))
-        .order(egui::Order::Tooltip)
+        .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .show(context, |ui| {
             import_dialog_frame(ui, palette).show(ui, |ui| {
@@ -1600,6 +1603,7 @@ fn import_dialog_body(
         .strong()
         .color(palette.text_dim);
     egui::CollapsingHeader::new(causes_title)
+        .id_source("import_warning_possible_causes")
         .default_open(false)
         .show(ui, |ui| {
             for cause in text.causes {
@@ -1619,6 +1623,45 @@ fn import_dialog_body(
         }
     });
     dismissed
+}
+
+/// Rejects unsupported extensions and non-ROM bytes before adding a file to the library.
+fn validate_import_file(path: &Path) -> Result<(), String> {
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if !extension.eq_ignore_ascii_case("gb") && !extension.eq_ignore_ascii_case("gbc") {
+        return Err("unsupported file type: choose a .gb or .gbc ROM".to_owned());
+    }
+
+    let metadata = std::fs::metadata(path).map_err(|error| format!("could not read file metadata: {error}"))?;
+    if !metadata.is_file() {
+        return Err("the selected path is not a file".to_owned());
+    }
+    if metadata.len() == 0 {
+        return Err("the file is empty".to_owned());
+    }
+    if metadata.len() > MAX_CONTENT_BYTES as u64 {
+        return Err(format!("file exceeds the {} MiB import limit", MAX_CONTENT_BYTES / (1024 * 1024)));
+    }
+
+    #[cfg(feature = "game-boy-color-module")]
+    {
+        use emulation_core::content::{ContentFormatProbe, FormatProbeResult};
+        let bytes = std::fs::read(path).map_err(|error| format!("could not read file: {error}"))?;
+        let probe = GameBoyColorCartridgeProbe;
+        if probe.probe(&bytes) != FormatProbeResult::Match {
+            return Err("not a valid Game Boy / Game Boy Color cartridge: Nintendo logo or header is missing".to_owned());
+        }
+        game_boy::CartridgeHeader::parse(&bytes)
+            .map_err(|error| format!("invalid Game Boy cartridge header: {error}"))?;
+        Ok(())
+    }
+    #[cfg(not(feature = "game-boy-color-module"))]
+    {
+        Err("Game Boy import support is disabled in this build".to_owned())
+    }
 }
 
 fn format_import_summary(
