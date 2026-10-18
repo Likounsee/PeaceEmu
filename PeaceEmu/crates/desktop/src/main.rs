@@ -541,7 +541,7 @@ impl DesktopApp {
         }
     }
 
-    fn start_update_install(&mut self, context: &egui::Context) -> bool {
+    fn start_update_install(&mut self, _context: &egui::Context) -> bool {
         let Some(path) = self.staged_update_path.clone() else {
             self.update_status = if self.language == "fr" {
                 "Téléchargez et vérifiez la mise à jour avant de l’installer.".to_owned()
@@ -573,7 +573,7 @@ impl DesktopApp {
                     } else {
                         "Closing PeaceEmu and starting the installer…".to_owned()
                     };
-                    context.send_viewport_cmd(egui::ViewportCommand::Close);
+                    _context.send_viewport_cmd(egui::ViewportCommand::Close);
                     true
                 }
                 Err(error) => {

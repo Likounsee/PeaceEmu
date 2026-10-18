@@ -1,6 +1,6 @@
 [package]
 name = "desktop-app"
-version = "0.2.2"
+version = "0.2.3"
 description = "Experimental native desktop frontend for PeaceEmu"
 edition = "2021"
 license = "LicenseRef-Proprietary"
