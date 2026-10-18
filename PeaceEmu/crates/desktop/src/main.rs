@@ -73,7 +73,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 /// Loads the bundled PeaceEmu bird mark for the native window and taskbar icon.
 fn application_icon() -> Result<egui::IconData, image::ImageError> {
-    let rgba = image::load_from_memory(include_bytes!("../assets/branding/bird.png"))?.into_rgba8();
+    // Keep the window icon small enough for X11 window-property limits while
+    // retaining sufficient resolution for Windows taskbar and Task Manager.
+    let rgba = image::load_from_memory(include_bytes!("../assets/branding/bird.png"))?
+        .resize(256, 256, image::imageops::FilterType::Lanczos3)
+        .into_rgba8();
     let (width, height) = rgba.dimensions();
     Ok(egui::IconData {
         rgba: rgba.into_raw(),
@@ -2018,6 +2022,10 @@ mod preference_tests {
         let icon = application_icon().expect("bundled PeaceEmu icon must decode");
         assert!(icon.width > 0, "icon width must be non-zero");
         assert!(icon.height > 0, "icon height must be non-zero");
+        assert!(
+            icon.width <= 256 && icon.height <= 256,
+            "native window icon must stay within 256x256 to avoid oversized X11 requests"
+        );
         assert_eq!(
             icon.rgba.len(),
             icon.width as usize * icon.height as usize * 4,
