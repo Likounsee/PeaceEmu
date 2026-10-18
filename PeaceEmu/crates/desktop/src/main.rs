@@ -1650,25 +1650,9 @@ fn validate_import_file(path: &Path) -> Result<(), String> {
         ));
     }
 
-    #[cfg(feature = "game-boy-color-module")]
-    {
-        use emulation_core::content::{ContentFormatProbe, FormatProbeResult};
-        let bytes = std::fs::read(path).map_err(|error| format!("could not read file: {error}"))?;
-        let probe = GameBoyColorCartridgeProbe;
-        if probe.probe(&bytes) != FormatProbeResult::Match {
-            return Err(
-                "not a valid Game Boy / Game Boy Color cartridge: Nintendo logo or header is missing"
-                    .to_owned(),
-            );
-        }
-        game_boy::CartridgeHeader::parse(&bytes)
-            .map_err(|error| format!("invalid Game Boy cartridge header: {error}"))?;
-        Ok(())
-    }
-    #[cfg(not(feature = "game-boy-color-module"))]
-    {
-        Err("Game Boy import support is disabled in this build".to_owned())
-    }
+    // Importing a ROM into the library is supported before its emulator core exists.
+    // Actual format/core validation belongs to launch time, not library import.
+    Ok(())
 }
 
 fn format_import_summary(
