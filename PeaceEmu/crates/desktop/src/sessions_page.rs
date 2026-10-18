@@ -19,27 +19,6 @@ impl DesktopApp {
                 ui.label(self.language_pack.text("ui.sessions_page.003"));
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                egui::Frame::group(ui.style())
-                    .rounding(egui::Rounding::same(9.0))
-                    .inner_margin(egui::Margin::symmetric(12.0, 8.0))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            let session_label = if french {
-                                if session_count == 1 {
-                                    "session"
-                                } else {
-                                    "sessions"
-                                }
-                            } else if session_count == 1 {
-                                "session"
-                            } else {
-                                "sessions"
-                            };
-                            ui.label(format!("{session_count} {session_label}"));
-                        });
-                    });
-            });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add_enabled(
                         session_count > 0,
@@ -53,43 +32,51 @@ impl DesktopApp {
                             "Close all cancelled; game saves could not be flushed: {}",
                             save_errors.join("; ")
                         );
-                    } else {
-                        // If held inputs cannot be released, keep every session open so the
-                        // lifecycle transition cannot leave a game with stuck controls.
-                        if let Err(error) = self.release_game_inputs() {
-                            self.message = if french {
-                                format!("Fermeture annulée ; impossible de libérer les commandes : {error}")
-                            } else {
-                                format!("Close all cancelled; could not release held inputs: {error}")
-                            };
+                    } else if let Err(error) = self.release_game_inputs() {
+                        // Keep every session open if held controls cannot be released.
+                        self.message = if french {
+                            format!("Fermeture annulée ; impossible de libérer les commandes : {error}")
                         } else {
-                            let count = self.controller.close_all_sessions();
-                            self.audio_output.clear();
-                            self.frame_cadence.reset();
-                            self.frame_texture = None;
-                            self.video_size = None;
-                            self.last_tick = Instant::now();
-                            self.media_status = if french {
-                                "Aucune session active.".to_owned()
+                            format!("Close all cancelled; could not release held inputs: {error}")
+                        };
+                    } else {
+                        let count = self.controller.close_all_sessions();
+                        self.audio_output.clear();
+                        self.frame_cadence.reset();
+                        self.frame_texture = None;
+                        self.video_size = None;
+                        self.last_tick = Instant::now();
+                        self.media_status = if french {
+                            "Aucune session active.".to_owned()
+                        } else {
+                            "No active session.".to_owned()
+                        };
+                        self.last_tick_errors.clear();
+                        self.session_content_paths.clear();
+                        self.message = if french {
+                            let noun = if count == 1 {
+                                "session fermée"
                             } else {
-                                "No active session.".to_owned()
+                                "sessions fermées"
                             };
-                            self.last_tick_errors.clear();
-                            self.session_content_paths.clear();
-                            self.message = if french {
-                                let noun = if count == 1 {
-                                    "session fermée"
-                                } else {
-                                    "sessions fermées"
-                                };
-                                format!("{count} {noun}.")
-                            } else {
-                                let noun = if count == 1 { "session" } else { "sessions" };
-                                format!("Closed {count} {noun}.")
-                            };
-                        }
+                            format!("{count} {noun}.")
+                        } else {
+                            let noun = if count == 1 { "session" } else { "sessions" };
+                            format!("Closed {count} {noun}.")
+                        };
                     }
                 }
+                egui::Frame::group(ui.style())
+                    .rounding(egui::Rounding::same(9.0))
+                    .inner_margin(egui::Margin::symmetric(12.0, 8.0))
+                    .show(ui, |ui| {
+                        let session_label = if session_count == 1 {
+                            "session"
+                        } else {
+                            "sessions"
+                        };
+                        ui.label(format!("{session_count} {session_label}"));
+                    });
             });
         });
         ui.add_space(8.0);
