@@ -220,8 +220,7 @@ impl DesktopApp {
                 )
             })
             .filter(|(title, path, _)| {
-                matches_library_query(title, path, &query)
-                    && self.library_format.matches(path)
+                matches_library_query(title, path, &query) && self.library_format.matches(path)
             })
             .collect();
         match self.library_sort {
@@ -688,11 +687,31 @@ mod tests {
     #[test]
     fn library_search_matches_all_terms_across_title_and_path_case_insensitively() {
         let path = Path::new("C:/Games/Adventure/zelda.gbc");
-        assert!(super::matches_library_query("The Legend of Zelda", path, "legend zelda"));
-        assert!(super::matches_library_query("The Legend of Zelda", path, "ADVENTURE gbc"));
-        assert!(super::matches_library_query("The Legend of Zelda", path, "  legend   C:/games "));
-        assert!(!super::matches_library_query("The Legend of Zelda", path, "legend metroid"));
-        assert!(super::matches_library_query("The Legend of Zelda", path, "   "));
+        assert!(super::matches_library_query(
+            "The Legend of Zelda",
+            path,
+            "legend zelda"
+        ));
+        assert!(super::matches_library_query(
+            "The Legend of Zelda",
+            path,
+            "ADVENTURE gbc"
+        ));
+        assert!(super::matches_library_query(
+            "The Legend of Zelda",
+            path,
+            "  legend   C:/games "
+        ));
+        assert!(!super::matches_library_query(
+            "The Legend of Zelda",
+            path,
+            "legend metroid"
+        ));
+        assert!(super::matches_library_query(
+            "The Legend of Zelda",
+            path,
+            "   "
+        ));
     }
 
     #[test]
