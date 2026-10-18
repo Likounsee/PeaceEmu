@@ -97,7 +97,7 @@ impl DesktopApp {
                 (
                     entry.title().to_owned(),
                     entry.path().to_path_buf(),
-                    entry.size_bytes(),
+                    super::library_page::live_path_size(entry.path()),
                 )
             })
             .collect();
@@ -152,7 +152,7 @@ impl DesktopApp {
                                 path.file_name()
                                     .and_then(|name| name.to_str())
                                     .unwrap_or("ROM"),
-                                format_size(*size)
+                                super::library_page::display_path_size(*size, french)
                             ))
                             .size(12.0)
                             .color(palette.text_dim),
