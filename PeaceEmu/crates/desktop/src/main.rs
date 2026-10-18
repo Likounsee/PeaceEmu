@@ -291,7 +291,7 @@ impl DesktopApp {
                                 // successfully imports. Do not select stale paths that failed.
                                 if selected_content.is_none() {
                                     let restored_path = entry.path().to_path_buf();
-                                    content_path = restored_path.display().to_string();
+                                    selected_content = Some(restored_path);
                                     selected_content = Some(restored_path);
                                 }
                                 restored += 1;
@@ -354,7 +354,10 @@ impl DesktopApp {
             registry,
             #[cfg(feature = "game-boy-color-module")]
             probe: GameBoyColorCartridgeProbe,
-            content_path,
+            content_path: selected_content
+                .as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_default(),
             library_filter: String::new(),
             library_format: LibraryFormat::All,
             library_sort: LibrarySort::Name,
