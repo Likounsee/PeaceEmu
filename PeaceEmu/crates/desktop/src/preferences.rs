@@ -2,6 +2,7 @@
 
 //! Desktop preference persistence, isolated from UI composition and emulation.
 
+use std::collections::HashSet;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -142,6 +143,7 @@ fn parse_preferences(contents: &str) -> std::io::Result<SavedPreferences> {
     let mut ui_scale = 1.0f32;
     let mut accent_rgb = [75, 115, 210];
     let mut paths = Vec::new();
+    let mut seen_paths = HashSet::new();
     let mut language = system_language();
     for line in contents.lines() {
         if let Some(value) = line.strip_prefix("version=") {
@@ -182,7 +184,13 @@ fn parse_preferences(contents: &str) -> std::io::Result<SavedPreferences> {
             .to_owned();
         } else if let Some(value) = line.strip_prefix("path=") {
             if let Some(decoded) = unescape_config_value(value) {
-                paths.push(PathBuf::from(decoded));
+                let decoded = PathBuf::from(decoded);
+                // User-edited or older preference files may repeat the same path.
+                // Deduplicate before startup restoration so duplicates are not
+                // misreported as unavailable library items.
+                if seen_paths.insert(decoded.clone()) {
+                    paths.push(decoded);
+                }
             }
         }
     }
@@ -682,6 +690,29 @@ mod tests {
         assert!(load_preferences(&path)
             .expect("missing preferences should not be an I/O failure")
             .is_none());
+    }
+
+    #[test]
+    fn loading_preferences_deduplicates_repeated_library_paths_in_first_seen_order() {
+        let path = temporary_config("duplicate-library-paths");
+        fs::write(
+            &path,
+            "version=3\npath=games\\\\zelda.gb\npath=games\\\\mario.gb\npath=games\\\\zelda.gb\n",
+        )
+        .expect("preferences with duplicate paths should be written");
+
+        let saved = load_preferences(&path)
+            .expect("duplicate paths should not prevent loading")
+            .expect("preferences file should exist");
+        assert_eq!(
+            saved.paths,
+            vec![
+                PathBuf::from("games\\zelda.gb"),
+                PathBuf::from("games\\mario.gb")
+            ]
+        );
+
+        let _ = fs::remove_file(path);
     }
 
     #[test]
