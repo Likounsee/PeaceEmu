@@ -10,6 +10,13 @@ use eframe::egui::{self, Align2, Color32, FontId, Margin, Pos2, Rect, Rounding, 
 /// Accent colour used until the user picks another one.
 pub const DEFAULT_ACCENT: Color32 = Color32::from_rgb(79, 70, 229);
 
+/// Font size of a page title.
+pub const FONT_TITLE: f32 = 30.0;
+/// Font size of a section title inside a page.
+pub const FONT_SECTION: f32 = 17.0;
+/// Corner radius of cards.
+pub const RADIUS_CARD: f32 = 12.0;
+
 /// Colours for one appearance mode, derived from the user's accent colour.
 #[derive(Clone, Copy)]
 pub struct Palette {
@@ -24,6 +31,8 @@ pub struct Palette {
     pub text: Color32,
     pub text_dim: Color32,
     pub accent: Color32,
+    /// Accent shifted so it stays readable when used as text on a surface.
+    pub accent_text: Color32,
     /// Translucent accent used for selected backgrounds.
     pub accent_subtle: Color32,
     /// Text colour that stays readable on top of the accent.
@@ -36,6 +45,22 @@ pub struct Palette {
 /// Returns `color` with its opacity replaced by `alpha`.
 pub fn with_alpha(color: Color32, alpha: u8) -> Color32 {
     Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)
+}
+
+/// Shifts a colour so it stays readable as text: lighter on dark surfaces,
+/// darker on light ones. Saturated status colours are otherwise hard to read
+/// (about 2.5:1) on a white or near-black background.
+pub fn readable_on_surface(dark: bool, color: Color32) -> Color32 {
+    let shift = |channel: u8| -> u8 {
+        let value = f32::from(channel);
+        let shifted = if dark {
+            value + (255.0 - value) * 0.4
+        } else {
+            value * 0.62
+        };
+        shifted as u8
+    };
+    Color32::from_rgb(shift(color.r()), shift(color.g()), shift(color.b()))
 }
 
 fn readable_text_on(background: Color32) -> Color32 {
@@ -79,6 +104,7 @@ impl Palette {
             text,
             text_dim,
             accent,
+            accent_text: readable_on_surface(dark, accent),
             accent_subtle: with_alpha(accent, if dark { 64 } else { 34 }),
             on_accent: readable_text_on(accent),
             success: Color32::from_rgb(23, 178, 106),
@@ -151,19 +177,22 @@ pub fn card<R>(
     egui::Frame::none()
         .fill(palette.sidebar)
         .stroke(Stroke::new(1.0_f32, palette.border))
-        .rounding(Rounding::same(12.0))
+        .rounding(Rounding::same(RADIUS_CARD))
         .inner_margin(Margin::same(16.0))
         .show(ui, add_contents)
 }
 
 /// A small pill used for statuses such as "Ready" or "Missing".
+///
+/// The text colour is adjusted for the current mode so it stays readable.
 pub fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
+    let text_color = readable_on_surface(ui.visuals().dark_mode, color);
     egui::Frame::none()
         .fill(with_alpha(color, 40))
         .rounding(Rounding::same(10.0))
         .inner_margin(Margin::symmetric(8.0, 2.0))
         .show(ui, |ui| {
-            ui.label(egui::RichText::new(text).size(12.0).strong().color(color));
+            ui.label(egui::RichText::new(text).size(12.0).strong().color(text_color));
         });
 }
 
@@ -174,6 +203,36 @@ pub fn primary_button(palette: &Palette, text: &str) -> impl egui::Widget {
         .stroke(Stroke::NONE)
         .rounding(Rounding::same(8.0))
         .min_size(egui::vec2(0.0, 36.0))
+}
+
+/// Page title, subtitle and actions, followed by a separator.
+///
+/// Actions are listed primary-first: they sit on the right (rightmost first)
+/// when there is room, and wrap left-aligned under the title otherwise, so
+/// two buttons can never overlap.
+pub fn page_header(
+    ui: &mut egui::Ui,
+    palette: &Palette,
+    title: &str,
+    subtitle: &str,
+    add_actions: impl FnOnce(&mut egui::Ui),
+) {
+    let title_block = |ui: &mut egui::Ui| {
+        ui.label(egui::RichText::new(title).size(FONT_TITLE).strong());
+        ui.label(egui::RichText::new(subtitle).color(palette.text_dim));
+    };
+    if ui.available_width() < 560.0 {
+        ui.vertical(title_block);
+        ui.horizontal_wrapped(add_actions);
+    } else {
+        ui.horizontal(|ui| {
+            ui.vertical(title_block);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), add_actions);
+        });
+    }
+    ui.add_space(6.0);
+    ui.separator();
+    ui.add_space(6.0);
 }
 
 /// One settings row: title and description on the left, the control on the right.
@@ -200,6 +259,61 @@ pub fn setting_row(
     });
     ui.add_space(6.0);
     ui.separator();
+}
+
+/// Draws a small handheld console, themed with the palette.
+pub fn paint_console(painter: &egui::Painter, rect: Rect, palette: &Palette, title: &str) {
+    let rounding = Rounding::same(18.0);
+    painter.rect_filled(rect, rounding, palette.border);
+    painter.rect_stroke(
+        rect,
+        rounding,
+        Stroke::new(1.0_f32, with_alpha(palette.text_dim, 80)),
+    );
+    let screen = Rect::from_min_max(
+        rect.min + egui::vec2(rect.width() * 0.12, rect.height() * 0.09),
+        egui::pos2(
+            rect.max.x - rect.width() * 0.12,
+            rect.min.y + rect.height() * 0.58,
+        ),
+    );
+    painter.rect_filled(screen, Rounding::same(8.0), palette.rail);
+    painter.text(
+        screen.center(),
+        Align2::CENTER_CENTER,
+        title,
+        FontId::proportional(16.0),
+        palette.accent_text,
+    );
+    let pad = egui::pos2(
+        rect.min.x + rect.width() * 0.24,
+        rect.min.y + rect.height() * 0.80,
+    );
+    let pad_stroke = Stroke::new(4.0_f32, palette.text_dim);
+    painter.line_segment(
+        [pad - egui::vec2(9.0, 0.0), pad + egui::vec2(9.0, 0.0)],
+        pad_stroke,
+    );
+    painter.line_segment(
+        [pad - egui::vec2(0.0, 9.0), pad + egui::vec2(0.0, 9.0)],
+        pad_stroke,
+    );
+    painter.circle_filled(
+        egui::pos2(
+            rect.max.x - rect.width() * 0.26,
+            rect.min.y + rect.height() * 0.78,
+        ),
+        8.0,
+        palette.accent,
+    );
+    painter.circle_filled(
+        egui::pos2(
+            rect.max.x - rect.width() * 0.15,
+            rect.min.y + rect.height() * 0.70,
+        ),
+        8.0,
+        with_alpha(palette.accent, 150),
+    );
 }
 
 /// Draws the round check mark shown on selected choice cards.
@@ -434,4 +548,56 @@ pub fn nav_item(
         );
     }
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// Logo shown at the top of the icon rail, decoded once and cached in egui's memory.
+///
+/// `bird.png` is currently very large (about 6 MB); a 256 px copy would keep the
+/// binary and the first frame lighter. Only change the path below to swap it.
+const LOGO_PNG: &[u8] = include_bytes!("../assets/branding/bird.png");
+
+pub fn logo_texture(context: &egui::Context) -> Option<egui::TextureHandle> {
+    let id = egui::Id::new("peaceemu_logo_texture");
+    if let Some(texture) = context.data(|data| data.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let decoded = image::load_from_memory_with_format(LOGO_PNG, image::ImageFormat::Png).ok()?;
+    let thumbnail = decoded.thumbnail(128, 128).to_rgba8();
+    let size = [thumbnail.width() as usize, thumbnail.height() as usize];
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, thumbnail.as_raw());
+    let texture = context.load_texture("peaceemu-logo", color_image, egui::TextureOptions::LINEAR);
+    context.data_mut(|data| data.insert_temp(id, texture.clone()));
+    Some(texture)
+}
+
+/// Flat cover colour derived from a title, so each game keeps a stable tile.
+pub fn cover_color(title: &str) -> Color32 {
+    const COVERS: [(u8, u8, u8); 6] = [
+        (46, 42, 99),
+        (31, 75, 69),
+        (90, 46, 62),
+        (55, 65, 110),
+        (98, 70, 30),
+        (60, 60, 70),
+    ];
+    let hash = title.bytes().fold(0usize, |acc, byte| {
+        acc.wrapping_mul(31).wrapping_add(usize::from(byte))
+    });
+    let (r, g, b) = COVERS[hash % COVERS.len()];
+    Color32::from_rgb(r, g, b)
+}
+
+/// Up to two capital letters taken from the words of a title.
+pub fn initials(title: &str) -> String {
+    let letters: String = title
+        .split_whitespace()
+        .filter_map(|word| word.chars().next())
+        .take(2)
+        .collect::<String>()
+        .to_uppercase();
+    if letters.is_empty() {
+        "?".to_owned()
+    } else {
+        letters
+    }
 }

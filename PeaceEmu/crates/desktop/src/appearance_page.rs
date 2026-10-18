@@ -11,46 +11,43 @@ const ACCENT_PRESETS: [(&str, egui::Color32); 6] = [
     ("Rose", egui::Color32::from_rgb(219, 39, 119)),
 ];
 
-/// Draws a miniature application window for the theme choice cards.
+/// Interface scale choices (the app clamps the scale to 0.8–1.4).
+const SCALE_CHOICES: [(&str, f32); 6] = [
+    ("80 %", 0.8),
+    ("90 %", 0.9),
+    ("100 %", 1.0),
+    ("110 %", 1.1),
+    ("125 %", 1.25),
+    ("140 %", 1.4),
+];
+
+/// Draws a miniature application window for the theme choice cards,
+/// using the real palette so the preview always matches the app.
 fn paint_theme_preview(
     painter: &egui::Painter,
     rect: egui::Rect,
     dark: bool,
     accent: egui::Color32,
 ) {
-    let (window, side, block, line) = if dark {
-        (
-            egui::Color32::from_rgb(25, 25, 28),
-            egui::Color32::from_rgb(36, 36, 40),
-            egui::Color32::from_rgb(43, 43, 48),
-            egui::Color32::from_rgb(63, 63, 70),
-        )
-    } else {
-        (
-            egui::Color32::WHITE,
-            egui::Color32::from_rgb(244, 244, 245),
-            egui::Color32::from_rgb(244, 244, 245),
-            egui::Color32::from_rgb(212, 212, 216),
-        )
-    };
-    painter.rect_filled(rect, egui::Rounding::same(10.0), window);
-    let sidebar = egui::Rect::from_min_size(rect.min, egui::vec2(40.0, rect.height()));
+    let palette = theme::Palette::new(dark, accent);
+    painter.rect_filled(rect, egui::Rounding::same(10.0), palette.panel);
+    let rail = egui::Rect::from_min_size(rect.min, egui::vec2(40.0, rect.height()));
     painter.rect_filled(
-        sidebar,
+        rail,
         egui::Rounding {
             nw: 10.0,
             ne: 0.0,
             sw: 10.0,
             se: 0.0,
         },
-        side,
+        palette.rail,
     );
     for index in 0..3 {
         let y = rect.top() + 14.0 + index as f32 * 10.0;
         painter.rect_filled(
             egui::Rect::from_min_size(egui::pos2(rect.left() + 8.0, y), egui::vec2(24.0, 4.0)),
             egui::Rounding::same(2.0),
-            line,
+            palette.border,
         );
     }
     painter.rect_filled(
@@ -59,28 +56,31 @@ fn paint_theme_preview(
             egui::vec2(42.0, 9.0),
         ),
         egui::Rounding::same(3.0),
-        accent,
+        palette.accent,
     );
-    painter.rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(rect.left() + 52.0, rect.top() + 32.0),
-            egui::pos2(rect.right() - 12.0, rect.bottom() - 12.0),
-        ),
-        egui::Rounding::same(6.0),
+    let block = egui::Rect::from_min_max(
+        egui::pos2(rect.left() + 52.0, rect.top() + 32.0),
+        egui::pos2(rect.right() - 12.0, rect.bottom() - 12.0),
+    );
+    painter.rect_filled(block, egui::Rounding::same(6.0), palette.sidebar);
+    painter.rect_stroke(
         block,
+        egui::Rounding::same(6.0),
+        egui::Stroke::new(1.0_f32, palette.border),
     );
 }
 
 impl DesktopApp {
     pub(super) fn show_appearance(&mut self, ui: &mut egui::Ui) {
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
+        let french = self.language == "fr";
         let previous_dark_mode = self.dark_mode;
         let previous_ui_scale = self.ui_scale;
         let previous_accent_color = self.accent_color;
 
         ui.label(
             egui::RichText::new(self.language_pack.text("ui.appearance_page.001"))
-                .size(30.0)
+                .size(theme::FONT_TITLE)
                 .strong(),
         );
         ui.label(
@@ -155,6 +155,31 @@ impl DesktopApp {
                         self.accent_color.g(),
                         self.accent_color.b()
                     ));
+                });
+            },
+        );
+
+        theme::setting_row(
+            ui,
+            &palette,
+            if french {
+                "Échelle de l’interface"
+            } else {
+                "Interface scale"
+            },
+            if french {
+                "Agrandit ou réduit le texte et les contrôles."
+            } else {
+                "Makes text and controls larger or smaller."
+            },
+            |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for (label, value) in SCALE_CHOICES {
+                        let selected = (self.ui_scale - value).abs() < 0.01;
+                        if ui.selectable_label(selected, label).clicked() {
+                            self.ui_scale = value;
+                        }
+                    }
                 });
             },
         );
