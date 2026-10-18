@@ -131,17 +131,29 @@ impl DesktopApp {
                 (
                     if french { "DISPONIBLES" } else { "AVAILABLE" },
                     registered.len().to_string(),
-                    if french { "présents dans cette compilation" } else { "bundled in this build" },
+                    if french {
+                        "présents dans cette compilation"
+                    } else {
+                        "bundled in this build"
+                    },
                 ),
                 (
                     if french { "ACTIVÉS" } else { "ENABLED" },
                     selected_count.to_string(),
-                    if french { "préférences enregistrées" } else { "saved selections" },
+                    if french {
+                        "préférences enregistrées"
+                    } else {
+                        "saved selections"
+                    },
                 ),
                 (
                     if french { "INSTALLÉS" } else { "INSTALLED" },
                     installed_count.to_string(),
-                    if french { "paquets enregistrés" } else { "recorded packages" },
+                    if french {
+                        "paquets enregistrés"
+                    } else {
+                        "recorded packages"
+                    },
                 ),
             ];
             for (index, (label, value, detail)) in stats.into_iter().enumerate() {
@@ -168,13 +180,9 @@ impl DesktopApp {
             ui.label(egui::RichText::new(if french { "MODULE" } else { "MODULE" }).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
-                    egui::RichText::new(if french {
-                        "ACTIVATION"
-                    } else {
-                        "ACTIVATION"
-                    })
-                    .strong()
-                    .color(palette.text_dim),
+                    egui::RichText::new(if french { "ACTIVATION" } else { "ACTIVATION" })
+                        .strong()
+                        .color(palette.text_dim),
                 );
             });
         });
@@ -227,13 +235,21 @@ impl DesktopApp {
                             } else if is_bundled {
                                 status_badge(
                                     ui,
-                                    if french { "Intégré à l’application" } else { "Bundled with app" },
+                                    if french {
+                                        "Intégré à l’application"
+                                    } else {
+                                        "Bundled with app"
+                                    },
                                     palette.accent,
                                 );
                             } else {
                                 status_badge(
                                     ui,
-                                    if french { "Fichiers absents" } else { "Files missing" },
+                                    if french {
+                                        "Fichiers absents"
+                                    } else {
+                                        "Files missing"
+                                    },
                                     palette.warning,
                                 );
                             }
@@ -253,19 +269,25 @@ impl DesktopApp {
                         });
                         ui.add_space(3.0);
                         ui.label(
-                            egui::RichText::new(if let Some(version) = installed_version.as_deref() {
-                                if french {
-                                    format!("Version locale : {version}")
+                            egui::RichText::new(
+                                if let Some(version) = installed_version.as_deref() {
+                                    if french {
+                                        format!("Version locale : {version}")
+                                    } else {
+                                        format!("Local version: {version}")
+                                    }
+                                } else if is_bundled {
+                                    if french {
+                                        "Version fournie avec cette compilation".to_owned()
+                                    } else {
+                                        "Version supplied with this build".to_owned()
+                                    }
+                                } else if french {
+                                    "Aucune version locale détectée".to_owned()
                                 } else {
-                                    format!("Local version: {version}")
-                                }
-                            } else if is_bundled {
-                                if french { "Version fournie avec cette compilation".to_owned() } else { "Version supplied with this build".to_owned() }
-                            } else if french {
-                                "Aucune version locale détectée".to_owned()
-                            } else {
-                                "No local version detected".to_owned()
-                            })
+                                    "No local version detected".to_owned()
+                                },
+                            )
                             .size(12.0)
                             .color(palette.text_dim),
                         );
@@ -339,17 +361,30 @@ impl DesktopApp {
                     ui.add_space(5.0);
                     ui.horizontal_wrapped(|ui| {
                         for (label, enabled) in [
-                            (if french { "Contenu" } else { "Content" }, caps.content_loading),
+                            (
+                                if french { "Contenu" } else { "Content" },
+                                caps.content_loading,
+                            ),
                             (if french { "Entrées" } else { "Input" }, caps.input),
                             (if french { "Vidéo" } else { "Video" }, caps.video_output),
                             (if french { "Audio" } else { "Audio" }, caps.audio_output),
-                            (if french { "États" } else { "Save states" }, caps.save_states),
-                            (if french { "Sauvegardes" } else { "Saves" }, caps.persistent_saves),
+                            (
+                                if french { "États" } else { "Save states" },
+                                caps.save_states,
+                            ),
+                            (
+                                if french { "Sauvegardes" } else { "Saves" },
+                                caps.persistent_saves,
+                            ),
                         ] {
                             status_badge(
                                 ui,
                                 &format!("{} {label}", if enabled { "●" } else { "○" }),
-                                if enabled { palette.success } else { palette.text_dim },
+                                if enabled {
+                                    palette.success
+                                } else {
+                                    palette.text_dim
+                                },
                             );
                         }
                     });
