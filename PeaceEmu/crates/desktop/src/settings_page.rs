@@ -14,6 +14,7 @@ enum UpdateState {
     Available,
     UpToDate,
     InstalledIsNewer,
+    Failed,
 }
 
 /// A small section title with a one-line description, drawn above a card.
@@ -139,6 +140,12 @@ impl DesktopApp {
         });
         let update_state = if checking {
             UpdateState::Checking
+        } else if self.update_manifest.is_none()
+            && (self.update_status.starts_with("Échec")
+                || self.update_status.starts_with("Update check failed")
+                || self.update_status.starts_with("Update verification failed"))
+        {
+            UpdateState::Failed
         } else if let Some((manifest_version, _, _)) = update_info.as_ref() {
             if update::is_newer_version(manifest_version, current) {
                 UpdateState::Available
@@ -183,6 +190,11 @@ impl DesktopApp {
                         ui,
                         self.language_pack.text("ui.settings_page.007"),
                         palette.text_dim,
+                    ),
+                    UpdateState::Failed => theme::badge(
+                        ui,
+                        if french { "Échec" } else { "Failed" },
+                        palette.danger,
                     ),
                 }
                 ui.label(
