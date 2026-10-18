@@ -439,8 +439,91 @@ fn validate_https_url(url: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Launches a verified Windows installer after this app exits. Successful installs remove the installer.
+#[cfg(target_os = "windows")]
+pub(crate) fn launch_verified_windows_installer(
+    path: &Path,
+    expected_size: u64,
+    expected_sha256: &str,
+) -> Result<(), String> {
+    use std::io::Write as _;
+    use std::os::windows::process::CommandExt as _;
+    use std::process::{Command, Stdio};
+
+    let staging_dir = std::env::temp_dir().join("PeaceEmu").join("updates");
+    let staged_name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    if path.parent() != Some(staging_dir.as_path()) || !staged_name.ends_with(".verified") {
+        return Err("The staged update is outside the expected private staging directory.".to_owned());
+    }
+    let powershell = std::env::var_os("WINDIR")
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not locate the Windows system directory.".to_owned())?
+        .join("System32").join("WindowsPowerShell").join("v1.0").join("powershell.exe");
+    if !powershell.is_file() {
+        return Err("Windows PowerShell was not found at its expected system path.".to_owned());
+    }
+    verify_staged_file(path, expected_size, expected_sha256)?;
+
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| format!("System clock is invalid: {error}"))?
+        .as_nanos();
+    let installer_path = staging_dir.join(format!("PeaceEmu-Update-{nonce}.exe"));
+    let script_path = staging_dir.join(format!("install-update-{nonce}.ps1"));
+    if installer_path.exists() || script_path.exists() {
+        return Err("A temporary update helper path already exists; refusing to overwrite it.".to_owned());
+    }
+    fs::rename(path, &installer_path)
+        .map_err(|error| format!("Could not prepare the verified installer: {error}"))?;
+
+    let script = r#"
+param([string]$InstallerPath, [int]$ParentPid, [string]$ScriptPath)
+$ErrorActionPreference = 'Stop'
+try {
+    $deadline = [DateTime]::UtcNow.AddMinutes(2)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if (-not (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue)) { break }
+        Start-Sleep -Milliseconds 200
+    }
+    if (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue) { exit 20 }
+    $setup = Start-Process -FilePath $InstallerPath -Wait -PassThru
+    if ($setup.ExitCode -eq 0) {
+        for ($attempt = 0; $attempt -lt 10; $attempt++) {
+            try { Remove-Item -LiteralPath $InstallerPath -Force; break }
+            catch { Start-Sleep -Milliseconds 300 }
+        }
+    }
+} finally {
+    Remove-Item -LiteralPath $ScriptPath -Force -ErrorAction SilentlyContinue
+}
+"#;
+
+    let write_result = (|| -> Result<(), String> {
+        let mut file = OpenOptions::new().write(true).create_new(true).open(&script_path)
+            .map_err(|error| format!("Could not create the update launcher: {error}"))?;
+        file.write_all(script.as_bytes())
+            .map_err(|error| format!("Could not write the update launcher: {error}"))?;
+        file.sync_all().map_err(|error| format!("Could not flush the update launcher: {error}"))?;
+        let mut command = Command::new(&powershell);
+        command.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File"])
+            .arg(&script_path).arg("-InstallerPath").arg(&installer_path)
+            .arg("-ParentPid").arg(std::process::id().to_string())
+            .arg("-ScriptPath").arg(&script_path)
+            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
+            .creation_flags(0x08000000);
+        command.spawn().map_err(|error| format!("Could not start the Windows update installer: {error}"))?;
+        Ok(())
+    })();
+
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&script_path);
+        let _ = fs::rename(&installer_path, path);
+        return Err(error);
+    }
+    Ok(())
+}
+
 /// Verifies a staged update without executing it or changing installed files.
-#[allow(dead_code)] // Used when the downloader/apply transaction is introduced.
 pub(crate) fn verify_staged_file(
     path: &Path,
     expected_size: u64,
