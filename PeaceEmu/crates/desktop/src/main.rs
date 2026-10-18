@@ -1218,10 +1218,12 @@ impl DesktopApp {
                     |ui| {
                         egui::Frame::window(ui.style())
                             .fill(palette.panel)
-                            .stroke(egui::Stroke::new(1.5, palette.accent))
+                            .stroke(egui::Stroke::new(1.5_f32, palette.accent))
                             .rounding(egui::Rounding::same(14.0))
                             .shadow(egui::epaint::Shadow {
-                                extrusion: 28.0,
+                                offset: egui::vec2(0.0, 12.0),
+                                blur: 28.0,
+                                spread: 0.0,
                                 color: egui::Color32::from_black_alpha(100),
                             })
                             .inner_margin(egui::Margin::same(28.0))
