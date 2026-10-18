@@ -56,10 +56,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let app = DesktopApp::new()?;
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_fullscreen(true)
-            .with_inner_size([1280.0, 820.0])
-            .with_min_inner_size([640.0, 480.0]),
+        // Do not combine fullscreen with a fixed inner size: on some native
+        // window managers the requested size can constrain the initial viewport.
+        viewport: egui::ViewportBuilder::default().with_fullscreen(true),
         ..Default::default()
     };
     eframe::run_native(
