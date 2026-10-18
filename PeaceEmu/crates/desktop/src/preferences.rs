@@ -62,6 +62,19 @@ fn migrate_legacy_data(source: &Path, destination: &Path) -> std::io::Result<()>
         return Ok(());
     }
 
+    let marker = destination.join(".peaceemu-legacy-migration-v1");
+    match fs::symlink_metadata(&marker) {
+        Ok(metadata) if metadata.file_type().is_file() => return Ok(()),
+        Ok(_) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "legacy migration marker must be a regular file",
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+
     fs::create_dir_all(destination)?;
     for entry in fs::read_dir(source)? {
         let entry = entry?;
@@ -91,6 +104,15 @@ fn migrate_legacy_data(source: &Path, destination: &Path) -> std::io::Result<()>
         }
         // Symlinks and special files are intentionally skipped.
     }
+    // Write the marker only after the full tree has been copied. If migration
+    // fails midway, the next startup can safely resume without replacing files.
+    let mut marker_file = match OpenOptions::new().write(true).create_new(true).open(&marker) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    marker_file.write_all(b"completed\\n")?;
+    marker_file.sync_all()?;
     Ok(())
 }
 
@@ -381,7 +403,7 @@ pub(crate) fn escape_config_value(value: &str) -> String {
     for character in value.chars() {
         match character {
             '\\' => escaped.push_str("\\\\"),
-            '\n' => escaped.push_str("\\n"),
+            '\n' => escaped.push_str("\n"),
             '\r' => escaped.push_str("\\r"),
             other => escaped.push(other),
         }
@@ -493,7 +515,7 @@ mod tests {
     #[test]
     fn oversized_save_does_not_replace_existing_preferences() {
         let path = temporary_config("preserve-existing-on-oversized-save");
-        let original = b"version=2\\ndark=false\\nscale=1.2\\n";
+        let original = b"version=2\ndark=false\nscale=1.2\n";
         fs::write(&path, original).expect("existing config should be written");
         let oversized_path = PathBuf::from("x".repeat(MAX_PREFERENCES_BYTES + 1));
 
@@ -623,7 +645,7 @@ mod tests {
     fn saving_after_backup_recovery_preserves_good_backup_until_promotion() {
         let path = temporary_config("save-after-corrupt-active");
         let backup = path.with_extension("conf.bak");
-        fs::write(&path, "version=99\\ndark=true\\n")
+        fs::write(&path, "version=99\ndark=true\n")
             .expect("corrupt active config should be written");
         fs::write(&backup, "version=3\ndark=false\nscale=1.2\n")
             .expect("valid recovery backup should be written");
@@ -858,7 +880,7 @@ mod tests {
             Some("valid\\path".to_owned())
         );
         assert_eq!(
-            unescape_config_value("line\\nnext"),
+            unescape_config_value("line\nnext"),
             Some("line\nnext".to_owned())
         );
         assert_eq!(unescape_config_value("bad\\qescape"), None);
@@ -909,15 +931,15 @@ mod legacy_migration_tests {
         let current = root.join("PeaceEmu");
         fs::create_dir_all(legacy.join("saves")).unwrap();
         fs::create_dir_all(&current).unwrap();
-        fs::write(legacy.join("desktop.conf"), "version=3\\ndark=false\\n").unwrap();
+        fs::write(legacy.join("desktop.conf"), "version=3\ndark=false\n").unwrap();
         fs::write(legacy.join("saves/slot.sav"), b"legacy save").unwrap();
-        fs::write(current.join("desktop.conf"), "version=3\\ndark=true\\n").unwrap();
+        fs::write(current.join("desktop.conf"), "version=3\ndark=true\n").unwrap();
 
         migrate_legacy_data(&legacy, &current).unwrap();
 
         assert_eq!(
             fs::read_to_string(current.join("desktop.conf")).unwrap(),
-            "version=3\\ndark=true\\n",
+            "version=3\ndark=true\n",
             "existing PeaceEmu preferences must not be overwritten"
         );
         assert_eq!(
@@ -928,6 +950,12 @@ mod legacy_migration_tests {
             fs::read(legacy.join("saves/slot.sav")).unwrap(),
             b"legacy save",
             "legacy files must remain available for recovery"
+        );
+        fs::remove_file(current.join("saves/slot.sav")).unwrap();
+        migrate_legacy_data(&legacy, &current).unwrap();
+        assert!(
+            !current.join("saves/slot.sav").exists(),
+            "a completed migration must not resurrect files deliberately removed later"
         );
         fs::remove_dir_all(root).unwrap();
     }
