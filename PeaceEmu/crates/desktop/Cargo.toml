@@ -9,7 +9,7 @@ repository = "https://github.com/Likounsee/PeaceEmu"
 
 [features]
 # Console cores are optional modules; a fresh desktop build contains no console by default.
-default = []
+default = ["game-boy-color-module"]
 game-boy-color-module = ["dep:game-boy"]
 
 [dependencies]
