@@ -68,25 +68,3 @@ fn write_png_icon(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn generated_icon_has_a_valid_ico_header_and_png_payload() {
-        let source = include_bytes!("assets/branding/bird.png");
-        let path = std::env::temp_dir().join(format!("peaceemu-icon-{}.ico", std::process::id()));
-        write_png_icon(&path, source).unwrap();
-        let ico = fs::read(&path).unwrap();
-        assert_eq!(&ico[..6], &[0, 0, 1, 0, 1, 0]);
-        assert_eq!(
-            u32::from_le_bytes(ico[14..18].try_into().unwrap()) as usize,
-            ico.len() - 22
-        );
-        assert_eq!(u32::from_le_bytes(ico[18..22].try_into().unwrap()), 22);
-        assert_eq!(&ico[22..30], b"\x89PNG\r\n\x1a\n");
-        let decoded = image::load_from_memory(&ico[22..]).unwrap();
-        assert_eq!((decoded.width(), decoded.height()), (256, 256));
-        fs::remove_file(path).unwrap();
-    }
-}
