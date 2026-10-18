@@ -828,10 +828,17 @@ impl DesktopApp {
 
         if matches!(action, SessionAction::Reset) {
             if let Some(error) = release_error.as_ref() {
-                self.message = format!(
-                    "Session {}: reset aborted because input release failed: {error}",
-                    id.get()
-                );
+                self.message = if self.language == "fr" {
+                    format!(
+                        "Session {} : réinitialisation annulée car la libération des entrées a échoué : {error}",
+                        id.get()
+                    )
+                } else {
+                    format!(
+                        "Session {}: reset aborted because input release failed: {error}",
+                        id.get()
+                    )
+                };
                 return;
             }
         }
@@ -899,7 +906,11 @@ impl DesktopApp {
                     self.frame_cadence.reset();
                     self.frame_texture = None;
                     self.video_size = None;
-                    self.media_status = "Active session stopped after saving its state.".to_owned();
+                    self.media_status = if self.language == "fr" {
+                        "Session active arrêtée après la sauvegarde de son état.".to_owned()
+                    } else {
+                        "Active session stopped after saving its state.".to_owned()
+                    };
                 }
                 SessionAction::Reset => {
                     self.audio_output.clear();
@@ -907,7 +918,11 @@ impl DesktopApp {
                     self.frame_texture = None;
                     self.video_size = None;
                     self.last_tick = Instant::now();
-                    self.media_status = "Active session reset; waiting for a new frame.".to_owned();
+                    self.media_status = if self.language == "fr" {
+                        "Session active réinitialisée ; en attente d’une nouvelle image.".to_owned()
+                    } else {
+                        "Active session reset; waiting for a new frame.".to_owned()
+                    };
                 }
             }
         }
