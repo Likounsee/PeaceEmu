@@ -1,4 +1,4 @@
-//! Appearance page: theme, accent colour, interface scale and language.
+//! Appearance page: theme, accent colour and language.
 
 use super::*;
 
@@ -9,16 +9,6 @@ const ACCENT_PRESETS: [(&str, egui::Color32); 6] = [
     ("Green", egui::Color32::from_rgb(22, 163, 74)),
     ("Orange", egui::Color32::from_rgb(234, 88, 12)),
     ("Rose", egui::Color32::from_rgb(219, 39, 119)),
-];
-
-/// Interface scale choices (the app clamps the scale to 0.8–1.4).
-const SCALE_CHOICES: [(&str, f32); 6] = [
-    ("80 %", 0.8),
-    ("90 %", 0.9),
-    ("100 %", 1.0),
-    ("110 %", 1.1),
-    ("125 %", 1.25),
-    ("140 %", 1.4),
 ];
 
 /// Draws a miniature application window for the theme choice cards,
@@ -75,7 +65,6 @@ impl DesktopApp {
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
         let french = self.language == "fr";
         let previous_dark_mode = self.dark_mode;
-        let previous_ui_scale = self.ui_scale;
         let previous_accent_color = self.accent_color;
 
         ui.label(
@@ -159,31 +148,6 @@ impl DesktopApp {
             },
         );
 
-        theme::setting_row(
-            ui,
-            &palette,
-            if french {
-                "Échelle de l’interface"
-            } else {
-                "Interface scale"
-            },
-            if french {
-                "Agrandit ou réduit le texte et les contrôles."
-            } else {
-                "Makes text and controls larger or smaller."
-            },
-            |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    for (label, value) in SCALE_CHOICES {
-                        let selected = (self.ui_scale - value).abs() < 0.01;
-                        if ui.selectable_label(selected, label).clicked() {
-                            self.ui_scale = value;
-                        }
-                    }
-                });
-            },
-        );
-
         let language_label = self.language_pack.text("ui.appearance_page.010").to_owned();
         let language_description = self.language_pack.text("ui.appearance_page.011").to_owned();
         theme::setting_row(ui, &palette, &language_label, &language_description, |ui| {
@@ -213,7 +177,6 @@ impl DesktopApp {
             {
                 self.dark_mode = true;
                 self.accent_color = theme::DEFAULT_ACCENT;
-                self.ui_scale = 1.0;
             }
             ui.label(
                 egui::RichText::new(self.language_pack.text("ui.appearance_page.014"))
@@ -225,7 +188,6 @@ impl DesktopApp {
         // Persist visual preferences as soon as the user changes them.
         // Comparing against this frame's snapshot avoids writing the config every frame.
         if previous_dark_mode != self.dark_mode
-            || (previous_ui_scale - self.ui_scale).abs() > f32::EPSILON
             || previous_accent_color != self.accent_color
         {
             self.save_preferences();

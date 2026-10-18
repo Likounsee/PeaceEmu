@@ -57,6 +57,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let app = DesktopApp::new()?;
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_fullscreen(true)
             .with_inner_size([1280.0, 820.0])
             .with_min_inner_size([640.0, 480.0]),
         ..Default::default()
@@ -149,7 +150,6 @@ struct DesktopApp {
     dark_mode: bool,
     language: String,
     language_pack: language_pack::LanguagePack,
-    ui_scale: f32,
     accent_color: egui::Color32,
     config_path: Option<PathBuf>,
     active_page: DesktopPage,
@@ -262,7 +262,6 @@ impl DesktopApp {
         let config_path = config_file_path();
         let mut dark_mode = true;
         let mut language = preferences::system_language();
-        let mut ui_scale = 1.0;
         let mut accent_color = theme::DEFAULT_ACCENT;
         let mut message = String::from("Ready. Select a content path to import or launch.");
         if let Some(path) = config_path.as_deref() {
@@ -270,7 +269,6 @@ impl DesktopApp {
                 Ok(Some(saved)) => {
                     dark_mode = saved.dark_mode;
                     language = saved.language;
-                    ui_scale = saved.ui_scale.clamp(0.8, 1.4);
                     accent_color = egui::Color32::from_rgb(
                         saved.accent_rgb[0],
                         saved.accent_rgb[1],
@@ -332,7 +330,6 @@ impl DesktopApp {
             dark_mode,
             language,
             language_pack,
-            ui_scale,
             accent_color,
             config_path,
             active_page: DesktopPage::Home,
@@ -350,7 +347,7 @@ impl DesktopApp {
             update_manifest: None,
             staged_update_path: None,
             update_status: "Not checked yet.".to_owned(),
-            fullscreen: false,
+            fullscreen: true,
             sidebar_open: true,
             settings_section: SettingsSection::Appearance,
         };
@@ -567,7 +564,7 @@ impl DesktopApp {
         if let Err(error) = write_preferences_with_language(
             path,
             self.dark_mode,
-            self.ui_scale,
+            1.0,
             [
                 self.accent_color.r(),
                 self.accent_color.g(),
@@ -1105,12 +1102,10 @@ impl eframe::App for DesktopApp {
         }
         self.advance_emulation(context);
         let previous_dark_mode = self.dark_mode;
-        let previous_ui_scale = self.ui_scale;
         let previous_accent_color = self.accent_color;
         let previous_language = self.language.clone();
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
         palette.apply(context);
-        context.set_zoom_factor(self.ui_scale);
 
         // Keep the toggle synchronized with native window-manager changes and support F11.
         let native_fullscreen =
@@ -1159,7 +1154,6 @@ impl eframe::App for DesktopApp {
             self.language_pack = language_pack::LanguagePack::load(&self.language);
         }
         if self.dark_mode != previous_dark_mode
-            || (self.ui_scale - previous_ui_scale).abs() > f32::EPSILON
             || self.accent_color != previous_accent_color
             || self.language != previous_language
         {
