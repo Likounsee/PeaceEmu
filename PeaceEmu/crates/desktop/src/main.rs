@@ -1185,150 +1185,27 @@ impl eframe::App for DesktopApp {
 }
 
 impl DesktopApp {
+    /// Shows the import failure dialog until the user dismisses it.
+    ///
+    /// The dialog is a compact box centered in the window, drawn over a dimmed
+    /// backdrop that also swallows pointer input for the pages below it.
     fn show_import_warning(&mut self, context: &egui::Context, palette: &theme::Palette) {
         let Some(message) = self.import_warning.clone() else {
             return;
         };
+        if context.input(|input| input.key_pressed(egui::Key::Escape)) {
+            self.import_warning = None;
+            return;
+        }
         let screen_rect = context.screen_rect();
+        let layout = ImportDialogLayout::for_screen(screen_rect.size());
         let french = self.language == "fr";
 
-        // A foreground veil prevents interacting with the library or any other page
-        // while the import warning is open. The tinted backdrop gives a frosted,
-        // modal treatment without changing the underlying page or its state.
-        egui::Area::new(egui::Id::new("import_warning_backdrop"))
-            .order(egui::Order::Foreground)
-            .fixed_pos(screen_rect.min)
-            .show(context, |ui| {
-                ui.set_min_size(screen_rect.size());
-                ui.set_max_size(screen_rect.size());
-                let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
-                ui.painter().rect_filled(
-                    rect,
-                    0.0,
-                    egui::Color32::from_rgba_unmultiplied(8, 10, 16, 205),
-                );
-                ui.interact(
-                    rect,
-                    egui::Id::new("import_warning_blocker"),
-                    egui::Sense::click_and_drag(),
-                );
-                ui.allocate_ui_with_layout(
-                    screen_rect.size(),
-                    egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                    |ui| {
-                        egui::Frame::window(ui.style())
-                            .fill(palette.panel)
-                            .stroke(egui::Stroke::new(1.5_f32, palette.accent))
-                            .rounding(egui::Rounding::same(14.0))
-                            .shadow(egui::epaint::Shadow {
-                                offset: egui::vec2(0.0, 12.0),
-                                blur: 28.0,
-                                spread: 0.0,
-                                color: egui::Color32::from_black_alpha(100),
-                            })
-                            .inner_margin(egui::Margin::same(28.0))
-                            .show(ui, |ui| {
-                                ui.set_max_width(560.0);
-                                ui.set_min_width(460.0);
-                                ui.vertical_centered(|ui| {
-                                    ui.label(
-                                        egui::RichText::new(if french {
-                                            "⚠ Échec de l’importation"
-                                        } else {
-                                            "⚠ Import warning"
-                                        })
-                                        .size(23.0)
-                                        .strong()
-                                        .color(palette.text),
-                                    );
-                                });
-                                ui.add_space(16.0);
-                                ui.label(
-                                    egui::RichText::new(if french {
-                                        "Un ou plusieurs fichiers n’ont pas pu être ajoutés à la bibliothèque."
-                                    } else {
-                                        "One or more files could not be added to the library."
-                                    })
-                                    .size(15.0)
-                                    .color(palette.text),
-                                );
-                                ui.add_space(10.0);
-                                egui::Frame::none()
-                                    .fill(palette.sidebar)
-                                    .rounding(egui::Rounding::same(8.0))
-                                    .inner_margin(egui::Margin::same(14.0))
-                                    .show(ui, |ui| {
-                                        ui.label(
-                                            egui::RichText::new(if french {
-                                                "Causes possibles"
-                                            } else {
-                                                "Possible causes"
-                                            })
-                                            .strong()
-                                            .color(palette.text),
-                                        );
-                                        ui.add_space(6.0);
-                                        for cause in if french {
-                                            vec![
-                                                "Le fichier n’est pas une ROM Game Boy ou Game Boy Color valide.",
-                                                "Le format du fichier n’est pas pris en charge.",
-                                                "Le fichier est illisible ou dépasse la taille maximale autorisée.",
-                                            ]
-                                        } else {
-                                            vec![
-                                                "The file is not a valid Game Boy or Game Boy Color ROM.",
-                                                "The file format is not supported.",
-                                                "The file is unreadable or exceeds the maximum allowed size.",
-                                            ]
-                                        } {
-                                            ui.horizontal_wrapped(|ui| {
-                                                ui.label(egui::RichText::new("•").color(palette.accent));
-                                                ui.label(egui::RichText::new(cause).color(palette.text));
-                                            });
-                                        }
-                                    });
-                                ui.add_space(12.0);
-                                ui.label(
-                                    egui::RichText::new(if french {
-                                        "Résultat détaillé"
-                                    } else {
-                                        "Import details"
-                                    })
-                                    .strong()
-                                    .color(palette.text),
-                                );
-                                egui::ScrollArea::vertical()
-                                    .max_height(110.0)
-                                    .auto_shrink([false, true])
-                                    .show(ui, |ui| {
-                                        ui.label(
-                                            egui::RichText::new(&message)
-                                                .size(12.5)
-                                                .color(palette.text_dim),
-                                        );
-                                    });
-                                ui.add_space(20.0);
-                                ui.vertical_centered(|ui| {
-                                    if ui.add_sized(
-                                        [220.0, 40.0],
-                                        egui::Button::new(
-                                            egui::RichText::new(if french {
-                                                "Compris, fermer"
-                                            } else {
-                                                "Got it, close"
-                                            })
-                                            .strong(),
-                                        )
-                                        .fill(palette.accent)
-                                        .stroke(egui::Stroke::NONE),
-                                    ).clicked() {
-                                        self.import_warning = None;
-                                    }
-                                });
-                            });
-                    },
-                );
-            });
+        paint_import_warning_backdrop(context, palette, screen_rect);
+        if show_import_warning_dialog(context, palette, &layout, &message, french) {
+            self.import_warning = None;
+            context.request_repaint();
+        }
     }
 
     fn advance_emulation(&mut self, context: &egui::Context) {
@@ -1521,6 +1398,226 @@ impl DesktopApp {
     }
 }
 
+/// Size limits of the import warning dialog for a given window size.
+///
+/// The dialog is never given a fixed height: it only receives upper bounds, so
+/// it shrinks to its content and never stretches to the height of the window.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ImportDialogLayout {
+    /// Outer width of the dialog, border included.
+    width: f32,
+    /// Largest height the whole dialog may take before it scrolls as a whole.
+    max_height: f32,
+    /// Largest height of the scrollable error list.
+    details_max_height: f32,
+}
+
+impl ImportDialogLayout {
+    const MAX_WIDTH: f32 = 520.0;
+    const MIN_WIDTH: f32 = 220.0;
+    /// Free space kept between the dialog and the window edges.
+    const SCREEN_MARGIN: f32 = 24.0;
+    const INNER_MARGIN: f32 = 22.0;
+    const BORDER: f32 = 1.5;
+    /// Height taken by everything around the error list (title, message, buttons, margins).
+    const CHROME_HEIGHT: f32 = 260.0;
+    const MIN_DETAILS: f32 = 48.0;
+    const MAX_DETAILS: f32 = 180.0;
+
+    fn for_screen(screen: egui::Vec2) -> Self {
+        let margin = 2.0 * Self::SCREEN_MARGIN;
+        let width = (screen.x - margin).clamp(Self::MIN_WIDTH, Self::MAX_WIDTH);
+        let max_height = (screen.y - margin).max(Self::MIN_DETAILS);
+        let details = max_height - Self::CHROME_HEIGHT;
+        Self {
+            width,
+            max_height,
+            details_max_height: details.clamp(Self::MIN_DETAILS, Self::MAX_DETAILS),
+        }
+    }
+
+    /// Width available to the content, once margins and border are removed.
+    fn content_width(self) -> f32 {
+        self.width - 2.0 * Self::INNER_MARGIN - 2.0 * Self::BORDER
+    }
+
+    /// Height limit of the dialog body, used as a fallback on very short windows.
+    fn body_max_height(self) -> f32 {
+        let chrome = 2.0 * Self::INNER_MARGIN + 2.0 * Self::BORDER;
+        (self.max_height - chrome).max(Self::MIN_DETAILS)
+    }
+}
+
+/// Texts of the import warning dialog in one language.
+struct ImportDialogText {
+    title: &'static str,
+    summary: &'static str,
+    details: &'static str,
+    causes_title: &'static str,
+    causes: [&'static str; 3],
+    close: &'static str,
+}
+
+fn import_dialog_text(french: bool) -> ImportDialogText {
+    if french {
+        ImportDialogText {
+            title: "⚠ Échec de l’importation",
+            summary: "Un ou plusieurs fichiers n’ont pas pu être ajoutés à la bibliothèque.",
+            details: "Détails de l’import",
+            causes_title: "Causes possibles (non vérifiées)",
+            causes: [
+                "Le fichier n’est pas une ROM Game Boy ou Game Boy Color valide.",
+                "Le format du fichier n’est pas pris en charge.",
+                "Le fichier est illisible ou dépasse la taille maximale autorisée.",
+            ],
+            close: "Fermer",
+        }
+    } else {
+        ImportDialogText {
+            title: "⚠ Import warning",
+            summary: "One or more files could not be added to the library.",
+            details: "Import details",
+            causes_title: "Possible causes (not verified)",
+            causes: [
+                "The file is not a valid Game Boy or Game Boy Color ROM.",
+                "The file format is not supported.",
+                "The file is unreadable or exceeds the maximum allowed size.",
+            ],
+            close: "Close",
+        }
+    }
+}
+
+/// Dims the whole window and swallows pointer input while the dialog is open.
+///
+/// egui 0.27 has no blur primitive, so a plain dark veil is used instead of a
+/// fragile screenshot-based blur.
+fn paint_import_warning_backdrop(
+    context: &egui::Context,
+    palette: &theme::Palette,
+    screen_rect: egui::Rect,
+) {
+    let alpha = if palette.dark { 190 } else { 120 };
+    let veil = egui::Color32::from_rgba_unmultiplied(8, 10, 16, alpha);
+    egui::Area::new(egui::Id::new("import_warning_backdrop"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(screen_rect.min)
+        .show(context, |ui| {
+            let size = screen_rect.size();
+            let (rect, _) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
+            ui.painter().rect_filled(rect, 0.0, veil);
+        });
+}
+
+/// Draws the dialog above the backdrop and reports whether it was dismissed.
+fn show_import_warning_dialog(
+    context: &egui::Context,
+    palette: &theme::Palette,
+    layout: &ImportDialogLayout,
+    message: &str,
+    french: bool,
+) -> bool {
+    let mut dismissed = false;
+    // The dialog lives on a higher layer than the backdrop so that clicking the
+    // backdrop can never raise it above the dialog.
+    egui::Area::new(egui::Id::new("import_warning_dialog"))
+        .order(egui::Order::Tooltip)
+        .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+        .show(context, |ui| {
+            import_dialog_frame(ui, palette).show(ui, |ui| {
+                ui.set_width(layout.content_width());
+                egui::ScrollArea::vertical()
+                    .max_height(layout.body_max_height())
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        dismissed = import_dialog_body(ui, palette, layout, message, french);
+                    });
+            });
+        });
+    dismissed
+}
+
+/// Window frame filled from the palette, outlined with the user's accent colour.
+fn import_dialog_frame(ui: &egui::Ui, palette: &theme::Palette) -> egui::Frame {
+    egui::Frame::window(ui.style())
+        .fill(palette.panel)
+        .stroke(egui::Stroke::new(ImportDialogLayout::BORDER, palette.accent))
+        .rounding(egui::Rounding::same(14.0))
+        .shadow(egui::epaint::Shadow {
+            offset: egui::vec2(0.0, 12.0),
+            blur: 28.0,
+            spread: 0.0,
+            color: egui::Color32::from_black_alpha(100),
+        })
+        .inner_margin(egui::Margin::same(ImportDialogLayout::INNER_MARGIN))
+}
+
+/// Title, summary, error list and close button. Returns true once dismissed.
+fn import_dialog_body(
+    ui: &mut egui::Ui,
+    palette: &theme::Palette,
+    layout: &ImportDialogLayout,
+    message: &str,
+    french: bool,
+) -> bool {
+    let text = import_dialog_text(french);
+
+    ui.label(
+        egui::RichText::new(text.title)
+            .size(20.0)
+            .strong()
+            .color(palette.text),
+    );
+    let summary = egui::RichText::new(text.summary).size(14.0);
+    ui.label(summary.color(palette.text));
+
+    ui.label(
+        egui::RichText::new(text.details)
+            .strong()
+            .color(palette.text),
+    );
+    // Only the error list scrolls; the title and the button stay in view.
+    egui::Frame::none()
+        .fill(palette.sidebar)
+        .stroke(egui::Stroke::new(1.0_f32, palette.border))
+        .rounding(egui::Rounding::same(8.0))
+        .inner_margin(egui::Margin::same(10.0))
+        .show(ui, |ui| {
+            egui::ScrollArea::vertical()
+                .max_height(layout.details_max_height)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    let details = egui::RichText::new(message).size(13.0);
+                    ui.label(details.color(palette.text));
+                });
+        });
+
+    // These causes are guesses, not findings: keep them folded and labelled.
+    let causes_title = egui::RichText::new(text.causes_title)
+        .strong()
+        .color(palette.text_dim);
+    egui::CollapsingHeader::new(causes_title)
+        .default_open(false)
+        .show(ui, |ui| {
+            for cause in text.causes {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(egui::RichText::new("•").color(palette.accent_text));
+                    ui.label(egui::RichText::new(cause).color(palette.text_dim));
+                });
+            }
+        });
+
+    let mut dismissed = false;
+    let button_row = egui::Layout::right_to_left(egui::Align::Center);
+    ui.with_layout(button_row, |ui| {
+        let close = ui.add(theme::primary_button(palette, text.close));
+        if close.clicked() {
+            dismissed = true;
+        }
+    });
+    dismissed
+}
+
 fn format_import_summary(
     language: &str,
     imported: usize,
@@ -1571,6 +1668,59 @@ fn format_size(bytes: u64) -> String {
         format!("{:.1} KiB", bytes as f64 / KIB as f64)
     } else {
         format!("{bytes} B")
+    }
+}
+
+#[cfg(test)]
+mod import_dialog_tests {
+    use super::*;
+
+    #[test]
+    fn dialog_stays_compact_on_large_windows() {
+        let layout = ImportDialogLayout::for_screen(egui::vec2(3840.0, 2160.0));
+        assert_eq!(layout.width, ImportDialogLayout::MAX_WIDTH);
+        assert_eq!(layout.details_max_height, ImportDialogLayout::MAX_DETAILS);
+        assert!(layout.content_width() < ImportDialogLayout::MAX_WIDTH);
+    }
+
+    #[test]
+    fn dialog_adapts_to_narrow_windows() {
+        let layout = ImportDialogLayout::for_screen(egui::vec2(360.0, 800.0));
+        assert!(layout.width <= 360.0 - 2.0 * ImportDialogLayout::SCREEN_MARGIN);
+        assert!(layout.content_width() > 0.0);
+    }
+
+    #[test]
+    fn dialog_scrolls_as_a_whole_on_very_short_windows() {
+        let screen_height = 240.0;
+        let layout = ImportDialogLayout::for_screen(egui::vec2(1280.0, screen_height));
+        assert!(layout.max_height < screen_height);
+        assert_eq!(layout.details_max_height, ImportDialogLayout::MIN_DETAILS);
+        assert!(layout.body_max_height() > 0.0);
+    }
+
+    #[test]
+    fn error_list_height_grows_with_the_window_but_is_capped() {
+        let short = ImportDialogLayout::for_screen(egui::vec2(1280.0, 420.0));
+        let tall = ImportDialogLayout::for_screen(egui::vec2(1280.0, 1440.0));
+        assert!(short.details_max_height < tall.details_max_height);
+        assert_eq!(tall.details_max_height, ImportDialogLayout::MAX_DETAILS);
+    }
+
+    #[test]
+    fn dialog_texts_are_complete_in_both_languages() {
+        for french in [true, false] {
+            let text = import_dialog_text(french);
+            assert!(!text.title.is_empty());
+            assert!(!text.summary.is_empty());
+            assert!(!text.details.is_empty());
+            assert!(!text.close.is_empty());
+            assert!(text.causes.iter().all(|cause| !cause.is_empty()));
+        }
+        assert_ne!(
+            import_dialog_text(true).close,
+            import_dialog_text(false).close
+        );
     }
 }
 
