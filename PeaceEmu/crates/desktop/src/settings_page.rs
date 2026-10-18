@@ -192,7 +192,7 @@ impl DesktopApp {
                         palette.text_dim,
                     ),
                     UpdateState::Failed => {
-                        theme::badge(ui, if french { "Échec" } else { "Failed" }, palette.danger)
+                        theme::badge(ui, self.language_pack.text("ui.settings_page.038"), palette.danger)
                     }
                 }
                 ui.label(
