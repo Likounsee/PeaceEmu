@@ -46,6 +46,31 @@ jobs:
           RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --locked --release --manifest-path PeaceEmu/crates/desktop/Cargo.toml
 
+      - name: Verify executable Windows identity and embedded icon
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = (Resolve-Path "PeaceEmu/crates/desktop/target/release/peaceemu.exe").Path
+          $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
+          foreach ($field in @("FileDescription", "ProductName", "InternalName")) {
+            if ($version.$field -ne "PeaceEmu") {
+              throw "Executable $field metadata is '$($version.$field)', expected 'PeaceEmu'."
+            }
+          }
+          if ($version.OriginalFilename -ne "PeaceEmu.exe") {
+            throw "Executable OriginalFilename is '$($version.OriginalFilename)', expected 'PeaceEmu.exe'."
+          }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
+          if ($null -eq $icon) { throw "Windows could not extract an associated icon from PeaceEmu.exe." }
+          try {
+            if ($icon.Width -lt 1 -or $icon.Height -lt 1) {
+              throw "Embedded executable icon has invalid dimensions."
+            }
+            Write-Host "Verified PE metadata: ProductName=PeaceEmu, FileDescription=PeaceEmu, OriginalFilename=PeaceEmu.exe."
+            Write-Host "Verified embedded executable icon: $($icon.Width)x$($icon.Height)."
+          } finally { $icon.Dispose() }
+
       - name: Stage application and determine version
         id: stage
         shell: pwsh
