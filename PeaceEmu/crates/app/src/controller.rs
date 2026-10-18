@@ -622,6 +622,33 @@ mod tests {
     }
 
     #[test]
+    fn save_controller_apis_report_stale_sessions_without_mutating_state() {
+        let mut app = controller();
+        let id = app
+            .host_mut()
+            .create_session(Box::new(GameBoyColorCore::new()))
+            .unwrap();
+
+        assert!(!app.persistent_save_dirty(id).unwrap());
+        let envelope = emulation_core::save_state::SaveStateEnvelope::new(
+            "game-boy-color".to_owned(),
+            "test-version".to_owned(),
+            Vec::new(),
+        )
+        .unwrap();
+
+        app.close_session(id).unwrap();
+        assert!(app.persistent_save_dirty(id).is_err());
+        assert!(app.save_game_data_envelope(id).is_err());
+        assert!(app.load_game_data_envelope(id, &envelope).is_err());
+        assert!(app.clear_persistent_save_dirty(id).is_err());
+        assert!(app.save_state_envelope(id).is_err());
+        assert!(app.load_state_envelope(id, &envelope).is_err());
+        assert_eq!(app.session_count(), 0);
+        assert_eq!(app.active_session(), None);
+    }
+
+    #[test]
     fn failed_launch_of_removed_import_updates_library_validation() {
         let mut app = controller();
         let directory = std::env::temp_dir().join(format!(
