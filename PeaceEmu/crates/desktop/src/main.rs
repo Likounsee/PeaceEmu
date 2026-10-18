@@ -95,6 +95,14 @@ fn clear_tick_error_for_session(errors: &mut Vec<(SessionId, String)>, id: Sessi
     errors.retain(|(error_id, _)| *error_id != id);
 }
 
+fn preferences_unavailable_message(language: &str) -> &'static str {
+    if language == "fr" {
+        "Impossible d’enregistrer les préférences : aucun dossier de configuration utilisateur accessible en écriture."
+    } else {
+        "Could not save preferences: no writable user configuration directory is available."
+    }
+}
+
 #[cfg(test)]
 fn message_indicates_error(message: &str) -> bool {
     let message = message.to_ascii_lowercase();
@@ -562,9 +570,7 @@ impl DesktopApp {
 
     fn save_preferences(&mut self) -> bool {
         let Some(path) = self.config_path.as_deref() else {
-            self.message =
-                "Could not save preferences: no writable user configuration directory is available."
-                    .to_owned();
+            self.message = preferences_unavailable_message(&self.language).to_owned();
             return false;
         };
         let paths: Vec<PathBuf> = self
@@ -1421,6 +1427,22 @@ mod preference_tests {
         escape_config_value, load_preferences, unescape_config_value, write_preferences,
     };
     use std::fs;
+
+    #[test]
+    fn missing_configuration_directory_error_is_localized() {
+        assert_eq!(
+            preferences_unavailable_message("fr"),
+            "Impossible d’enregistrer les préférences : aucun dossier de configuration utilisateur accessible en écriture."
+        );
+        assert_eq!(
+            preferences_unavailable_message("en"),
+            "Could not save preferences: no writable user configuration directory is available."
+        );
+        assert_eq!(
+            preferences_unavailable_message("de"),
+            "Could not save preferences: no writable user configuration directory is available."
+        );
+    }
 
     #[test]
     fn launch_cancellation_is_classified_as_an_error() {
