@@ -508,7 +508,10 @@ impl DesktopApp {
                 {
                     install_clicked = true;
                 }
-                if ui.button(if french { "Plus tard" } else { "Later" }).clicked() {
+                if ui
+                    .button(if french { "Plus tard" } else { "Later" })
+                    .clicked()
+                {
                     later_clicked = true;
                 }
             });
