@@ -1541,7 +1541,10 @@ fn show_import_warning_dialog(
 fn import_dialog_frame(ui: &egui::Ui, palette: &theme::Palette) -> egui::Frame {
     egui::Frame::window(ui.style())
         .fill(palette.panel)
-        .stroke(egui::Stroke::new(ImportDialogLayout::BORDER, palette.accent))
+        .stroke(egui::Stroke::new(
+            ImportDialogLayout::BORDER,
+            palette.accent,
+        ))
         .rounding(egui::Rounding::same(14.0))
         .shadow(egui::epaint::Shadow {
             offset: egui::vec2(0.0, 12.0),
