@@ -775,7 +775,11 @@ impl DesktopApp {
                 return;
             }
             Err(error) => {
-                self.message = format!("Load state failed: {error}");
+                self.message = if self.language == "fr" {
+                    format!("Échec du chargement de l’état : {error}")
+                } else {
+                    format!("Load state failed: {error}")
+                };
                 return;
             }
         };
@@ -834,10 +838,17 @@ impl DesktopApp {
 
         if matches!(action, SessionAction::StopAndSave) {
             if let Err(error) = self.save_state_for_session(id) {
-                self.message = format!(
-                    "Session {}: stop aborted because saving the state failed: {error}",
-                    id.get()
-                );
+                self.message = if self.language == "fr" {
+                    format!(
+                        "Session {} : arrêt annulé car la sauvegarde de l’état a échoué : {error}",
+                        id.get()
+                    )
+                } else {
+                    format!(
+                        "Session {}: stop aborted because saving the state failed: {error}",
+                        id.get()
+                    )
+                };
                 return;
             }
         }
@@ -848,10 +859,17 @@ impl DesktopApp {
                 .is_ok_and(|summary| summary.persistent_saves)
         {
             if let Err(error) = self.save_game_data_for_session(id) {
-                self.message = format!(
-                    "Session {}: stop aborted because saving in-game data failed: {error}",
-                    id.get()
-                );
+                self.message = if self.language == "fr" {
+                    format!(
+                        "Session {} : arrêt annulé car la sauvegarde en jeu a échoué : {error}",
+                        id.get()
+                    )
+                } else {
+                    format!(
+                        "Session {}: stop aborted because saving in-game data failed: {error}",
+                        id.get()
+                    )
+                };
                 return;
             }
         }
