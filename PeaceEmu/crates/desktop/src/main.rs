@@ -179,11 +179,12 @@ enum LibraryFormat {
 }
 
 impl LibraryFormat {
-    fn label(self) -> &'static str {
-        match self {
-            Self::All => "All formats",
-            Self::GameBoy => "Game Boy (.gb)",
-            Self::GameBoyColor => "Game Boy Color (.gbc)",
+    fn label(self, french: bool) -> &'static str {
+        match (self, french) {
+            (Self::All, true) => "Tous les formats",
+            (Self::All, false) => "All formats",
+            (Self::GameBoy, _) => "Game Boy (.gb)",
+            (Self::GameBoyColor, _) => "Game Boy Color (.gbc)",
         }
     }
 
@@ -208,11 +209,14 @@ enum LibrarySort {
 }
 
 impl LibrarySort {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Name => "Title (A–Z)",
-            Self::Largest => "Largest first",
-            Self::Path => "File path",
+    fn label(self, french: bool) -> &'static str {
+        match (self, french) {
+            (Self::Name, true) => "Titre (A–Z)",
+            (Self::Name, false) => "Title (A–Z)",
+            (Self::Largest, true) => "Taille décroissante",
+            (Self::Largest, false) => "Largest first",
+            (Self::Path, true) => "Chemin du fichier",
+            (Self::Path, false) => "File path",
         }
     }
 }
