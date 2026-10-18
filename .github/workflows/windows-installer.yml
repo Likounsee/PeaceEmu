@@ -416,7 +416,7 @@ jobs:
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json + "`n"))
 
           # Read the manifest from the stable branch, not from the release tag checkout.
-          $existing = gh api "repos/$env:GITHUB_REPOSITORY/contents/$manifestPath?ref=$branch"
+          $existing = gh api --method GET -f "ref=$branch" "repos/$env:GITHUB_REPOSITORY/contents/$manifestPath"
           if ($LASTEXITCODE -ne 0) { throw "Could not read stable update manifest from branch $branch." }
           $existingObject = $existing | ConvertFrom-Json
           $payload = @{
