@@ -468,46 +468,50 @@ impl DesktopApp {
         } else {
             "Update available"
         })
-            .id(egui::Id::new("peaceemu_update_available"))
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-            .show(context, |ui| {
-                ui.set_min_width(340.0);
-                ui.label(if french {
-                    format!("PeaceEmu {version} est disponible.")
-                } else {
-                    format!("PeaceEmu {version} is available.")
-                });
-                ui.add_space(4.0);
-                ui.label(if french {
-                    "Téléchargez et vérifiez la mise à jour avant son installation."
-                } else {
-                    "The update will be downloaded and verified before installation."
-                });
-                if show_status {
-                    ui.add_space(6.0);
-                    ui.label(egui::RichText::new(&status).size(12.0));
-                }
-                ui.add_space(10.0);
-                ui.horizontal(|ui| {
-                    let label = if downloading {
-                        if french { "Téléchargement…" } else { "Downloading…" }
-                    } else if french {
-                        "Installer maintenant"
+        .id(egui::Id::new("peaceemu_update_available"))
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .show(context, |ui| {
+            ui.set_min_width(340.0);
+            ui.label(if french {
+                format!("PeaceEmu {version} est disponible.")
+            } else {
+                format!("PeaceEmu {version} is available.")
+            });
+            ui.add_space(4.0);
+            ui.label(if french {
+                "Téléchargez et vérifiez la mise à jour avant son installation."
+            } else {
+                "The update will be downloaded and verified before installation."
+            });
+            if show_status {
+                ui.add_space(6.0);
+                ui.label(egui::RichText::new(&status).size(12.0));
+            }
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                let label = if downloading {
+                    if french {
+                        "Téléchargement…"
                     } else {
-                        "Install now"
-                    };
-                    if ui
-                        .add_enabled(!downloading, egui::Button::new(label))
-                        .clicked()
-                    {
-                        install_clicked = true;
+                        "Downloading…"
                     }
-                    if ui.button(if french { "Plus tard" } else { "Later" }).clicked() {
-                        later_clicked = true;
-                    }
-                });
+                } else if french {
+                    "Installer maintenant"
+                } else {
+                    "Install now"
+                };
+                if ui
+                    .add_enabled(!downloading, egui::Button::new(label))
+                    .clicked()
+                {
+                    install_clicked = true;
+                }
+                if ui.button(if french { "Plus tard" } else { "Later" }).clicked() {
+                    later_clicked = true;
+                }
+            });
             });
         if later_clicked {
             self.install_after_update_download = false;
@@ -550,7 +554,8 @@ impl DesktopApp {
             .map(|download| (download.size_bytes, download.sha256.clone()));
         let Some((size, sha256)) = download else {
             self.update_status = if self.language == "fr" {
-                "Impossible de retrouver les informations officielles pour vérifier ce fichier.".to_owned()
+                "Impossible de retrouver les informations officielles pour vérifier ce fichier."
+                    .to_owned()
             } else {
                 "Could not find official metadata to verify this installer.".to_owned()
             };
@@ -582,7 +587,8 @@ impl DesktopApp {
         {
             let _ = (path, size, sha256);
             self.update_status = if self.language == "fr" {
-                "L’installation automatique est actuellement disponible uniquement sous Windows.".to_owned()
+                "L’installation automatique est actuellement disponible uniquement sous Windows."
+                    .to_owned()
             } else {
                 "Automatic installation is currently available on Windows only.".to_owned()
             };
