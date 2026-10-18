@@ -463,7 +463,7 @@ impl DesktopApp {
             || status.contains("Could not");
         let mut install_clicked = false;
         let mut later_clicked = false;
-        egui::Window::new(if french {
+        let _ = egui::Window::new(if french {
             "Mise à jour disponible"
         } else {
             "Update available"
