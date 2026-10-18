@@ -1,4 +1,4 @@
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, io::Cursor, path::PathBuf};
 
 const PRODUCT_NAME: &str = "PeaceEmu";
 
@@ -27,39 +27,39 @@ fn main() {
     resource.compile().expect("embed PeaceEmu icon and version metadata");
 }
 
-// ICO supports PNG payloads on modern Windows. This wraps the existing official
-// PNG without re-encoding it, so the executable resource and installer share
-// the same source artwork.
-fn write_png_icon(path: &std::path::Path, png: &[u8]) -> std::io::Result<()> {
-    if png.len() < 24 || &png[..8] != b"\x89PNG\r\n\x1a\n" {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "branding image is not a PNG",
-        ));
-    }
-    let width = u32::from_be_bytes(png[16..20].try_into().expect("PNG width bytes"));
-    let height = u32::from_be_bytes(png[20..24].try_into().expect("PNG height bytes"));
-    if width == 0 || height == 0 || width > 256 || height > 256 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Windows icon dimensions must be between 1 and 256 pixels",
-        ));
-    }
+// ICO supports PNG payloads on modern Windows. Render the same official bird
+// artwork into a centered 256x256 transparent canvas before wrapping it as ICO.
+fn write_png_icon(path: &std::path::Path, source_png: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    let source = image::load_from_memory(source_png)?;
+    let source = source.resize(232, 232, image::imageops::FilterType::Lanczos3).into_rgba8();
+    let (width, height) = source.dimensions();
+    let mut canvas = image::RgbaImage::from_pixel(256, 256, image::Rgba([0, 0, 0, 0]));
+    image::imageops::overlay(
+        &mut canvas,
+        &source,
+        i64::from((256 - width) / 2),
+        i64::from((256 - height) / 2),
+    );
+
+    let mut png = Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(canvas).write_to(&mut png, image::ImageOutputFormat::Png)?;
+    let png = png.into_inner();
 
     let mut ico = Vec::with_capacity(22 + png.len());
     ico.extend_from_slice(&0u16.to_le_bytes()); // reserved
     ico.extend_from_slice(&1u16.to_le_bytes()); // icon resource
     ico.extend_from_slice(&1u16.to_le_bytes()); // image count
-    ico.push(if width == 256 { 0 } else { width as u8 });
-    ico.push(if height == 256 { 0 } else { height as u8 });
+    ico.push(0); // 256 pixels is encoded as zero in ICO directory entries
+    ico.push(0);
     ico.push(0); // palette
     ico.push(0); // reserved
     ico.extend_from_slice(&1u16.to_le_bytes()); // color planes
     ico.extend_from_slice(&32u16.to_le_bytes()); // bits per pixel
     ico.extend_from_slice(&(png.len() as u32).to_le_bytes());
     ico.extend_from_slice(&22u32.to_le_bytes()); // image offset
-    ico.extend_from_slice(png);
-    fs::write(path, ico)
+    ico.extend_from_slice(&png);
+    fs::write(path, ico)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -67,20 +67,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ico_wraps_the_bundled_png_with_a_valid_header() {
-        let png = include_bytes!("assets/branding/bird.png");
+    fn generated_icon_has_a_valid_ico_header_and_png_payload() {
+        let source = include_bytes!("assets/branding/bird.png");
         let path = std::env::temp_dir().join(format!("peaceemu-icon-{}.ico", std::process::id()));
-        write_png_icon(&path, png).unwrap();
+        write_png_icon(&path, source).unwrap();
         let ico = fs::read(&path).unwrap();
         assert_eq!(&ico[..6], &[0, 0, 1, 0, 1, 0]);
-        assert_eq!(u32::from_le_bytes(ico[14..18].try_into().unwrap()) as usize, png.len());
+        assert_eq!(u32::from_le_bytes(ico[14..18].try_into().unwrap()) as usize, ico.len() - 22);
         assert_eq!(u32::from_le_bytes(ico[18..22].try_into().unwrap()), 22);
-        assert_eq!(&ico[22..], png);
+        assert_eq!(&ico[22..30], b"\x89PNG\r\n\x1a\n");
+        let dimensions = image::load_from_memory(&ico[22..]).unwrap().dimensions();
+        assert_eq!(dimensions, (256, 256));
         fs::remove_file(path).unwrap();
-    }
-
-    #[test]
-    fn rejects_non_png_and_oversized_icon_sources() {
-        assert!(write_png_icon(std::path::Path::new("unused.ico"), b"not png").is_err());
     }
 }
