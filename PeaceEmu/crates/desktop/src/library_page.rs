@@ -94,14 +94,14 @@ fn path_availability(path: &Path) -> ContentAvailability {
 
 /// Return the current size only when the path is still a regular file.
 /// Indexed sizes become stale when a ROM is replaced or removed while the app is open.
-fn live_path_size(path: &Path) -> Option<u64> {
+pub(super) fn live_path_size(path: &Path) -> Option<u64> {
     std::fs::metadata(path)
         .ok()
         .filter(|metadata| metadata.is_file())
         .map(|metadata| metadata.len())
 }
 
-fn display_path_size(size: Option<u64>, french: bool) -> String {
+pub(super) fn display_path_size(size: Option<u64>, french: bool) -> String {
     size.map(format_size).unwrap_or_else(|| {
         if french {
             "Taille indisponible".to_owned()
