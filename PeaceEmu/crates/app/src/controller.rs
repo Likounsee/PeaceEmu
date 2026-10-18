@@ -99,6 +99,41 @@ pub struct SessionSummary {
     pub last_error: Option<String>,
 }
 
+
+/// Detects formats with an adaptive prefix while respecting the launch size limit.
+/// Probes can request more bytes than the initial prefix; satisfy the largest
+/// request when it fits within the configured limit, rather than leaving a
+/// resolvable format permanently marked as needing more data.
+fn detect_content_formats_from_path(
+    path: &Path,
+    limits: ContentLimits,
+    probes: &[&dyn ContentFormatProbe],
+) -> Option<emulation_core::content::ContentDetection> {
+    let read_prefix = |max_bytes: usize| -> Option<Vec<u8>> {
+        let file = std::fs::File::open(path).ok()?;
+        let mut prefix = Vec::with_capacity(max_bytes.min(4096));
+        file.take(max_bytes as u64)
+            .read_to_end(&mut prefix)
+            .ok()?;
+        Some(prefix)
+    };
+
+    let initial_limit = limits.max_bytes().min(4096);
+    let prefix = read_prefix(initial_limit)?;
+    let detection = detect_content_formats(&prefix, probes);
+    let requested_bytes = detection
+        .needs_more_data
+        .iter()
+        .map(|(_, minimum_bytes)| *minimum_bytes)
+        .max()?;
+    if requested_bytes <= prefix.len() || requested_bytes > limits.max_bytes() {
+        return Some(detection);
+    }
+
+    let expanded_prefix = read_prefix(requested_bytes)?;
+    Some(detect_content_formats(&expanded_prefix, probes))
+}
+
 /// Converts probe results without claiming a definitive match while any probe is undecided.
 fn content_format_detection(
     detection: emulation_core::content::ContentDetection,
@@ -276,11 +311,7 @@ impl ApplicationController {
             let path = path.as_ref();
             path.is_absolute().then(|| path.to_path_buf())
         });
-        let detection = std::fs::File::open(path.as_ref()).ok().and_then(|file| {
-            let mut prefix = Vec::with_capacity(4096);
-            file.take(4096).read_to_end(&mut prefix).ok()?;
-            Some(detect_content_formats(&prefix, probes))
-        });
+        let detection = detect_content_formats_from_path(path.as_ref(), limits, probes);
         if let Some(canonical_path) = canonical_path.as_ref() {
             // A failed read must not leave a previous probe result looking current.
             // Pending means no bytes were available for this launch attempt.
@@ -527,6 +558,98 @@ mod tests {
         assert_eq!(entry.format_detection(), &ContentFormatDetection::Pending);
 
         std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn format_detection_reads_more_bytes_when_a_probe_requests_them() {
+        struct LongHeaderProbe;
+
+        impl ContentFormatProbe for LongHeaderProbe {
+            fn format_id(&self) -> &'static str {
+                "long-header"
+            }
+
+            fn probe(&self, prefix: &[u8]) -> emulation_core::content::FormatProbeResult {
+                if prefix.len() < 8192 {
+                    emulation_core::content::FormatProbeResult::NeedMoreData {
+                        minimum_bytes: 8192,
+                    }
+                } else if prefix[8191] == b'X' {
+                    emulation_core::content::FormatProbeResult::Match
+                } else {
+                    emulation_core::content::FormatProbeResult::NoMatch
+                }
+            }
+        }
+
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "host-app-long-probe-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("long-header.bin");
+        let mut bytes = vec![b'A'; 8192];
+        bytes[8191] = b'X';
+        std::fs::write(&path, bytes).unwrap();
+
+        let probe = LongHeaderProbe;
+        let probes: [&dyn ContentFormatProbe; 1] = [&probe];
+        let detection = detect_content_formats_from_path(
+            &path,
+            ContentLimits::new(16 * 1024),
+            &probes,
+        )
+        .unwrap();
+
+        assert_eq!(detection.matches, vec!["long-header"]);
+        assert!(detection.needs_more_data.is_empty());
+
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn format_detection_does_not_read_past_the_content_limit() {
+        struct LongHeaderProbe;
+
+        impl ContentFormatProbe for LongHeaderProbe {
+            fn format_id(&self) -> &'static str {
+                "long-header"
+            }
+
+            fn probe(&self, prefix: &[u8]) -> emulation_core::content::FormatProbeResult {
+                emulation_core::content::FormatProbeResult::NeedMoreData {
+                    minimum_bytes: prefix.len().saturating_add(1).max(8192),
+                }
+            }
+        }
+
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "host-app-limited-probe-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("limited-header.bin");
+        std::fs::write(&path, vec![b'A'; 8192]).unwrap();
+
+        let probe = LongHeaderProbe;
+        let probes: [&dyn ContentFormatProbe; 1] = [&probe];
+        let detection =
+            detect_content_formats_from_path(&path, ContentLimits::new(4096), &probes).unwrap();
+
+        assert!(detection.matches.is_empty());
+        assert_eq!(detection.needs_more_data, vec![("long-header", 8192)]);
+
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(directory).unwrap();
     }
 
     #[test]
