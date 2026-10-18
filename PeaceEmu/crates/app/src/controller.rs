@@ -121,11 +121,15 @@ fn detect_content_formats_from_path(
     let initial_limit = limits.max_bytes().min(4096);
     let prefix = read_prefix(initial_limit)?;
     let detection = detect_content_formats(&prefix, probes);
+    if detection.needs_more_data.is_empty() {
+        return Some(detection);
+    }
     let requested_bytes = detection
         .needs_more_data
         .iter()
         .map(|(_, minimum_bytes)| *minimum_bytes)
-        .max()?;
+        .max()
+        .unwrap_or(prefix.len());
     if requested_bytes <= prefix.len() || requested_bytes > limits.max_bytes() {
         return Some(detection);
     }
