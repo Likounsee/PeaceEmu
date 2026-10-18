@@ -311,6 +311,21 @@ jobs:
           $settingsSentinel = "installer-smoke-test-user-data"
           Set-Content -Path $userSettings -Value $settingsSentinel -NoNewline -Encoding utf8
 
+          # Re-run the same installer over an existing install to exercise the
+          # in-place upgrade/reinstall path before testing removal. User data must
+          # survive this operation, and the executable must remain launchable.
+          $reinstall = Start-Process -FilePath $installer.FullName -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/DIR=`"$installDir`"") -Wait -PassThru
+          if ($reinstall.ExitCode -ne 0) { throw "In-place reinstall failed with exit code $($reinstall.ExitCode)." }
+          if (!(Test-Path $installedExe)) { throw "Installed executable disappeared after in-place reinstall." }
+          $reinstalledSettings = Get-Content -Path $userSettings -Raw
+          if ($reinstalledSettings -ne $settingsSentinel) {
+            throw "In-place reinstall modified or removed existing user settings."
+          }
+          $reinstalledVersion = Invoke-CapturedExecutable -Name "host-app-version-after-reinstall" -Arguments @("--version")
+          if ($reinstalledVersion.ExitCode -ne 0 -or $reinstalledVersion.StdOut.Trim() -ne "PeaceEmu ${{ steps.stage.outputs.version }}") {
+            throw "Installed executable failed its version check after in-place reinstall: $($reinstalledVersion.Text)"
+          }
+
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES") -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "Silent uninstall failed with exit code $($uninstall.ExitCode)." }
           if (Test-Path $installedExe) { throw "Installed executable remains after uninstall." }
