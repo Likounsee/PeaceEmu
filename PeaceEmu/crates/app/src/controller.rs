@@ -99,7 +99,6 @@ pub struct SessionSummary {
     pub last_error: Option<String>,
 }
 
-
 /// Detects formats with an adaptive prefix while respecting the launch size limit.
 /// Probes can request more bytes than the initial prefix; satisfy the largest
 /// request when it fits within the configured limit, rather than leaving a
@@ -602,12 +601,8 @@ mod tests {
 
         let probe = LongHeaderProbe;
         let probes: [&dyn ContentFormatProbe; 1] = [&probe];
-        let detection = detect_content_formats_from_path(
-            &path,
-            ContentLimits::new(16 * 1024),
-            &probes,
-        )
-        .unwrap();
+        let detection =
+            detect_content_formats_from_path(&path, ContentLimits::new(16 * 1024), &probes).unwrap();
 
         assert_eq!(detection.matches, vec!["long-header"]);
         assert!(detection.needs_more_data.is_empty());
