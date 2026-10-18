@@ -281,8 +281,12 @@ impl ApplicationController {
             file.take(4096).read_to_end(&mut prefix).ok()?;
             Some(detect_content_formats(&prefix, probes))
         });
-        if let (Some(canonical_path), Some(detection)) = (canonical_path.as_ref(), detection) {
-            let detection = content_format_detection(detection);
+        if let Some(canonical_path) = canonical_path.as_ref() {
+            // A failed read must not leave a previous probe result looking current.
+            // Pending means no bytes were available for this launch attempt.
+            let detection = detection
+                .map(content_format_detection)
+                .unwrap_or(ContentFormatDetection::Pending);
             self.library
                 .record_format_detection(canonical_path, detection);
         }
@@ -505,6 +509,10 @@ mod tests {
         std::fs::write(&path, b"rom-data").unwrap();
         let canonical = std::fs::canonicalize(&path).unwrap();
         app.import_content(&path, 64).unwrap();
+        app.library_mut().record_format_detection(
+            &canonical,
+            ContentFormatDetection::Detected("previous-format".to_owned()),
+        );
         std::fs::remove_file(&path).unwrap();
 
         let result = app.launch_content_path(
@@ -514,10 +522,9 @@ mod tests {
             &CoreRegistry::new(),
         );
         assert!(result.is_err());
-        assert!(matches!(
-            app.library().get(&canonical).unwrap().validation(),
-            ContentValidation::Rejected(_)
-        ));
+        let entry = app.library().get(&canonical).unwrap();
+        assert!(matches!(entry.validation(), ContentValidation::Rejected(_)));
+        assert_eq!(entry.format_detection(), &ContentFormatDetection::Pending);
 
         std::fs::remove_dir_all(directory).unwrap();
     }
