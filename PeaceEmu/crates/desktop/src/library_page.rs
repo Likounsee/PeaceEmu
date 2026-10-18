@@ -614,7 +614,7 @@ mod tests {
         path_availability,
     };
     use host_app::library::ContentAvailability;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn unique_temp_path(label: &str) -> PathBuf {
