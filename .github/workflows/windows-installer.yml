@@ -9,6 +9,7 @@ on:
       - "PeaceEmu/Cargo.toml"
       - "PeaceEmu/Cargo.lock"
       - "PeaceEmu/packaging/windows/**"
+      - "PeaceEmu/update/**"
       - "PeaceEmu/crates/desktop/assets/**"
       - ".github/workflows/windows-installer.yml"
   workflow_dispatch:
@@ -360,3 +361,76 @@ jobs:
           files: |
             dist/PeaceEmu-Setup-*.exe
             dist/PeaceEmu-Setup-*.exe.sha256
+
+      - name: Publish verified Windows update manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tagVersion = $env:GITHUB_REF_NAME.Substring(1)
+          $manifestPath = "PeaceEmu/update/stable.json"
+          $desktopManifest = Get-Content "PeaceEmu/crates/desktop/Cargo.toml" -Raw
+          $versionMatch = [regex]::Match($desktopManifest, '(?m)^version\\s*=\\s*"([^"]+)"')
+          if (!$versionMatch.Success) { throw "Could not read desktop package version." }
+          $packageVersion = $versionMatch.Groups[1].Value
+          if ($tagVersion -ne $packageVersion) {
+            throw "Release tag v$tagVersion does not match desktop package version $packageVersion."
+          }
+
+          $assetName = "PeaceEmu-Setup-$packageVersion.exe"
+          $assetPath = Join-Path $env:GITHUB_WORKSPACE "dist/$assetName"
+          $checksumPath = "$assetPath.sha256"
+          if (!(Test-Path $assetPath) -or !(Test-Path $checksumPath)) {
+            throw "Release installer or SHA-256 sidecar is missing."
+          }
+          $actualSize = (Get-Item $assetPath).Length
+          $actualHash = (Get-FileHash $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksumParts = (Get-Content $checksumPath -Raw).Trim() -split '\\s+', 2
+          if ($checksumParts.Count -ne 2 -or $checksumParts[0] -ne $actualHash -or $checksumParts[1] -ne $assetName) {
+            throw "Installer checksum sidecar does not match the release artifact."
+          }
+
+          # Ensure the release asset really exists before advertising it to clients.
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:GITHUB_REF_NAME" | ConvertFrom-Json
+          $asset = @($release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1)
+          if ($asset.Count -ne 1 -or $asset[0].size -ne $actualSize) {
+            throw "Published GitHub release asset is missing or has an unexpected size."
+          }
+
+          $manifest = [ordered]@{
+            schema_version = 1
+            version = $packageVersion
+            release_notes_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$env:GITHUB_REF_NAME"
+            downloads = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$assetName"
+                size_bytes = [long]$actualSize
+                sha256 = $actualHash
+              }
+            }
+          }
+          $json = $manifest | ConvertTo-Json -Depth 8
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json + "`n"))
+
+          # Read the manifest from the stable branch, not from the release tag checkout.
+          $existing = gh api "repos/$env:GITHUB_REPOSITORY/contents/$manifestPath?ref=$branch"
+          if ($LASTEXITCODE -ne 0) { throw "Could not read stable update manifest from branch $branch." }
+          $existingObject = $existing | ConvertFrom-Json
+          $payload = @{
+            message = "chore(release): publish PeaceEmu $packageVersion update manifest"
+            content = $encoded
+            sha = $existingObject.sha
+            branch = $branch
+          } | ConvertTo-Json -Compress
+          $payloadPath = Join-Path $env:RUNNER_TEMP "peaceemu-manifest-payload.json"
+          Set-Content -Path $payloadPath -Value $payload -Encoding utf8
+          try {
+            gh api --method PUT "repos/$env:GITHUB_REPOSITORY/contents/$manifestPath" --input $payloadPath | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "GitHub rejected the stable update manifest commit." }
+          } finally {
+            Remove-Item $payloadPath -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "Published stable update manifest for v$packageVersion ($actualSize bytes, SHA-256 $actualHash)."
+
