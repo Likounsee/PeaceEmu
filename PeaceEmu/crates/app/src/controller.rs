@@ -602,7 +602,8 @@ mod tests {
         let probe = LongHeaderProbe;
         let probes: [&dyn ContentFormatProbe; 1] = [&probe];
         let detection =
-            detect_content_formats_from_path(&path, ContentLimits::new(16 * 1024), &probes).unwrap();
+            detect_content_formats_from_path(&path, ContentLimits::new(16 * 1024), &probes)
+                .unwrap();
 
         assert_eq!(detection.matches, vec!["long-header"]);
         assert!(detection.needs_more_data.is_empty());
