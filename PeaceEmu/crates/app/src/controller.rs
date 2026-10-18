@@ -474,11 +474,16 @@ impl ApplicationController {
         &mut self,
         id: SessionId,
     ) -> Result<emulation_core::save_state::SaveStateEnvelope, String> {
-        let session = self.host.session_mut(id).map_err(|error| error.to_string())?;
+        let session = self
+            .host
+            .session_mut(id)
+            .map_err(|error| error.to_string())?;
         let descriptor = session.descriptor();
         let system_id = descriptor.system_id.as_str().to_owned();
         let core_version = descriptor.core_version.to_owned();
-        let data = session.save_game_data().map_err(|error| error.to_string())?;
+        let data = session
+            .save_game_data()
+            .map_err(|error| error.to_string())?;
         emulation_core::save_state::SaveStateEnvelope::new(system_id, core_version, data)
             .map_err(|error| error.to_string())
     }
@@ -489,7 +494,10 @@ impl ApplicationController {
         id: SessionId,
         envelope: &emulation_core::save_state::SaveStateEnvelope,
     ) -> Result<(), String> {
-        let session = self.host.session_mut(id).map_err(|error| error.to_string())?;
+        let session = self
+            .host
+            .session_mut(id)
+            .map_err(|error| error.to_string())?;
         let descriptor = session.descriptor();
         envelope
             .validate_for(descriptor.system_id.as_str(), descriptor.core_version)
