@@ -46,6 +46,16 @@ fn initials(title: &str) -> String {
     }
 }
 
+/// Matches every search term against either the display title or the full path.
+/// Requiring all terms makes multi-word searches useful without requiring an exact phrase.
+fn matches_library_query(title: &str, path: &Path, query: &str) -> bool {
+    let title = title.to_lowercase();
+    let path = path.to_string_lossy().to_lowercase();
+    query
+        .split_whitespace()
+        .all(|term| title.contains(term) || path.contains(term))
+}
+
 fn shorten(text: &str, max_chars: usize) -> String {
     if text.chars().count() <= max_chars {
         return text.to_owned();
@@ -210,9 +220,7 @@ impl DesktopApp {
                 )
             })
             .filter(|(title, path, _)| {
-                (query.is_empty()
-                    || title.to_lowercase().contains(&query)
-                    || path.to_string_lossy().to_lowercase().contains(&query))
+                matches_library_query(title, path, &query)
                     && self.library_format.matches(path)
             })
             .collect();
@@ -675,6 +683,16 @@ mod tests {
             super::availability_label(ContentAvailability::Unavailable, false),
             "Unavailable · cannot inspect file"
         );
+    }
+
+    #[test]
+    fn library_search_matches_all_terms_across_title_and_path_case_insensitively() {
+        let path = Path::new("C:/Games/Adventure/zelda.gbc");
+        assert!(super::matches_library_query("The Legend of Zelda", path, "legend zelda"));
+        assert!(super::matches_library_query("The Legend of Zelda", path, "ADVENTURE gbc"));
+        assert!(super::matches_library_query("The Legend of Zelda", path, "  legend   C:/games "));
+        assert!(!super::matches_library_query("The Legend of Zelda", path, "legend metroid"));
+        assert!(super::matches_library_query("The Legend of Zelda", path, "   "));
     }
 
     #[test]
