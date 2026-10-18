@@ -267,6 +267,8 @@ impl DesktopApp {
             match load_preferences(path) {
                 Ok(Some(saved)) => {
                     dark_mode = saved.dark_mode;
+                    // Keep reading the legacy persisted scale for compatibility; no scale control is exposed.
+                    let _legacy_ui_scale = saved.ui_scale;
                     language = saved.language;
                     accent_color = egui::Color32::from_rgb(
                         saved.accent_rgb[0],
