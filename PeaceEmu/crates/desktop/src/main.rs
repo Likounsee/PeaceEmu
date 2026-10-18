@@ -1050,6 +1050,18 @@ impl eframe::App for DesktopApp {
                                 format!("Version {} is published, but no download is available for this platform yet.", manifest.version)
                             }
                         }
+                    } else if update::is_newer_version(current, &manifest.version) {
+                        if self.language == "fr" {
+                            format!(
+                                "La version installée ({current}) est plus récente que la version stable annoncée ({}). Vérifiez le manifeste de mise à jour.",
+                                manifest.version
+                            )
+                        } else {
+                            format!(
+                                "Installed version ({current}) is newer than the published stable version ({}). Check the update manifest.",
+                                manifest.version
+                            )
+                        }
                     } else {
                         if self.language == "fr" {
                             format!("Vous utilisez la dernière version stable ({}).", current)
