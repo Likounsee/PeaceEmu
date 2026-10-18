@@ -91,10 +91,7 @@ fn cli_message(argument: &str) -> Result<&'static str, String> {
     }
 }
 
-fn clear_tick_error_for_session<Id: Copy + PartialEq>(
-    errors: &mut Vec<(Id, String)>,
-    id: Id,
-) {
+fn clear_tick_error_for_session<Id: Copy + PartialEq>(errors: &mut Vec<(Id, String)>, id: Id) {
     errors.retain(|(error_id, _)| *error_id != id);
 }
 
