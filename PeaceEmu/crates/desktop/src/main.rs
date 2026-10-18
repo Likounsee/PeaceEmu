@@ -425,12 +425,15 @@ impl DesktopApp {
             };
             return;
         };
-        let download = self.update_manifest.as_ref()
+        let download = self
+            .update_manifest
+            .as_ref()
             .and_then(|manifest| manifest.download_for_current_platform())
             .map(|download| (download.size_bytes, download.sha256.clone()));
         let Some((size, sha256)) = download else {
             self.update_status = if self.language == "fr" {
-                "Impossible de retrouver les informations officielles pour vérifier ce fichier.".to_owned()
+                "Impossible de retrouver les informations officielles pour vérifier ce fichier."
+                    .to_owned()
             } else {
                 "Could not find official metadata to verify this installer.".to_owned()
             };
@@ -461,7 +464,8 @@ impl DesktopApp {
         {
             let _ = (path, size, sha256);
             self.update_status = if self.language == "fr" {
-                "L’installation automatique est actuellement disponible uniquement sous Windows.".to_owned()
+                "L’installation automatique est actuellement disponible uniquement sous Windows."
+                    .to_owned()
             } else {
                 "Automatic installation is currently available on Windows only.".to_owned()
             };
@@ -1095,9 +1099,9 @@ impl eframe::App for DesktopApp {
                     self.update_status = if update::is_newer_version(&manifest.version, current) {
                         if manifest.download_for_current_platform().is_some() {
                             if self.language == "fr" {
-                                format!("La version {} est disponible au téléchargement et à la vérification; l’installation n’est pas automatique.", manifest.version)
+                                format!("La version {} est disponible. Téléchargez-la puis cliquez sur Installer la mise à jour.", manifest.version)
                             } else {
-                                format!("Version {} is available for download and integrity verification; installation is not automatic yet.", manifest.version)
+                                format!("Version {} is available. Download it, then click Install update.", manifest.version)
                             }
                         } else {
                             if self.language == "fr" {
@@ -1155,9 +1159,9 @@ impl eframe::App for DesktopApp {
             match result {
                 Ok(path) => {
                     self.update_status = if self.language == "fr" {
-                        format!("Mise à jour téléchargée et SHA-256 vérifié : {}. L’installation n’est pas automatique.", path.display())
+                        format!("Mise à jour téléchargée et vérifiée : {}. Cliquez sur Installer la mise à jour.", path.display())
                     } else {
-                        format!("Update downloaded and SHA-256 verified at {}. Installation is not automatic.", path.display())
+                        format!("Update downloaded and verified at {}. Click Install update to continue.", path.display())
                     };
                     self.staged_update_path = Some(path);
                 }
