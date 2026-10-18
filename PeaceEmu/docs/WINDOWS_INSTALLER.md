@@ -6,8 +6,8 @@ PeaceEmu uses **Inno Setup 6** for its initial Windows x64 installer. The script
 
 ## Build from a clean Windows runner
 
-The workflow builds the desktop crate in release mode, stages
-`PeaceEmu.exe` (built from the `peaceemu` Cargo binary target), compiles a versioned `PeaceEmu-Setup-<version>.exe`,
+The workflow builds the desktop crate in release mode. On Windows, `build.rs` embeds the official bird artwork as the executable's PE icon and sets product/file version metadata (`PeaceEmu`, `PeaceEmu.exe`). CI verifies those fields and extracts the associated icon before staging
+`PeaceEmu.exe` (built from the `peaceemu` Cargo binary target). The workflow then compiles a versioned `PeaceEmu-Setup-<version>.exe`,
 runs a silent install/start/uninstall smoke test on the Windows runner, and emits a
 SHA-256 sidecar file. The smoke test checks the installed binary's exact version,
 documented help options, actionable rejection of unknown CLI options, Start Menu
