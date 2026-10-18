@@ -115,24 +115,29 @@ fn detect_content_formats_from_path(
         Some(prefix)
     };
 
-    let initial_limit = limits.max_bytes().min(4096);
-    let prefix = read_prefix(initial_limit)?;
-    let detection = detect_content_formats(&prefix, probes);
-    if detection.needs_more_data.is_empty() {
-        return Some(detection);
-    }
-    let requested_bytes = detection
-        .needs_more_data
-        .iter()
-        .map(|(_, minimum_bytes)| *minimum_bytes)
-        .max()
-        .unwrap_or(prefix.len());
-    if requested_bytes <= prefix.len() || requested_bytes > limits.max_bytes() {
-        return Some(detection);
-    }
+    let mut prefix = read_prefix(limits.max_bytes().min(4096))?;
+    loop {
+        let detection = detect_content_formats(&prefix, probes);
+        if detection.needs_more_data.is_empty() {
+            return Some(detection);
+        }
+        let requested_bytes = detection
+            .needs_more_data
+            .iter()
+            .map(|(_, minimum_bytes)| *minimum_bytes)
+            .max()
+            .unwrap_or(prefix.len());
+        if requested_bytes <= prefix.len() || requested_bytes > limits.max_bytes() {
+            return Some(detection);
+        }
 
-    let expanded_prefix = read_prefix(requested_bytes)?;
-    Some(detect_content_formats(&expanded_prefix, probes))
+        let expanded_prefix = read_prefix(requested_bytes)?;
+        if expanded_prefix.len() <= prefix.len() {
+            // The file ended before the requested signature bytes were available.
+            return Some(detect_content_formats(&expanded_prefix, probes));
+        }
+        prefix = expanded_prefix;
+    }
 }
 
 /// Converts probe results without claiming a definitive match while any probe is undecided.
@@ -604,6 +609,59 @@ mod tests {
                 .unwrap();
 
         assert_eq!(detection.matches, vec!["long-header"]);
+        assert!(detection.needs_more_data.is_empty());
+
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn format_detection_satisfies_staged_probe_requests() {
+        struct StagedHeaderProbe;
+
+        impl ContentFormatProbe for StagedHeaderProbe {
+            fn format_id(&self) -> &'static str {
+                "staged-header"
+            }
+
+            fn probe(&self, prefix: &[u8]) -> emulation_core::content::FormatProbeResult {
+                if prefix.len() < 8192 {
+                    emulation_core::content::FormatProbeResult::NeedMoreData {
+                        minimum_bytes: 8192,
+                    }
+                } else if prefix.len() < 12 * 1024 {
+                    emulation_core::content::FormatProbeResult::NeedMoreData {
+                        minimum_bytes: 12 * 1024,
+                    }
+                } else if prefix[12 * 1024 - 1] == b'X' {
+                    emulation_core::content::FormatProbeResult::Match
+                } else {
+                    emulation_core::content::FormatProbeResult::NoMatch
+                }
+            }
+        }
+
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "host-app-staged-probe-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("staged-header.bin");
+        let mut bytes = vec![b'A'; 12 * 1024];
+        bytes[12 * 1024 - 1] = b'X';
+        std::fs::write(&path, bytes).unwrap();
+
+        let probe = StagedHeaderProbe;
+        let probes: [&dyn ContentFormatProbe; 1] = [&probe];
+        let detection =
+            detect_content_formats_from_path(&path, ContentLimits::new(16 * 1024), &probes)
+                .unwrap();
+
+        assert_eq!(detection.matches, vec!["staged-header"]);
         assert!(detection.needs_more_data.is_empty());
 
         std::fs::remove_file(path).unwrap();
