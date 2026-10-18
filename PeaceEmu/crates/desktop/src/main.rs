@@ -1008,7 +1008,9 @@ impl eframe::App for DesktopApp {
         }
         // Release held controls before tearing down sessions so a core never exits
         // with inputs logically stuck in the pressed state.
-        let _ = self.release_game_inputs();
+        if let Err(error) = self.release_game_inputs() {
+            eprintln!("PeaceEmu: could not release held inputs on exit: {error}");
+        }
         self.controller.close_all_sessions();
     }
 
