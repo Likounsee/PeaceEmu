@@ -285,7 +285,14 @@ impl DesktopApp {
                         .size(13.0)
                         .color(palette.text_dim),
                 );
-                if ui.button(if french { "Installer la mise à jour" } else { "Install update" }).clicked() {
+                if ui
+                    .button(if french {
+                        "Installer la mise à jour"
+                    } else {
+                        "Install update"
+                    })
+                    .clicked()
+                {
                     self.start_update_install(context);
                 }
             }
