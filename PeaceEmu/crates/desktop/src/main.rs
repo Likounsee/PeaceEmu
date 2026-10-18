@@ -56,9 +56,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let app = DesktopApp::new()?;
     let options = eframe::NativeOptions {
-        // Do not combine fullscreen with a fixed inner size: on some native
-        // window managers the requested size can constrain the initial viewport.
-        viewport: egui::ViewportBuilder::default().with_fullscreen(true),
+        // An explicit icon replaces egui's default white "e" window/taskbar icon.
+        // Keep the native window's identity aligned with the installed PeaceEmu app.
+        viewport: egui::ViewportBuilder::default()
+            .with_fullscreen(true)
+            .with_icon(std::sync::Arc::new(application_icon()?)),
         ..Default::default()
     };
     eframe::run_native(
@@ -67,6 +69,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         Box::new(move |_creation_context| Box::new(app)),
     )?;
     Ok(())
+}
+
+/// Loads the bundled PeaceEmu bird mark for the native window and taskbar icon.
+fn application_icon() -> Result<egui::IconData, image::ImageError> {
+    let rgba = image::load_from_memory(include_bytes!("../assets/branding/bird.png"))?
+        .into_rgba8();
+    let (width, height) = rgba.dimensions();
+    Ok(egui::IconData {
+        rgba: rgba.into_raw(),
+        width,
+        height,
+    })
 }
 
 fn parse_cli_arguments(arguments: &[String]) -> Result<Option<&'static str>, String> {
@@ -1998,6 +2012,18 @@ mod preference_tests {
             "Launch cancelled: could not release inputs from session 3"
         ));
         assert!(!message_indicates_error("Launched session 3."));
+    }
+
+    #[test]
+    fn native_window_icon_uses_the_bundled_peaceemu_branding() {
+        let icon = application_icon().expect("bundled PeaceEmu icon must decode");
+        assert!(icon.width > 0, "icon width must be non-zero");
+        assert!(icon.height > 0, "icon height must be non-zero");
+        assert_eq!(
+            icon.rgba.len(),
+            icon.width as usize * icon.height as usize * 4,
+            "icon RGBA buffer must match the decoded image dimensions"
+        );
     }
 
     #[test]
