@@ -260,7 +260,7 @@ impl WorkerProcess {
                 return Err(WorkerProcessError::Process(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "worker IPC reader stopped",
-                )))
+                )));
             }
         };
         if let Err(error) = validate_worker_message(&message) {
