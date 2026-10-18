@@ -55,13 +55,13 @@ jobs:
           $match = [regex]::Match($manifest, '(?m)^version\s*=\s*"([^"]+)"')
           if (-not $match.Success) { throw "Could not read desktop package version from Cargo.toml" }
           $version = $match.Groups[1].Value
-          $exe = "PeaceEmu/crates/desktop/target/release/desktop-app.exe"
+          $exe = "PeaceEmu/crates/desktop/target/release/peaceemu.exe"
           if (!(Test-Path $exe)) {
             throw "Expected desktop executable was not produced: $exe"
           }
           $stageDir = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE "stage"))
           New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
-          Copy-Item $exe (Join-Path $stageDir "desktop-app.exe")
+          Copy-Item $exe (Join-Path $stageDir "PeaceEmu.exe")
           Copy-Item "PeaceEmu/crates/desktop/assets/languages" (Join-Path $stageDir "languages") -Recurse
           Copy-Item "PeaceEmu/crates/desktop/assets/branding/bird.png" (Join-Path $stageDir "bird.png")
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -218,10 +218,13 @@ jobs:
           $installDir = Join-Path $env:RUNNER_TEMP "PeaceEmu Installer Smoke"
           $install = Start-Process -FilePath $installer.FullName -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/DIR=`"$installDir`"") -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Silent install failed with exit code $($install.ExitCode)." }
-          $installedExe = Join-Path $installDir "desktop-app.exe"
+          $installedExe = Join-Path $installDir "PeaceEmu.exe"
           if (!(Test-Path $installedExe)) {
             Get-ChildItem -Force $installDir -ErrorAction SilentlyContinue | Format-List FullName, Length
-            throw "Installed desktop executable is missing at expected path: $installedExe"
+            throw "Installed PeaceEmu executable is missing at expected path: $installedExe"
+          }
+          if (Test-Path (Join-Path $installDir "desktop-app.exe")) {
+            throw "The legacy desktop-app.exe name must not be installed."
           }
 
           $installedIcon = Join-Path $installDir "PeaceEmu.ico"
@@ -280,7 +283,7 @@ jobs:
 
           $helpResult = Invoke-CapturedExecutable -Name "host-app-help" -Arguments @("--help")
           $helpText = $helpResult.Text
-          if ($helpResult.ExitCode -ne 0 -or $helpText -notmatch "Usage:" -or $helpText -notmatch "desktop-app") {
+          if ($helpResult.ExitCode -ne 0 -or $helpText -notmatch "Usage:" -or $helpText -notmatch "PeaceEmu") {
             Write-Host "Installed executable --help output (exit=$($helpResult.ExitCode)):"
             Write-Host $helpText
             throw "Installed executable --help smoke test failed."

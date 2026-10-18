@@ -7,7 +7,7 @@ PeaceEmu uses **Inno Setup 6** for its initial Windows x64 installer. The script
 ## Build from a clean Windows runner
 
 The workflow builds the desktop crate in release mode, stages
-`desktop-app.exe`, compiles a versioned `PeaceEmu-Setup-<version>.exe`,
+`PeaceEmu.exe` (built from the `peaceemu` Cargo binary target), compiles a versioned `PeaceEmu-Setup-<version>.exe`,
 runs a silent install/start/uninstall smoke test on the Windows runner, and emits a
 SHA-256 sidecar file. The smoke test checks the installed binary's exact version,
 documented help options, actionable rejection of unknown CLI options, Start Menu
@@ -32,7 +32,7 @@ claiming reproducible release builds.
 - Uninstall removes installed program files and shortcuts. It asks whether known
   settings/log/cache locations should also be removed; ROMs and arbitrary user files
   must never be deleted by uninstall.
-- The app binary is currently the only staged runtime file. Validate this on a clean
+- The installed GUI executable is `PeaceEmu.exe`; its Cargo target is `peaceemu`. The app binary is currently the only staged runtime file. Validate this on a clean
   Windows VM before treating the package as complete; future resources or native
   runtime dependencies must be added to the staging rules.
 

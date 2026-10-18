@@ -43,12 +43,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN="PeaceEmu/target/debug/desktop-app"
+          BIN="PeaceEmu/target/debug/peaceemu"
           if [ ! -x "$BIN" ]; then
-            BIN="PeaceEmu/crates/desktop/target/debug/desktop-app"
+            BIN="PeaceEmu/crates/desktop/target/debug/peaceemu"
           fi
           if [ ! -x "$BIN" ]; then
-            BIN="$(find PeaceEmu -path '*/target/debug/desktop-app' -type f -executable -print -quit 2>/dev/null || true)"
+            BIN="$(find PeaceEmu -path '*/target/debug/peaceemu' -type f -executable -print -quit 2>/dev/null || true)"
           fi
           if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
             echo "Could not locate the compiled desktop binary." >&2
@@ -57,12 +57,12 @@ jobs:
           export BIN
           xvfb-run -a bash -lc '
             set -euo pipefail
-            "$BIN" >/tmp/desktop-app-smoke.log 2>&1 &
+            "$BIN" >/tmp/peaceemu-smoke.log 2>&1 &
             app_pid=$!
             sleep 5
             if ! kill -0 "$app_pid" 2>/dev/null; then
               echo "Desktop application exited during startup."
-              cat /tmp/desktop-app-smoke.log
+              cat /tmp/peaceemu-smoke.log
               exit 1
             fi
             kill "$app_pid" 2>/dev/null || true

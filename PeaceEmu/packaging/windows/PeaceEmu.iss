@@ -3,7 +3,7 @@
   #define AppVersion "0.1.0"
 #endif
 #define AppPublisher "Likounsee"
-#define AppExeName "desktop-app.exe"
+#define AppExeName "PeaceEmu.exe"
 
 #ifndef IconFile
   #error "IconFile must point to the generated PeaceEmu.ico."

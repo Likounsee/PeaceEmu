@@ -7,6 +7,11 @@ license = "LicenseRef-Proprietary"
 rust-version = "1.78"
 repository = "https://github.com/Likounsee/PeaceEmu"
 
+# Give the installed process a product name instead of the crate's internal name.
+[[bin]]
+name = "peaceemu"
+path = "src/main.rs"
+
 [features]
 # Console cores are optional modules; a fresh desktop build contains no console by default.
 default = []

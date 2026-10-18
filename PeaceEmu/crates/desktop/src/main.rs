@@ -85,7 +85,7 @@ fn cli_message(argument: &str) -> Result<&'static str, String> {
         "--help" | "-h" => Ok(concat!(
             "PeaceEmu ",
             env!("CARGO_PKG_VERSION"),
-            "\n\nUsage: desktop-app [OPTIONS]\n\nOptions:\n  -h, --help     Print this help message\n  -V, --version  Print version information\n"
+            "\n\nUsage: PeaceEmu [OPTIONS]\n\nOptions:\n  -h, --help     Print this help message\n  -V, --version  Print version information\n"
         )),
         other => Err(format!("unknown argument: {other}; try --help")),
     }
@@ -2007,7 +2007,7 @@ mod preference_tests {
             concat!("PeaceEmu ", env!("CARGO_PKG_VERSION"))
         );
         assert!(cli_message("--help").unwrap().contains("--version"));
-        assert!(cli_message("-h").unwrap().contains("Usage: desktop-app"));
+        assert!(cli_message("-h").unwrap().contains("Usage: PeaceEmu"));
         assert_eq!(
             cli_message("--unknown").unwrap_err(),
             "unknown argument: --unknown; try --help"
