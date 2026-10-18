@@ -73,8 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 /// Loads the bundled PeaceEmu bird mark for the native window and taskbar icon.
 fn application_icon() -> Result<egui::IconData, image::ImageError> {
-    let rgba = image::load_from_memory(include_bytes!("../assets/branding/bird.png"))?
-        .into_rgba8();
+    let rgba = image::load_from_memory(include_bytes!("../assets/branding/bird.png"))?.into_rgba8();
     let (width, height) = rgba.dimensions();
     Ok(egui::IconData {
         rgba: rgba.into_raw(),
