@@ -154,6 +154,7 @@ struct DesktopApp {
     library_sort: LibrarySort,
     selected_content: Option<PathBuf>,
     message: String,
+    import_warning: Option<String>,
     dark_mode: bool,
     language: String,
     language_pack: language_pack::LanguagePack,
@@ -368,6 +369,7 @@ impl DesktopApp {
             library_sort: LibrarySort::Name,
             selected_content,
             message,
+            import_warning: None,
             dark_mode,
             language,
             language_pack,
@@ -467,6 +469,7 @@ impl DesktopApp {
             let import_message =
                 format_import_summary(&self.language, imported, rejected, &failures);
             self.message = import_message.clone();
+            self.import_warning = (rejected > 0).then(|| import_message.clone());
             if imported > 0 {
                 self.navigate_to(DesktopPage::Library);
                 if !self.save_preferences() {
@@ -1166,6 +1169,9 @@ impl eframe::App for DesktopApp {
                     });
             });
 
+        // Keep import failures modal and on top of every page until explicitly dismissed.
+        self.show_import_warning(context, &palette);
+
         if self.language != previous_language {
             self.language_pack = language_pack::LanguagePack::load(&self.language);
         }
@@ -1179,6 +1185,150 @@ impl eframe::App for DesktopApp {
 }
 
 impl DesktopApp {
+    fn show_import_warning(&mut self, context: &egui::Context, palette: &theme::Palette) {
+        let Some(message) = self.import_warning.clone() else {
+            return;
+        };
+        let screen_rect = context.screen_rect();
+        let french = self.language == "fr";
+
+        // A foreground veil prevents interacting with the library or any other page
+        // while the import warning is open. The tinted backdrop gives a frosted,
+        // modal treatment without changing the underlying page or its state.
+        egui::Area::new(egui::Id::new("import_warning_backdrop"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(screen_rect.min)
+            .show(context, |ui| {
+                ui.set_min_size(screen_rect.size());
+                ui.set_max_size(screen_rect.size());
+                let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
+                ui.painter().rect_filled(
+                    rect,
+                    0.0,
+                    egui::Color32::from_rgba_unmultiplied(8, 10, 16, 205),
+                );
+                ui.interact(
+                    rect,
+                    egui::Id::new("import_warning_blocker"),
+                    egui::Sense::click_and_drag(),
+                );
+                ui.allocate_ui_with_layout(
+                    screen_rect.size(),
+                    egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                    |ui| {
+                        egui::Frame::window(ui.style())
+                            .fill(palette.panel)
+                            .stroke(egui::Stroke::new(1.5, palette.accent))
+                            .rounding(egui::Rounding::same(14.0))
+                            .shadow(egui::epaint::Shadow {
+                                extrusion: 28.0,
+                                color: egui::Color32::from_black_alpha(100),
+                            })
+                            .inner_margin(egui::Margin::same(28.0))
+                            .show(ui, |ui| {
+                                ui.set_max_width(560.0);
+                                ui.set_min_width(460.0);
+                                ui.vertical_centered(|ui| {
+                                    ui.label(
+                                        egui::RichText::new(if french {
+                                            "⚠ Échec de l’importation"
+                                        } else {
+                                            "⚠ Import warning"
+                                        })
+                                        .size(23.0)
+                                        .strong()
+                                        .color(palette.text),
+                                    );
+                                });
+                                ui.add_space(16.0);
+                                ui.label(
+                                    egui::RichText::new(if french {
+                                        "Un ou plusieurs fichiers n’ont pas pu être ajoutés à la bibliothèque."
+                                    } else {
+                                        "One or more files could not be added to the library."
+                                    })
+                                    .size(15.0)
+                                    .color(palette.text),
+                                );
+                                ui.add_space(10.0);
+                                egui::Frame::none()
+                                    .fill(palette.sidebar)
+                                    .rounding(egui::Rounding::same(8.0))
+                                    .inner_margin(egui::Margin::same(14.0))
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new(if french {
+                                                "Causes possibles"
+                                            } else {
+                                                "Possible causes"
+                                            })
+                                            .strong()
+                                            .color(palette.text),
+                                        );
+                                        ui.add_space(6.0);
+                                        for cause in if french {
+                                            vec![
+                                                "Le fichier n’est pas une ROM Game Boy ou Game Boy Color valide.",
+                                                "Le format du fichier n’est pas pris en charge.",
+                                                "Le fichier est illisible ou dépasse la taille maximale autorisée.",
+                                            ]
+                                        } else {
+                                            vec![
+                                                "The file is not a valid Game Boy or Game Boy Color ROM.",
+                                                "The file format is not supported.",
+                                                "The file is unreadable or exceeds the maximum allowed size.",
+                                            ]
+                                        } {
+                                            ui.horizontal_wrapped(|ui| {
+                                                ui.label(egui::RichText::new("•").color(palette.accent));
+                                                ui.label(egui::RichText::new(cause).color(palette.text));
+                                            });
+                                        }
+                                    });
+                                ui.add_space(12.0);
+                                ui.label(
+                                    egui::RichText::new(if french {
+                                        "Résultat détaillé"
+                                    } else {
+                                        "Import details"
+                                    })
+                                    .strong()
+                                    .color(palette.text),
+                                );
+                                egui::ScrollArea::vertical()
+                                    .max_height(110.0)
+                                    .auto_shrink([false, true])
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new(&message)
+                                                .size(12.5)
+                                                .color(palette.text_dim),
+                                        );
+                                    });
+                                ui.add_space(20.0);
+                                ui.vertical_centered(|ui| {
+                                    if ui.add_sized(
+                                        [220.0, 40.0],
+                                        egui::Button::new(
+                                            egui::RichText::new(if french {
+                                                "Compris, fermer"
+                                            } else {
+                                                "Got it, close"
+                                            })
+                                            .strong(),
+                                        )
+                                        .fill(palette.accent)
+                                        .stroke(egui::Stroke::NONE),
+                                    ).clicked() {
+                                        self.import_warning = None;
+                                    }
+                                });
+                            });
+                    },
+                );
+            });
+    }
+
     fn advance_emulation(&mut self, context: &egui::Context) {
         // Flush a previous tick's dirty battery RAM even if the next tick errors or
         // the active session has since been deselected.
