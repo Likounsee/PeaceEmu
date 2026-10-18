@@ -282,9 +282,20 @@ impl DesktopApp {
                     let mut restored = 0usize;
                     let mut skipped = 0usize;
                     let mut skipped_details = Vec::new();
+                    let mut selected_content = None;
+                    let mut content_path = String::new();
                     for content_path in saved.paths {
                         match controller.import_content(&content_path, MAX_CONTENT_BYTES as u64) {
-                            Ok(_) => restored += 1,
+                            Ok(entry) => {
+                                // Restore a usable library selection from the first path that
+                                // successfully imports. Do not select stale paths that failed.
+                                if selected_content.is_none() {
+                                    let restored_path = entry.path().to_path_buf();
+                                    content_path = restored_path.display().to_string();
+                                    selected_content = Some(restored_path);
+                                }
+                                restored += 1;
+                            }
                             Err(error) => {
                                 skipped += 1;
                                 if skipped_details.len() < 3 {
@@ -343,11 +354,11 @@ impl DesktopApp {
             registry,
             #[cfg(feature = "game-boy-color-module")]
             probe: GameBoyColorCartridgeProbe,
-            content_path: String::new(),
+            content_path,
             library_filter: String::new(),
             library_format: LibraryFormat::All,
             library_sort: LibrarySort::Name,
-            selected_content: None,
+            selected_content,
             message,
             dark_mode,
             language,
