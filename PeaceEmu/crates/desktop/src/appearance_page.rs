@@ -63,7 +63,6 @@ fn paint_theme_preview(
 impl DesktopApp {
     pub(super) fn show_appearance(&mut self, ui: &mut egui::Ui) {
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
-        let french = self.language == "fr";
         let previous_dark_mode = self.dark_mode;
         let previous_accent_color = self.accent_color;
 
