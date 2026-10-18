@@ -51,6 +51,7 @@ fn initials(title: &str) -> String {
 fn matches_library_query(title: &str, path: &Path, query: &str) -> bool {
     let title = title.to_lowercase();
     let path = path.to_string_lossy().to_lowercase();
+    let query = query.to_lowercase();
     query
         .split_whitespace()
         .all(|term| title.contains(term) || path.contains(term))
