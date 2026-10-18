@@ -114,11 +114,7 @@ impl DesktopApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                 theme::badge(
                     ui,
-                    &if french {
-                        format!("{} module(s)", module_ids.len())
-                    } else {
-                        format!("{} module(s)", module_ids.len())
-                    },
+                    &format!("{} module(s)", module_ids.len()),
                     palette.accent,
                 );
             });
@@ -177,10 +173,10 @@ impl DesktopApp {
 
         ui.add_space(14.0);
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(if french { "MODULE" } else { "MODULE" }).strong());
+            ui.label(egui::RichText::new("MODULE").strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
-                    egui::RichText::new(if french { "ACTIVATION" } else { "ACTIVATION" })
+                    egui::RichText::new("ACTIVATION")
                         .strong()
                         .color(palette.text_dim),
                 );
@@ -367,7 +363,7 @@ impl DesktopApp {
                             ),
                             (if french { "Entrées" } else { "Input" }, caps.input),
                             (if french { "Vidéo" } else { "Video" }, caps.video_output),
-                            (if french { "Audio" } else { "Audio" }, caps.audio_output),
+                            ("Audio", caps.audio_output),
                             (
                                 if french { "États" } else { "Save states" },
                                 caps.save_states,
