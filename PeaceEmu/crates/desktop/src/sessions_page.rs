@@ -392,21 +392,42 @@ impl DesktopApp {
                         let tick_diagnostic = tick_error
                             .as_deref()
                             .unwrap_or(self.language_pack.text("ui.sessions_page.039"));
-                        let core_diagnostic_text =
-                            core_error.as_deref().unwrap_or("none recorded");
-                        let report = format!(
-                            "PeaceEmu session diagnostics\nSession ID: {}\nActive: {}\nState: {:?}\nSystem: {}\nContent loaded: {}\nSource path: {}\nVideo capability: {}\nAudio capability: {}\nLast tick/media error: {}\nLast core error: {}",
-                            id.get(),
-                            is_active,
-                            state,
-                            system_name,
-                            content_loaded,
-                            source_path,
-                            if video_available { "available" } else { "unavailable" },
-                            if audio_available { "available" } else { "unavailable" },
-                            tick_diagnostic,
-                            core_diagnostic_text,
+                        let core_diagnostic_text = core_error.as_deref().unwrap_or(
+                            if french {
+                                "aucune enregistrée"
+                            } else {
+                                "none recorded"
+                            },
                         );
+                        let report = if french {
+                            format!(
+                                "Diagnostic de session PeaceEmu\nID de session : {}\nActive : {}\nÉtat : {}\nSystème : {}\nContenu chargé : {}\nChemin source : {}\nCapacité vidéo : {}\nCapacité audio : {}\nDernière erreur d’exécution/média : {}\nDernière erreur du cœur : {}",
+                                id.get(),
+                                if is_active { "oui" } else { "non" },
+                                state_label(&state, true),
+                                system_name,
+                                if content_loaded { "oui" } else { "non" },
+                                source_path,
+                                if video_available { "disponible" } else { "indisponible" },
+                                if audio_available { "disponible" } else { "indisponible" },
+                                tick_diagnostic,
+                                core_diagnostic_text,
+                            )
+                        } else {
+                            format!(
+                                "PeaceEmu session diagnostics\nSession ID: {}\nActive: {}\nState: {:?}\nSystem: {}\nContent loaded: {}\nSource path: {}\nVideo capability: {}\nAudio capability: {}\nLast tick/media error: {}\nLast core error: {}",
+                                id.get(),
+                                is_active,
+                                state,
+                                system_name,
+                                content_loaded,
+                                source_path,
+                                if video_available { "available" } else { "unavailable" },
+                                if audio_available { "available" } else { "unavailable" },
+                                tick_diagnostic,
+                                core_diagnostic_text,
+                            )
+                        };
                         if ui
                             .button(self.language_pack.text("ui.sessions_page.040"))
                             .clicked()
