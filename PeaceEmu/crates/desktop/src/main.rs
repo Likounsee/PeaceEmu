@@ -445,7 +445,11 @@ impl DesktopApp {
         if !cfg!(target_os = "windows") || !self.update_prompt_open {
             return;
         }
-        let Some(version) = self.update_manifest.as_ref().map(|manifest| manifest.version.clone()) else {
+        let Some(version) = self
+            .update_manifest
+            .as_ref()
+            .map(|manifest| manifest.version.clone())
+        else {
             self.update_prompt_open = false;
             return;
         };
@@ -459,7 +463,11 @@ impl DesktopApp {
             || status.contains("Could not");
         let mut install_clicked = false;
         let mut later_clicked = false;
-        egui::Window::new(if french { "Mise à jour disponible" } else { "Update available" })
+        egui::Window::new(if french {
+            "Mise à jour disponible"
+        } else {
+            "Update available"
+        })
             .id(egui::Id::new("peaceemu_update_available"))
             .collapsible(false)
             .resizable(false)
@@ -490,10 +498,13 @@ impl DesktopApp {
                     } else {
                         "Install now"
                     };
-                    if ui.add_enabled(!downloading, egui::Button::new(label)).clicked() {
+                    if ui
+                        .add_enabled(!downloading, egui::Button::new(label))
+                        .clicked()
+                    {
                         install_clicked = true;
                     }
-                    if ui.add_enabled(!downloading, egui::Button::new(if french { "Plus tard" } else { "Later" })).clicked() {
+                    if ui.button(if french { "Plus tard" } else { "Later" }).clicked() {
                         later_clicked = true;
                     }
                 });
@@ -510,8 +521,11 @@ impl DesktopApp {
                     self.update_prompt_open = false;
                     self.update_prompt_dismissed = true;
                 }
-            } else if let Some(download) = self.update_manifest.as_ref()
-                .and_then(|manifest| manifest.download_for_current_platform()).cloned()
+            } else if let Some(download) = self
+                .update_manifest
+                .as_ref()
+                .and_then(|manifest| manifest.download_for_current_platform())
+                .cloned()
             {
                 self.install_after_update_download = true;
                 self.start_update_download(download, version);
@@ -519,6 +533,7 @@ impl DesktopApp {
             }
         }
     }
+
     fn start_update_install(&mut self, context: &egui::Context) -> bool {
         let Some(path) = self.staged_update_path.clone() else {
             self.update_status = if self.language == "fr" {
@@ -528,7 +543,9 @@ impl DesktopApp {
             };
             return false;
         };
-        let download = self.update_manifest.as_ref()
+        let download = self
+            .update_manifest
+            .as_ref()
             .and_then(|manifest| manifest.download_for_current_platform())
             .map(|download| (download.size_bytes, download.sha256.clone()));
         let Some((size, sha256)) = download else {
