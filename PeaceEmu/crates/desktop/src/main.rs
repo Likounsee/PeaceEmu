@@ -416,6 +416,58 @@ impl DesktopApp {
         });
     }
 
+    fn start_update_install(&mut self, _context: &egui::Context) {
+        let Some(path) = self.staged_update_path.clone() else {
+            self.update_status = if self.language == "fr" {
+                "Téléchargez et vérifiez la mise à jour avant de l’installer.".to_owned()
+            } else {
+                "Download and verify the update before installing it.".to_owned()
+            };
+            return;
+        };
+        let download = self.update_manifest.as_ref()
+            .and_then(|manifest| manifest.download_for_current_platform())
+            .map(|download| (download.size_bytes, download.sha256.clone()));
+        let Some((size, sha256)) = download else {
+            self.update_status = if self.language == "fr" {
+                "Impossible de retrouver les informations officielles pour vérifier ce fichier.".to_owned()
+            } else {
+                "Could not find official metadata to verify this installer.".to_owned()
+            };
+            return;
+        };
+
+        #[cfg(target_os = "windows")]
+        {
+            match update::launch_verified_windows_installer(&path, size, &sha256) {
+                Ok(()) => {
+                    self.update_status = if self.language == "fr" {
+                        "Fermeture de PeaceEmu puis lancement de l’installation…".to_owned()
+                    } else {
+                        "Closing PeaceEmu and starting the installer…".to_owned()
+                    };
+                    _context.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                Err(error) => {
+                    self.update_status = if self.language == "fr" {
+                        format!("Impossible de lancer l’installation : {error}")
+                    } else {
+                        format!("Could not start the installer: {error}")
+                    };
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = (path, size, sha256);
+            self.update_status = if self.language == "fr" {
+                "L’installation automatique est actuellement disponible uniquement sous Windows.".to_owned()
+            } else {
+                "Automatic installation is currently available on Windows only.".to_owned()
+            };
+        }
+    }
+
     fn navigate_to(&mut self, page: DesktopPage) {
         if self.active_page == DesktopPage::Game && page != DesktopPage::Game {
             if let Err(error) = self.release_game_inputs() {
