@@ -461,6 +461,78 @@ impl ApplicationController {
         })
     }
 
+    /// Returns whether a session has unsaved persistent game data.
+    pub fn persistent_save_dirty(&self, id: SessionId) -> Result<bool, String> {
+        self.host
+            .session(id)
+            .map(|session| session.persistent_save_dirty())
+            .map_err(|error| error.to_string())
+    }
+
+    /// Creates a versioned envelope from a session's battery-backed game data.
+    pub fn save_game_data_envelope(
+        &mut self,
+        id: SessionId,
+    ) -> Result<emulation_core::save_state::SaveStateEnvelope, String> {
+        let session = self.host.session_mut(id).map_err(|error| error.to_string())?;
+        let descriptor = session.descriptor();
+        let system_id = descriptor.system_id.as_str().to_owned();
+        let core_version = descriptor.core_version.to_owned();
+        let data = session.save_game_data().map_err(|error| error.to_string())?;
+        emulation_core::save_state::SaveStateEnvelope::new(system_id, core_version, data)
+            .map_err(|error| error.to_string())
+    }
+
+    /// Validates and loads battery-backed game data into a session.
+    pub fn load_game_data_envelope(
+        &mut self,
+        id: SessionId,
+        envelope: &emulation_core::save_state::SaveStateEnvelope,
+    ) -> Result<(), String> {
+        let session = self.host.session_mut(id).map_err(|error| error.to_string())?;
+        let descriptor = session.descriptor();
+        envelope
+            .validate_for(descriptor.system_id.as_str(), descriptor.core_version)
+            .map_err(|error| error.to_string())?;
+        session
+            .load_game_data(envelope.payload())
+            .map_err(|error| error.to_string())
+    }
+
+    /// Clears a session's persistent-save dirty flag after its data is safely stored.
+    pub fn clear_persistent_save_dirty(&mut self, id: SessionId) -> Result<(), String> {
+        self.host
+            .session_mut(id)
+            .map_err(|error| error.to_string())?
+            .clear_persistent_save_dirty();
+        Ok(())
+    }
+
+    /// Captures the current machine state in a versioned save-state envelope.
+    pub fn save_state_envelope(
+        &mut self,
+        id: SessionId,
+    ) -> Result<emulation_core::save_state::SaveStateEnvelope, String> {
+        self.host
+            .session_mut(id)
+            .map_err(|error| error.to_string())?
+            .save_state_envelope()
+            .map_err(|error| error.to_string())
+    }
+
+    /// Validates and restores a versioned machine-state envelope.
+    pub fn load_state_envelope(
+        &mut self,
+        id: SessionId,
+        envelope: &emulation_core::save_state::SaveStateEnvelope,
+    ) -> Result<(), String> {
+        self.host
+            .session_mut(id)
+            .map_err(|error| error.to_string())?
+            .load_state_envelope(envelope)
+            .map_err(|error| error.to_string())
+    }
+
     /// Sends a semantic input transition to a session through the shared controller.
     ///
     /// The session validates its own lifecycle state and core input capability.

@@ -609,33 +609,14 @@ impl DesktopApp {
 
     fn save_game_data_for_session(&mut self, id: SessionId) -> Result<PathBuf, String> {
         let path = self.game_save_path(id)?;
-        let (system_id, core_version, data) = {
-            let session = self
-                .controller
-                .host_mut()
-                .session_mut(id)
-                .map_err(|error| error.to_string())?;
-            let descriptor = session.descriptor();
-            let data = session
-                .save_game_data()
-                .map_err(|error| error.to_string())?;
-            (
-                descriptor.system_id.as_str().to_owned(),
-                descriptor.core_version.to_owned(),
-                data,
-            )
-        };
-        let envelope =
-            emulation_core::save_state::SaveStateEnvelope::new(system_id, core_version, data)
-                .map_err(|error| format!("Could not encode game save: {error}"))?;
+        let envelope = self
+            .controller
+            .save_game_data_envelope(id)
+            .map_err(|error| format!("Could not encode game save: {error}"))?;
         emulation_core::save_state_store::SaveStateStore::new(path.clone())
             .save(&envelope)
             .map_err(|error| format!("Could not write game save: {error}"))?;
-        self.controller
-            .host_mut()
-            .session_mut(id)
-            .map_err(|error| error.to_string())?
-            .clear_persistent_save_dirty();
+        self.controller.clear_persistent_save_dirty(id)?;
         Ok(path)
     }
 
@@ -659,12 +640,7 @@ impl DesktopApp {
     }
 
     fn save_dirty_game_data_for_session(&mut self, id: SessionId) -> Result<(), String> {
-        let dirty = self
-            .controller
-            .host()
-            .session(id)
-            .map_err(|error| error.to_string())?
-            .persistent_save_dirty();
+        let dirty = self.controller.persistent_save_dirty(id)?;
         if dirty {
             self.save_game_data_for_session(id)?;
         }
@@ -722,21 +698,9 @@ impl DesktopApp {
             }
             Err(error) => return Err(format!("Could not read game save: {error}")),
         };
-        let result = self
-            .controller
-            .host_mut()
-            .session_mut(id)
-            .map_err(|error| error.to_string())
-            .and_then(|session| {
-                let descriptor = session.descriptor();
-                envelope
-                    .validate_for(descriptor.system_id.as_str(), descriptor.core_version)
-                    .map_err(|error| error.to_string())?;
-                session
-                    .load_game_data(envelope.payload())
-                    .map_err(|error| error.to_string())
-            });
-        result.map(|()| true)
+        self.controller
+            .load_game_data_envelope(id, &envelope)
+            .map(|()| true)
     }
 
     fn save_state_path(&self, id: SessionId) -> Result<PathBuf, String> {
@@ -760,13 +724,7 @@ impl DesktopApp {
 
     fn save_state_for_session(&mut self, id: SessionId) -> Result<PathBuf, String> {
         let path = self.save_state_path(id)?;
-        let envelope = self
-            .controller
-            .host_mut()
-            .session_mut(id)
-            .map_err(|error| error.to_string())?
-            .save_state_envelope()
-            .map_err(|error| error.to_string())?;
+        let envelope = self.controller.save_state_envelope(id)?;
         emulation_core::save_state_store::SaveStateStore::new(path.clone())
             .save(&envelope)
             .map_err(|error| format!("Could not write save state: {error}"))?;
@@ -821,16 +779,7 @@ impl DesktopApp {
                 return;
             }
         };
-        let result = self
-            .controller
-            .host_mut()
-            .session_mut(id)
-            .map_err(|error| error.to_string())
-            .and_then(|session| {
-                session
-                    .load_state_envelope(&envelope)
-                    .map_err(|error| error.to_string())
-            });
+        let result = self.controller.load_state_envelope(id, &envelope);
         match result {
             Ok(()) => {
                 if self.controller.active_session() == Some(id) {
