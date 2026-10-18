@@ -270,7 +270,12 @@ impl ApplicationController {
         probes: &[&dyn ContentFormatProbe],
         registry: &CoreRegistry,
     ) -> Result<SessionId, HostRuntimeError> {
-        let canonical_path = std::fs::canonicalize(path.as_ref()).ok();
+        // If the file has disappeared since import, keep its absolute catalog key
+        // so the failed launch still updates the entry's validation status.
+        let canonical_path = std::fs::canonicalize(path.as_ref()).ok().or_else(|| {
+            let path = path.as_ref();
+            path.is_absolute().then(|| path.to_path_buf())
+        });
         let detection = std::fs::File::open(path.as_ref()).ok().and_then(|file| {
             let mut prefix = Vec::with_capacity(4096);
             file.take(4096).read_to_end(&mut prefix).ok()?;
@@ -486,6 +491,35 @@ mod tests {
 
     fn controller() -> ApplicationController {
         ApplicationController::new(HostRuntime::new(Default::default()).unwrap())
+    }
+
+    #[test]
+    fn failed_launch_of_removed_import_updates_library_validation() {
+        let mut app = controller();
+        let directory = std::env::temp_dir().join(format!(
+            "host-app-controller-removed-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("removed.gb");
+        std::fs::write(&path, b"rom-data").unwrap();
+        let canonical = std::fs::canonicalize(&path).unwrap();
+        app.import_content(&path, 64).unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        let result = app.launch_content_path(
+            &canonical,
+            ContentLimits::new(64),
+            &[],
+            &CoreRegistry::new(),
+        );
+        assert!(result.is_err());
+        assert!(matches!(
+            app.library().get(&canonical).unwrap().validation(),
+            ContentValidation::Rejected(_)
+        ));
+
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
