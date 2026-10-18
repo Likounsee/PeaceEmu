@@ -1090,7 +1090,8 @@ impl eframe::App for DesktopApp {
                 } else {
                     "Update download failed: background worker disconnected before returning a result.".to_owned()
                 };
-                self.staged_update_path = None;
+                // Keep any previously verified artifact available if this download
+                // worker fails; the failed attempt must not orphan the staged file.
                 None
             }
         };
@@ -1110,7 +1111,8 @@ impl eframe::App for DesktopApp {
                     } else {
                         format!("Update download failed: {error}")
                     };
-                    self.staged_update_path = None;
+                    // A failed replacement download does not invalidate a previously
+                    // verified artifact, so preserve its path for diagnostics/recovery.
                 }
             }
         }
