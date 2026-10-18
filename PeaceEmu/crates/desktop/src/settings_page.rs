@@ -227,17 +227,7 @@ impl DesktopApp {
                             )
                             .clicked()
                         {
-                            let (sender, receiver) = mpsc::channel();
-                            self.update_download_receiver = Some(receiver);
-                            self.update_status = if french {
-                                format!("Téléchargement de la version {version} dans la zone temporaire…")
-                            } else {
-                                format!("Downloading version {version} to a temporary staging area…")
-                            };
-                            std::thread::spawn(move || {
-                                let result = update::download_and_verify(&download, &version);
-                                let _ = sender.send(result);
-                            });
+                            self.start_update_download(download, version);
                             context.request_repaint_after(Duration::from_millis(250));
                         }
                     }
