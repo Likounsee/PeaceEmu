@@ -21,18 +21,40 @@
 | **P4** | Additional systems | New cores remain isolated behind the shared contracts |
 | **P5** | Release and maintenance | Reproducible releases, clear compatibility claims and maintained security/legal policy |
 
+## P1 status snapshot — 2026-10-19
+
+### Confirmed complete
+
+- [x] **Version 0.2.3 released.** The GitHub release contains `PeaceEmu-Setup-0.2.3.exe` and its SHA-256 sidecar. The stable update manifest identifies version `0.2.3` and matches the published installer size and digest.
+- [x] **Startup update prompt implemented.** On Windows, PeaceEmu checks for a newer stable version in the background and shows a small non-blocking prompt with “Install now” / “Later”. Installation is user initiated; the downloaded installer is size/SHA-256 verified before the existing install launcher runs.
+- [x] **CI and desktop quality gates passed for the v0.2.3 source commit** (`9fd5a1db390db181700b555b8871e9cd2ff72216`): workspace and desktop formatting, tests, Clippy, docs, package checks and dependency/license audits where configured passed across the supported CI matrix.
+- [x] **Desktop smoke test passed**, including building and starting the application on the CI runner.
+- [x] **Windows installer smoke test passed** on a clean hosted Windows runner: installer/checksum verification, installation, installed-binary CLI checks, shortcut/icon checks, in-place reinstall, user-settings preservation, uninstall, and checking that the executable and shortcut are removed.
+- [x] **Release automation exercised by v0.2.3.** The tagged release has the installer asset, and the stable manifest was published with its matching size and SHA-256. The updater does not silently install an update.
+
+### Remaining before P1 can be closed
+
+- [ ] **P1.1 — finish the UI/controller boundary review.** The library, sessions and settings page modules use application-controller-facing APIs rather than directly accessing `HostRuntime`; complete a repository-wide review of the remaining pages and ensure runtime/session mechanics remain behind the controller.
+- [ ] **P1.2 — complete end-to-end library/launch acceptance.** Verify first-run and empty states, search/select, missing and unsupported files, import errors, launch failures/cancellation, and clear recovery guidance using real files in the installed application. Existing unit tests cover important library-path and search cases, but do not replace this acceptance pass.
+- [ ] **P1.3 — verify session and media flows end to end.** Exercise pause/resume/stop/reset and closing one or all sessions, including error paths and input/audio cleanup; confirm video/audio availability and limitations are communicated honestly. Current tests cover some state handling, but the complete user workflow still needs sign-off.
+- [ ] **P1.4 — finish the installed-app preferences/localization pass.** Confirm language, appearance/accent settings and library paths survive restart; review visible strings and error/empty states in French and English. Preference storage already has substantial automated test coverage.
+- [ ] **P1.6 — test updater failure/recovery paths end to end.** Cover offline/invalid manifest, interrupted or size-mismatched download, bad SHA-256, an installer that fails or is cancelled, and retry behavior. Confirm a failure does not delete the usable current installation or destroy a previously verified staged installer. The normal release/update path is implemented, but these negative paths must be explicitly verified before P1 sign-off.
+- [ ] **Final acceptance on an ordinary Windows installation.** Record a full pass for first launch, configuration/data location, settings persistence, normal update from an older installed version, and recovery after a failed update. CI install/reinstall/uninstall tests pass; they do not by themselves prove every interactive self-update failure scenario.
+
+P1 remains open until these acceptance items are checked. A green CI run proves the tested revision passed its automated checks; it is not a substitute for user-flow and update-failure acceptance.
+
 ## Definition of done for P1
 
 A user must be able to install and start PeaceEmu without a Rust toolchain, Git checkout or build directory. Verify first launch, application-data/configuration paths, import and launch errors, settings persistence, session closure, uninstall behavior and update failure recovery. The application must not present a placeholder or a successful ROM import as proof that a console is playable.
 
 ## Immediate work
 
-- [ ] Finish renaming repository paths and fix all workflow triggers, working directories, links and update-manifest URLs.
-- [ ] Run workspace formatting, tests, Clippy and documentation generation; inspect CI results rather than assuming success.
-- [ ] Run the desktop workflow on Linux, macOS and Windows and fix failures.
-- [ ] Test the Windows installer and uninstall/update paths in a clean environment.
-- [ ] On version tags matching the desktop package, publish the Windows installer and atomically update the stable manifest with its release URL, byte size and SHA-256; keep install/replace as a separate, explicit next step.
-- [ ] Review the desktop's library, session, settings, error and empty-state flows.
+- [x] Finish renaming repository paths and fix workflow triggers, working directories, links and update-manifest URLs.
+- [x] Run workspace formatting, tests, Clippy and documentation generation; inspect CI results rather than assuming success.
+- [x] Run the desktop quality workflow on Linux, macOS and Windows and fix the formatting/CI failures encountered while adding the update prompt.
+- [x] Test Windows installer installation, in-place reinstall and uninstall in a clean hosted runner; verify user settings are preserved.
+- [x] On version tags matching the desktop package, publish the Windows installer and update the stable manifest with its release URL, byte size and SHA-256; keep install/replace as a separate, explicit user action.
+- [ ] Review the desktop's library, session, settings, error and empty-state flows (see the remaining P1 acceptance items above).
 - [ ] Keep Game Boy work limited to fixes needed for shared contracts until P1 is complete.
 
 ## Progress policy
