@@ -17,6 +17,9 @@ path = "src/main.rs"
 default = []
 game-boy-color-module = ["dep:game-boy"]
 
+[build-dependencies]
+winres = "0.1"
+
 [dependencies]
 host-app = { version = "0.1.0", path = "../app" }
 emulation-core = { version = "0.1.0", path = "../core" }
