@@ -43,22 +43,6 @@ impl DesktopApp {
             )
             .show(context, |ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 8.0);
-                // Logo box at the top of the rail.
-                if let Some(texture) = theme::logo_texture(context) {
-                    let (rect, _) =
-                        ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
-                    let texture_size = texture.size_vec2();
-                    let scale = 36.0 / texture_size.x.max(texture_size.y).max(1.0);
-                    let image_rect =
-                        egui::Rect::from_center_size(rect.center(), texture_size * scale);
-                    ui.painter().image(
-                        texture.id(),
-                        image_rect,
-                        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                        egui::Color32::WHITE,
-                    );
-                    ui.add_space(8.0);
-                }
                 for page in [
                     DesktopPage::Home,
                     DesktopPage::Library,
