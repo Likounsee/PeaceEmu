@@ -75,6 +75,21 @@ fn migrate_legacy_data(source: &Path, destination: &Path) -> std::io::Result<()>
         Err(error) => return Err(error),
     }
 
+    copy_legacy_tree(source, destination)?;
+
+    // Write the marker only after the full tree has been copied. If migration
+    // fails midway, the next startup can safely resume without replacing files.
+    let mut marker_file = match OpenOptions::new().write(true).create_new(true).open(&marker) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    marker_file.write_all(b"completed\\n")?;
+    marker_file.sync_all()?;
+    Ok(())
+}
+
+fn copy_legacy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
     fs::create_dir_all(destination)?;
     for entry in fs::read_dir(source)? {
         let entry = entry?;
@@ -82,7 +97,7 @@ fn migrate_legacy_data(source: &Path, destination: &Path) -> std::io::Result<()>
         let destination_path = destination.join(entry.file_name());
         let metadata = fs::symlink_metadata(&source_path)?;
         if metadata.file_type().is_dir() {
-            migrate_legacy_data(&source_path, &destination_path)?;
+            copy_legacy_tree(&source_path, &destination_path)?;
         } else if metadata.file_type().is_file() {
             let mut input = fs::File::open(&source_path)?;
             let mut output = match OpenOptions::new()
@@ -104,15 +119,6 @@ fn migrate_legacy_data(source: &Path, destination: &Path) -> std::io::Result<()>
         }
         // Symlinks and special files are intentionally skipped.
     }
-    // Write the marker only after the full tree has been copied. If migration
-    // fails midway, the next startup can safely resume without replacing files.
-    let mut marker_file = match OpenOptions::new().write(true).create_new(true).open(&marker) {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    marker_file.write_all(b"completed\\n")?;
-    marker_file.sync_all()?;
     Ok(())
 }
 
