@@ -111,9 +111,7 @@ fn detect_content_formats_from_path(
     let read_prefix = |max_bytes: usize| -> Option<Vec<u8>> {
         let file = std::fs::File::open(path).ok()?;
         let mut prefix = Vec::with_capacity(max_bytes.min(4096));
-        file.take(max_bytes as u64)
-            .read_to_end(&mut prefix)
-            .ok()?;
+        file.take(max_bytes as u64).read_to_end(&mut prefix).ok()?;
         Some(prefix)
     };
 
