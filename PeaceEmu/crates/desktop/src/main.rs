@@ -1644,7 +1644,10 @@ fn validate_import_file(path: &Path) -> Result<(), String> {
         return Err("the file is empty".to_owned());
     }
     if metadata.len() > MAX_CONTENT_BYTES as u64 {
-        return Err(format!("file exceeds the {} MiB import limit", MAX_CONTENT_BYTES / (1024 * 1024)));
+        return Err(format!(
+            "file exceeds the {} MiB import limit",
+            MAX_CONTENT_BYTES / (1024 * 1024)
+        ));
     }
 
     #[cfg(feature = "game-boy-color-module")]
