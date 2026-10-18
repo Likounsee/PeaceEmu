@@ -18,6 +18,7 @@ default = []
 game-boy-color-module = ["dep:game-boy"]
 
 [build-dependencies]
+image = { version = "=0.24.9", default-features = false, features = ["png"] }
 winres = "0.1"
 
 [dependencies]
