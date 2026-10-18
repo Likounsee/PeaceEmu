@@ -234,6 +234,9 @@ impl WorkerProcess {
                 return Err(WorkerProcessError::ReceiveTimeout);
             }
             Err(RecvTimeoutError::Disconnected) => {
+                // Treat a vanished IPC reader as a failed worker, not as a reusable
+                // process handle: stdout may have closed before the child exited.
+                let _ = self.terminate();
                 return Err(WorkerProcessError::Process(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
                     "worker IPC reader stopped",
