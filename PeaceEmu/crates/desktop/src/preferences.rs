@@ -38,88 +38,7 @@ pub(crate) fn config_file_path() -> Option<PathBuf> {
                 .filter(|value| !value.is_empty())
                 .map(|home| PathBuf::from(home).join(".config"))
         });
-    base.map(|directory| {
-        let config_directory = directory.join("PeaceEmu");
-        let legacy_directory = directory.join("ArchiaOS");
-        // Migration is deliberately best-effort: keep legacy data in place,
-        // copy only files that do not already exist, and never follow symlinks.
-        let _ = migrate_legacy_data(&legacy_directory, &config_directory);
-        config_directory.join("desktop.conf")
-    })
-}
-
-/// Copies legacy ArchiaOS application data into PeaceEmu without replacing files.
-///
-/// The legacy tree is retained as a recovery source. Only regular files and
-/// directories are copied; symbolic links and special files are ignored.
-fn migrate_legacy_data(source: &Path, destination: &Path) -> std::io::Result<()> {
-    let source_metadata = match fs::symlink_metadata(source) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    if !source_metadata.file_type().is_dir() {
-        return Ok(());
-    }
-
-    let marker = destination.join(".peaceemu-legacy-migration-v1");
-    match fs::symlink_metadata(&marker) {
-        Ok(metadata) if metadata.file_type().is_file() => return Ok(()),
-        Ok(_) => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "legacy migration marker must be a regular file",
-            ));
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
-    }
-
-    copy_legacy_tree(source, destination)?;
-
-    // Write the marker only after the full tree has been copied. If migration
-    // fails midway, the next startup can safely resume without replacing files.
-    let mut marker_file = match OpenOptions::new().write(true).create_new(true).open(&marker) {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    marker_file.write_all(b"completed\n")?;
-    marker_file.sync_all()?;
-    Ok(())
-}
-
-fn copy_legacy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        let metadata = fs::symlink_metadata(&source_path)?;
-        if metadata.file_type().is_dir() {
-            copy_legacy_tree(&source_path, &destination_path)?;
-        } else if metadata.file_type().is_file() {
-            let mut input = fs::File::open(&source_path)?;
-            let mut output = match OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&destination_path)
-            {
-                Ok(file) => file,
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(error) => return Err(error),
-            };
-            if let Err(error) = std::io::copy(&mut input, &mut output)
-                .and_then(|_| output.sync_all())
-            {
-                drop(output);
-                let _ = fs::remove_file(&destination_path);
-                return Err(error);
-            }
-        }
-        // Symlinks and special files are intentionally skipped.
-    }
-    Ok(())
+    base.map(|directory| directory.join("PeaceEmu").join("desktop.conf"))
 }
 
 fn ensure_regular_preferences_file(path: &Path) -> std::io::Result<()> {
@@ -409,7 +328,7 @@ pub(crate) fn escape_config_value(value: &str) -> String {
     for character in value.chars() {
         match character {
             '\\' => escaped.push_str("\\\\"),
-            '\n' => escaped.push_str("\n"),
+            '\n' => escaped.push_str("\\n"),
             '\r' => escaped.push_str("\\r"),
             other => escaped.push(other),
         }
@@ -521,7 +440,7 @@ mod tests {
     #[test]
     fn oversized_save_does_not_replace_existing_preferences() {
         let path = temporary_config("preserve-existing-on-oversized-save");
-        let original = b"version=2\ndark=false\nscale=1.2\n";
+        let original = b"version=2\\ndark=false\\nscale=1.2\\n";
         fs::write(&path, original).expect("existing config should be written");
         let oversized_path = PathBuf::from("x".repeat(MAX_PREFERENCES_BYTES + 1));
 
@@ -651,7 +570,7 @@ mod tests {
     fn saving_after_backup_recovery_preserves_good_backup_until_promotion() {
         let path = temporary_config("save-after-corrupt-active");
         let backup = path.with_extension("conf.bak");
-        fs::write(&path, "version=99\ndark=true\n")
+        fs::write(&path, "version=99\\ndark=true\\n")
             .expect("corrupt active config should be written");
         fs::write(&backup, "version=3\ndark=false\nscale=1.2\n")
             .expect("valid recovery backup should be written");
@@ -886,7 +805,7 @@ mod tests {
             Some("valid\\path".to_owned())
         );
         assert_eq!(
-            unescape_config_value("line\nnext"),
+            unescape_config_value("line\\nnext"),
             Some("line\nnext".to_owned())
         );
         assert_eq!(unescape_config_value("bad\\qescape"), None);
@@ -908,93 +827,5 @@ mod tests {
             .expect("preferences should exist");
         assert!((saved.ui_scale - 0.8).abs() < f32::EPSILON);
         let _ = fs::remove_file(path);
-    }
-}
-
-
-#[cfg(test)]
-mod legacy_migration_tests {
-    use super::migrate_legacy_data;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn temporary_directory(label: &str) -> PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should be after the Unix epoch")
-            .as_nanos();
-        std::env::temp_dir().join(format!(
-            "desktop-legacy-migration-{label}-{}-{nonce}",
-            std::process::id()
-        ))
-    }
-
-    #[test]
-    fn migration_copies_missing_files_recursively_without_overwriting_or_deleting_legacy_data() {
-        let root = temporary_directory("preserve");
-        let legacy = root.join("ArchiaOS");
-        let current = root.join("PeaceEmu");
-        fs::create_dir_all(legacy.join("saves")).unwrap();
-        fs::create_dir_all(&current).unwrap();
-        fs::write(legacy.join("desktop.conf"), "version=3\ndark=false\n").unwrap();
-        fs::write(legacy.join("saves/slot.sav"), b"legacy save").unwrap();
-        fs::write(current.join("desktop.conf"), "version=3\ndark=true\n").unwrap();
-
-        migrate_legacy_data(&legacy, &current).unwrap();
-
-        assert_eq!(
-            fs::read_to_string(current.join("desktop.conf")).unwrap(),
-            "version=3\ndark=true\n",
-            "existing PeaceEmu preferences must not be overwritten"
-        );
-        assert_eq!(
-            fs::read(current.join("saves/slot.sav")).unwrap(),
-            b"legacy save"
-        );
-        assert_eq!(
-            fs::read(legacy.join("saves/slot.sav")).unwrap(),
-            b"legacy save",
-            "legacy files must remain available for recovery"
-        );
-        fs::remove_file(current.join("saves/slot.sav")).unwrap();
-        migrate_legacy_data(&legacy, &current).unwrap();
-        assert!(
-            !current.join("saves/slot.sav").exists(),
-            "a completed migration must not resurrect files deliberately removed later"
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn migration_is_a_noop_when_the_legacy_directory_is_absent() {
-        let root = temporary_directory("absent");
-        let legacy = root.join("ArchiaOS");
-        let current = root.join("PeaceEmu");
-
-        migrate_legacy_data(&legacy, &current).unwrap();
-
-        assert!(!current.exists());
-        fs::remove_dir_all(root).unwrap_or(());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn migration_does_not_follow_legacy_symlinks() {
-        use std::os::unix::fs::symlink;
-
-        let root = temporary_directory("symlink");
-        let legacy = root.join("ArchiaOS");
-        let current = root.join("PeaceEmu");
-        fs::create_dir_all(&legacy).unwrap();
-        let external = root.join("outside.txt");
-        fs::write(&external, "outside").unwrap();
-        symlink(&external, legacy.join("redirect.txt")).unwrap();
-
-        migrate_legacy_data(&legacy, &current).unwrap();
-
-        assert!(!current.join("redirect.txt").exists());
-        assert_eq!(fs::read_to_string(external).unwrap(), "outside");
-        fs::remove_dir_all(root).unwrap();
     }
 }
