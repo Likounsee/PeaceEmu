@@ -31,6 +31,7 @@ A user must be able to install and start PeaceEmu without a Rust toolchain, Git 
 - [ ] Run workspace formatting, tests, Clippy and documentation generation; inspect CI results rather than assuming success.
 - [ ] Run the desktop workflow on Linux, macOS and Windows and fix failures.
 - [ ] Test the Windows installer and uninstall/update paths in a clean environment.
+- [ ] On version tags matching the desktop package, publish the Windows installer and atomically update the stable manifest with its release URL, byte size and SHA-256; keep install/replace as a separate, explicit next step.
 - [ ] Review the desktop's library, session, settings, error and empty-state flows.
 - [ ] Keep Game Boy work limited to fixes needed for shared contracts until P1 is complete.
 
