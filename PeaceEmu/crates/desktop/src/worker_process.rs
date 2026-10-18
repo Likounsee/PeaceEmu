@@ -159,8 +159,22 @@ impl WorkerProcess {
             .stderr(Stdio::null());
 
         let mut child = command.spawn()?;
-        let stdin = child.stdin.take().ok_or(WorkerProcessError::MissingPipe)?;
-        let mut stdout = child.stdout.take().ok_or(WorkerProcessError::MissingPipe)?;
+        let stdin = match child.stdin.take() {
+            Some(stdin) => stdin,
+            None => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(WorkerProcessError::MissingPipe);
+            }
+        };
+        let mut stdout = match child.stdout.take() {
+            Some(stdout) => stdout,
+            None => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(WorkerProcessError::MissingPipe);
+            }
+        };
         let (sender, messages) = mpsc::sync_channel(1);
         let _reader = std::thread::spawn(move || loop {
             let message = read_message(&mut stdout);
