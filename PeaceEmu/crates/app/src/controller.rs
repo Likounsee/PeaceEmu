@@ -633,7 +633,7 @@ mod tests {
         let envelope = emulation_core::save_state::SaveStateEnvelope::new(
             "game-boy-color".to_owned(),
             "test-version".to_owned(),
-            Vec::new(),
+            vec![0],
         )
         .unwrap();
 
