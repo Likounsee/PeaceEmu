@@ -9,14 +9,17 @@ use super::*;
 const TILE_WIDTH: f32 = 170.0;
 
 pub(crate) fn state_label(state: &SessionState, french: bool) -> String {
-    if *state == SessionState::Running {
-        String::from(if french { "En cours" } else { "Running" })
-    } else if *state == SessionState::Paused {
-        String::from(if french { "En pause" } else { "Paused" })
-    } else if *state == SessionState::Empty {
-        String::from(if french { "Vide" } else { "Empty" })
-    } else {
-        format!("{state:?}")
+    match (state, french) {
+        (SessionState::Empty, true) => "Vide".to_owned(),
+        (SessionState::Empty, false) => "Empty".to_owned(),
+        (SessionState::Running, true) => "En cours".to_owned(),
+        (SessionState::Running, false) => "Running".to_owned(),
+        (SessionState::Paused, true) => "En pause".to_owned(),
+        (SessionState::Paused, false) => "Paused".to_owned(),
+        (SessionState::Halted, true) => "Arrêtée par le cœur".to_owned(),
+        (SessionState::Halted, false) => "Halted by core".to_owned(),
+        (SessionState::Stopped, true) => "Arrêtée".to_owned(),
+        (SessionState::Stopped, false) => "Stopped".to_owned(),
     }
 }
 
@@ -645,6 +648,27 @@ impl DesktopApp {
                     format!("Closed {count} {noun}.")
                 };
             }
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod state_label_tests {
+    use super::*;
+
+    #[test]
+    fn labels_every_session_state_in_french_and_english() {
+        let cases = [
+            (SessionState::Empty, "Vide", "Empty"),
+            (SessionState::Running, "En cours", "Running"),
+            (SessionState::Paused, "En pause", "Paused"),
+            (SessionState::Halted, "Arrêtée par le cœur", "Halted by core"),
+            (SessionState::Stopped, "Arrêtée", "Stopped"),
+        ];
+        for (state, french, english) in cases {
+            assert_eq!(state_label(&state, true), french);
+            assert_eq!(state_label(&state, false), english);
         }
     }
 }
