@@ -445,29 +445,8 @@ impl DesktopApp {
                 self.content_path = path.display().to_string();
                 self.selected_content = Some(path);
             }
-            let import_message = if self.language == "fr" {
-                if rejected == 0 {
-                    format!("{imported} ROM(s) importée(s) dans la bibliothèque.")
-                } else {
-                    let detail = if failures.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" Détails : {}", failures.join("; "))
-                    };
-                    format!("{imported} ROM(s) importée(s) ; {rejected} fichier(s) ignoré(s) ou refusé(s).{detail}")
-                }
-            } else if rejected == 0 {
-                format!("Imported {imported} ROM(s) into your library.")
-            } else {
-                let detail = if failures.is_empty() {
-                    String::new()
-                } else {
-                    format!(" Details: {}", failures.join("; "))
-                };
-                format!(
-                    "Imported {imported} ROM(s); {rejected} file(s) skipped or rejected.{detail}"
-                )
-            };
+            let import_message =
+                format_import_summary(&self.language, imported, rejected, &failures);
             self.message = import_message.clone();
             if imported > 0 {
                 self.navigate_to(DesktopPage::Library);
@@ -1371,6 +1350,47 @@ impl DesktopApp {
     }
 }
 
+fn format_import_summary(
+    language: &str,
+    imported: usize,
+    rejected: usize,
+    failures: &[String],
+) -> String {
+    let french = language == "fr";
+    if rejected == 0 {
+        return if french {
+            format!("{imported} ROM(s) importée(s) dans la bibliothèque.")
+        } else {
+            format!("Imported {imported} ROM(s) into your library.")
+        };
+    }
+
+    let details = if failures.is_empty() {
+        String::new()
+    } else {
+        let omitted = rejected.saturating_sub(failures.len());
+        let mut details = failures.join("; ");
+        if omitted > 0 {
+            if french {
+                details.push_str(&format!(" ; et {omitted} autre(s) erreur(s)"));
+            } else {
+                details.push_str(&format!("; and {omitted} more error(s)"));
+            }
+        }
+        if french {
+            format!(" Détails : {details}")
+        } else {
+            format!(" Details: {details}")
+        }
+    };
+
+    if french {
+        format!("{imported} ROM(s) importée(s) ; {rejected} fichier(s) ignoré(s) ou refusé(s).{details}")
+    } else {
+        format!("Imported {imported} ROM(s); {rejected} file(s) skipped or rejected.{details}")
+    }
+}
+
 fn format_size(bytes: u64) -> String {
     const KIB: u64 = 1024;
     const MIB: u64 = KIB * 1024;
@@ -1462,6 +1482,37 @@ mod preference_tests {
                 "false error classification: {message}"
             );
         }
+    }
+
+    #[test]
+    fn import_summary_reports_hidden_failures_in_both_languages() {
+        let failures = vec![
+            "a.gb: invalid header".to_owned(),
+            "b.gb: unsupported format".to_owned(),
+            "c.gb: file too large".to_owned(),
+        ];
+
+        let english = format_import_summary("en", 1, 5, &failures);
+        assert!(english.contains("Imported 1 ROM(s); 5 file(s) skipped or rejected."));
+        assert!(english.contains("a.gb: invalid header"));
+        assert!(english.contains("and 2 more error(s)"));
+
+        let french = format_import_summary("fr", 1, 5, &failures);
+        assert!(french.contains("1 ROM(s) importée(s) ; 5 fichier(s) ignoré(s) ou refusé(s)."));
+        assert!(french.contains("a.gb: invalid header"));
+        assert!(french.contains("et 2 autre(s) erreur(s)"));
+    }
+
+    #[test]
+    fn successful_import_summary_does_not_include_failure_details() {
+        assert_eq!(
+            format_import_summary("en", 2, 0, &[]),
+            "Imported 2 ROM(s) into your library."
+        );
+        assert_eq!(
+            format_import_summary("fr", 2, 0, &[]),
+            "2 ROM(s) importée(s) dans la bibliothèque."
+        );
     }
 
     #[test]
