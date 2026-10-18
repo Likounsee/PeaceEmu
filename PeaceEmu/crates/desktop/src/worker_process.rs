@@ -195,12 +195,18 @@ impl WorkerProcess {
     /// A supervising thread or platform-specific job object is still needed for hard
     /// timeouts and resource limits.
     pub fn receive(&mut self) -> Result<WorkerMessage, WorkerProcessError> {
-        let message = self.messages.recv().map_err(|_| {
-            WorkerProcessError::Process(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "worker IPC reader stopped",
-            ))
-        })?;
+        let message = match self.messages.recv() {
+            Ok(message) => message,
+            Err(_) => {
+                // A disconnected reader means the worker can no longer be trusted
+                // to complete this operation; terminate and reap it before returning.
+                let _ = self.terminate();
+                return Err(WorkerProcessError::Process(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "worker IPC reader stopped",
+                )));
+            }
+        };
         let message = match message {
             Ok(message) => message,
             Err(error) => {
