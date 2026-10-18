@@ -294,7 +294,20 @@ impl DesktopApp {
                             }
                         }
                     }
-                    message = if skipped == 0 {
+                    message = if language == "fr" {
+                        if skipped == 0 {
+                            format!("Préférences restaurées et {restored} élément(s) de bibliothèque chargé(s).")
+                        } else {
+                            let details = if skipped_details.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" Détails : {}", skipped_details.join("; "))
+                            };
+                            format!(
+                                "{restored} élément(s) de bibliothèque chargé(s) ; {skipped} chemin(s) indisponible(s) ou invalide(s) ignoré(s). Réimportez les fichiers concernés si nécessaire.{details}"
+                            )
+                        }
+                    } else if skipped == 0 {
                         format!("Restored preferences and {restored} library item(s).")
                     } else {
                         let details = if skipped_details.is_empty() {
@@ -318,7 +331,11 @@ impl DesktopApp {
                 }
             }
         } else {
-            message = "Preferences unavailable: no user config directory was found.".to_owned();
+            message = if language == "fr" {
+                "Préférences indisponibles : aucun dossier de configuration utilisateur n’a été trouvé.".to_owned()
+            } else {
+                "Preferences unavailable: no user config directory was found.".to_owned()
+            };
         }
         let language_pack = language_pack::LanguagePack::load(&language);
         let mut app = Self {
