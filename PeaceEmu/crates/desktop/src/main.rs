@@ -267,6 +267,7 @@ impl DesktopApp {
         let mut language = preferences::system_language();
         let mut accent_color = theme::DEFAULT_ACCENT;
         let mut message = String::from("Ready. Select a content path to import or launch.");
+        let mut selected_content = None;
         if let Some(path) = config_path.as_deref() {
             match load_preferences(path) {
                 Ok(Some(saved)) => {
@@ -282,17 +283,13 @@ impl DesktopApp {
                     let mut restored = 0usize;
                     let mut skipped = 0usize;
                     let mut skipped_details = Vec::new();
-                    let mut selected_content = None;
-                    let mut content_path = String::new();
                     for content_path in saved.paths {
                         match controller.import_content(&content_path, MAX_CONTENT_BYTES as u64) {
                             Ok(entry) => {
                                 // Restore a usable library selection from the first path that
                                 // successfully imports. Do not select stale paths that failed.
                                 if selected_content.is_none() {
-                                    let restored_path = entry.path().to_path_buf();
-                                    selected_content = Some(restored_path);
-                                    selected_content = Some(restored_path);
+                                    selected_content = Some(entry.path().to_path_buf());
                                 }
                                 restored += 1;
                             }
