@@ -84,7 +84,7 @@ fn migrate_legacy_data(source: &Path, destination: &Path) -> std::io::Result<()>
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
         Err(error) => return Err(error),
     };
-    marker_file.write_all(b"completed\\n")?;
+    marker_file.write_all(b"completed\n")?;
     marker_file.sync_all()?;
     Ok(())
 }
