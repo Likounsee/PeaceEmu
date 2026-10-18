@@ -175,6 +175,9 @@ struct DesktopApp {
     update_manifest: Option<update::UpdateManifest>,
     staged_update_path: Option<PathBuf>,
     update_status: String,
+    update_prompt_open: bool,
+    update_prompt_dismissed: bool,
+    install_after_update_download: bool,
     fullscreen: bool,
     sidebar_open: bool,
     settings_section: SettingsSection,
@@ -390,6 +393,9 @@ impl DesktopApp {
             update_manifest: None,
             staged_update_path: None,
             update_status: "Not checked yet.".to_owned(),
+            update_prompt_open: false,
+            update_prompt_dismissed: false,
+            install_after_update_download: false,
             fullscreen: true,
             sidebar_open: true,
             settings_section: SettingsSection::Appearance,
@@ -416,30 +422,123 @@ impl DesktopApp {
         });
     }
 
-    fn start_update_install(&mut self, _context: &egui::Context) {
+    /// Starts one background download. The updater verifies size and SHA-256 before staging.
+    fn start_update_download(&mut self, download: update::UpdateDownload, version: String) {
+        if self.update_download_receiver.is_some() {
+            return;
+        }
+        let (sender, receiver) = mpsc::channel();
+        self.update_download_receiver = Some(receiver);
+        self.update_status = if self.language == "fr" {
+            format!("Téléchargement de la version {version} dans la zone temporaire…")
+        } else {
+            format!("Downloading version {version} to a temporary staging area…")
+        };
+        std::thread::spawn(move || {
+            let result = update::download_and_verify(&download, &version);
+            let _ = sender.send(result);
+        });
+    }
+
+    /// Small, non-blocking startup notification, shown once per launch on Windows.
+    fn show_update_prompt(&mut self, context: &egui::Context) {
+        if !cfg!(target_os = "windows") || !self.update_prompt_open {
+            return;
+        }
+        let Some(version) = self.update_manifest.as_ref().map(|manifest| manifest.version.clone()) else {
+            self.update_prompt_open = false;
+            return;
+        };
+        let french = self.language == "fr";
+        let downloading = self.update_download_receiver.is_some();
+        let status = self.update_status.clone();
+        let show_status = downloading
+            || status.contains("Échec")
+            || status.contains("failed")
+            || status.contains("Impossible")
+            || status.contains("Could not");
+        let mut install_clicked = false;
+        let mut later_clicked = false;
+        egui::Window::new(if french { "Mise à jour disponible" } else { "Update available" })
+            .id(egui::Id::new("peaceemu_update_available"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .show(context, |ui| {
+                ui.set_min_width(340.0);
+                ui.label(if french {
+                    format!("PeaceEmu {version} est disponible.")
+                } else {
+                    format!("PeaceEmu {version} is available.")
+                });
+                ui.add_space(4.0);
+                ui.label(if french {
+                    "Téléchargez et vérifiez la mise à jour avant son installation."
+                } else {
+                    "The update will be downloaded and verified before installation."
+                });
+                if show_status {
+                    ui.add_space(6.0);
+                    ui.label(egui::RichText::new(&status).size(12.0));
+                }
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    let label = if downloading {
+                        if french { "Téléchargement…" } else { "Downloading…" }
+                    } else if french {
+                        "Installer maintenant"
+                    } else {
+                        "Install now"
+                    };
+                    if ui.add_enabled(!downloading, egui::Button::new(label)).clicked() {
+                        install_clicked = true;
+                    }
+                    if ui.add_enabled(!downloading, egui::Button::new(if french { "Plus tard" } else { "Later" })).clicked() {
+                        later_clicked = true;
+                    }
+                });
+            });
+        if later_clicked {
+            self.install_after_update_download = false;
+            self.update_prompt_open = false;
+            self.update_prompt_dismissed = true;
+            return;
+        }
+        if install_clicked {
+            if self.staged_update_path.is_some() {
+                if self.start_update_install(context) {
+                    self.update_prompt_open = false;
+                    self.update_prompt_dismissed = true;
+                }
+            } else if let Some(download) = self.update_manifest.as_ref()
+                .and_then(|manifest| manifest.download_for_current_platform()).cloned()
+            {
+                self.install_after_update_download = true;
+                self.start_update_download(download, version);
+                context.request_repaint_after(Duration::from_millis(250));
+            }
+        }
+    }
+    fn start_update_install(&mut self, context: &egui::Context) -> bool {
         let Some(path) = self.staged_update_path.clone() else {
             self.update_status = if self.language == "fr" {
                 "Téléchargez et vérifiez la mise à jour avant de l’installer.".to_owned()
             } else {
                 "Download and verify the update before installing it.".to_owned()
             };
-            return;
+            return false;
         };
-        let download = self
-            .update_manifest
-            .as_ref()
+        let download = self.update_manifest.as_ref()
             .and_then(|manifest| manifest.download_for_current_platform())
             .map(|download| (download.size_bytes, download.sha256.clone()));
         let Some((size, sha256)) = download else {
             self.update_status = if self.language == "fr" {
-                "Impossible de retrouver les informations officielles pour vérifier ce fichier."
-                    .to_owned()
+                "Impossible de retrouver les informations officielles pour vérifier ce fichier.".to_owned()
             } else {
                 "Could not find official metadata to verify this installer.".to_owned()
             };
-            return;
+            return false;
         };
-
         #[cfg(target_os = "windows")]
         {
             match update::launch_verified_windows_installer(&path, size, &sha256) {
@@ -449,7 +548,8 @@ impl DesktopApp {
                     } else {
                         "Closing PeaceEmu and starting the installer…".to_owned()
                     };
-                    _context.send_viewport_cmd(egui::ViewportCommand::Close);
+                    context.send_viewport_cmd(egui::ViewportCommand::Close);
+                    true
                 }
                 Err(error) => {
                     self.update_status = if self.language == "fr" {
@@ -457,6 +557,7 @@ impl DesktopApp {
                     } else {
                         format!("Could not start the installer: {error}")
                     };
+                    false
                 }
             }
         }
@@ -464,11 +565,11 @@ impl DesktopApp {
         {
             let _ = (path, size, sha256);
             self.update_status = if self.language == "fr" {
-                "L’installation automatique est actuellement disponible uniquement sous Windows."
-                    .to_owned()
+                "L’installation automatique est actuellement disponible uniquement sous Windows.".to_owned()
             } else {
                 "Automatic installation is currently available on Windows only.".to_owned()
             };
+            false
         }
     }
 
@@ -1096,7 +1197,16 @@ impl eframe::App for DesktopApp {
             match result {
                 Ok(manifest) => {
                     let current = option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0");
-                    self.update_status = if update::is_newer_version(&manifest.version, current) {
+                    let newer_version = update::is_newer_version(&manifest.version, current);
+                    let has_platform_download = manifest.download_for_current_platform().is_some();
+                    if cfg!(target_os = "windows")
+                        && newer_version
+                        && has_platform_download
+                        && !self.update_prompt_dismissed
+                    {
+                        self.update_prompt_open = true;
+                    }
+                    self.update_status = if newer_version {
                         if manifest.download_for_current_platform().is_some() {
                             if self.language == "fr" {
                                 format!("La version {} est disponible. Téléchargez-la puis cliquez sur Installer la mise à jour.", manifest.version)
@@ -1150,6 +1260,7 @@ impl eframe::App for DesktopApp {
                 } else {
                     "Update download failed: background worker disconnected before returning a result.".to_owned()
                 };
+                self.install_after_update_download = false;
                 // Keep any previously verified artifact available if this download
                 // worker fails; the failed attempt must not orphan the staged file.
                 None
@@ -1164,8 +1275,16 @@ impl eframe::App for DesktopApp {
                         format!("Update downloaded and verified at {}. Click Install update to continue.", path.display())
                     };
                     self.staged_update_path = Some(path);
+                    if self.install_after_update_download {
+                        self.install_after_update_download = false;
+                        if self.start_update_install(context) {
+                            self.update_prompt_open = false;
+                            self.update_prompt_dismissed = true;
+                        }
+                    }
                 }
                 Err(error) => {
+                    self.install_after_update_download = false;
                     self.update_status = if self.language == "fr" {
                         format!("Échec du téléchargement de la mise à jour : {error}")
                     } else {
@@ -1229,6 +1348,8 @@ impl eframe::App for DesktopApp {
                     });
             });
 
+        // Keep the update notification non-blocking; the import-warning dialog stays on top.
+        self.show_update_prompt(context);
         // Keep import failures modal and on top of every page until explicitly dismissed.
         self.show_import_warning(context, &palette);
 
