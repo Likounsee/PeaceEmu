@@ -1635,7 +1635,8 @@ fn validate_import_file(path: &Path) -> Result<(), String> {
         return Err("unsupported file type: choose a .gb or .gbc ROM".to_owned());
     }
 
-    let metadata = std::fs::metadata(path).map_err(|error| format!("could not read file metadata: {error}"))?;
+    let metadata = std::fs::metadata(path)
+        .map_err(|error| format!("could not read file metadata: {error}"))?;
     if !metadata.is_file() {
         return Err("the selected path is not a file".to_owned());
     }
@@ -1652,7 +1653,10 @@ fn validate_import_file(path: &Path) -> Result<(), String> {
         let bytes = std::fs::read(path).map_err(|error| format!("could not read file: {error}"))?;
         let probe = GameBoyColorCartridgeProbe;
         if probe.probe(&bytes) != FormatProbeResult::Match {
-            return Err("not a valid Game Boy / Game Boy Color cartridge: Nintendo logo or header is missing".to_owned());
+            return Err(
+                "not a valid Game Boy / Game Boy Color cartridge: Nintendo logo or header is missing"
+                    .to_owned(),
+            );
         }
         game_boy::CartridgeHeader::parse(&bytes)
             .map_err(|error| format!("invalid Game Boy cartridge header: {error}"))?;
