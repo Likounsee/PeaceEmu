@@ -108,14 +108,17 @@ fn detect_content_formats_from_path(
     limits: ContentLimits,
     probes: &[&dyn ContentFormatProbe],
 ) -> Option<emulation_core::content::ContentDetection> {
-    let read_prefix = |max_bytes: usize| -> Option<Vec<u8>> {
-        let file = std::fs::File::open(path).ok()?;
-        let mut prefix = Vec::with_capacity(max_bytes.min(4096));
-        file.take(max_bytes as u64).read_to_end(&mut prefix).ok()?;
-        Some(prefix)
-    };
+    // Keep one file handle for every staged read. Reopening the path for each
+    // probe request could combine bytes from different files if the path is
+    // replaced between reads.
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut prefix = Vec::with_capacity(limits.max_bytes().min(4096));
+    let initial_limit = limits.max_bytes().min(4096);
+    file.by_ref()
+        .take(initial_limit as u64)
+        .read_to_end(&mut prefix)
+        .ok()?;
 
-    let mut prefix = read_prefix(limits.max_bytes().min(4096))?;
     loop {
         let detection = detect_content_formats(&prefix, probes);
         if detection.needs_more_data.is_empty() {
@@ -131,12 +134,16 @@ fn detect_content_formats_from_path(
             return Some(detection);
         }
 
-        let expanded_prefix = read_prefix(requested_bytes)?;
-        if expanded_prefix.len() <= prefix.len() {
+        let previous_len = prefix.len();
+        let additional_bytes = requested_bytes - previous_len;
+        file.by_ref()
+            .take(additional_bytes as u64)
+            .read_to_end(&mut prefix)
+            .ok()?;
+        if prefix.len() <= previous_len {
             // The file ended before the requested signature bytes were available.
-            return Some(detect_content_formats(&expanded_prefix, probes));
+            return Some(detect_content_formats(&prefix, probes));
         }
-        prefix = expanded_prefix;
     }
 }
 
