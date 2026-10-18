@@ -559,7 +559,11 @@ impl DesktopApp {
                 let released = if was_active {
                     self.release_game_inputs()
                 } else {
-                    Ok(())
+                    // A non-active session can still retain controls from an earlier
+                    // selection. Release that session before removing it as well.
+                    self.controller
+                        .release_inputs(id)
+                        .map_err(|error| error.to_string())
                 };
                 match released {
                     Err(error) => {
