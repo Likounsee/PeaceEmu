@@ -1631,6 +1631,28 @@ mod tests {
     }
 
     #[test]
+    fn closing_sessions_preserves_or_repairs_active_selection() {
+        let mut app = controller();
+        let first = app
+            .host_mut()
+            .create_session(Box::new(GameBoyColorCore::new()))
+            .unwrap();
+        let second = app
+            .host_mut()
+            .create_session(Box::new(GameBoyColorCore::new()))
+            .unwrap();
+        app.select_session(second).unwrap();
+
+        app.close_session(first).unwrap();
+        assert_eq!(app.active_session(), Some(second));
+        assert_eq!(app.session_count(), 1);
+
+        app.close_session(second).unwrap();
+        assert_eq!(app.active_session(), None);
+        assert_eq!(app.session_count(), 0);
+    }
+
+    #[test]
     fn library_index_errors_are_explicit_and_do_not_create_sessions() {
         let mut app = controller();
         let error = app
