@@ -430,9 +430,10 @@ impl DesktopApp {
 
     fn choose_content_file(&mut self) {
         let selected = rfd::FileDialog::new()
-            .add_filter("Game Boy ROMs", &["gb", "gbc"])
+            .add_filter("Game Boy ROMs", &["gb", "gbc", "gba"])
             .add_filter("Game Boy ROM", &["gb"])
             .add_filter("Game Boy Color ROM", &["gbc"])
+            .add_filter("Game Boy Advance ROM", &["gba"])
             .add_filter("All files", &["*"])
             .pick_files();
         if let Some(paths) = selected {
@@ -1631,8 +1632,11 @@ fn validate_import_file(path: &Path) -> Result<(), String> {
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
-    if !extension.eq_ignore_ascii_case("gb") && !extension.eq_ignore_ascii_case("gbc") {
-        return Err("unsupported file type: choose a .gb or .gbc ROM".to_owned());
+    if !extension.eq_ignore_ascii_case("gb")
+        && !extension.eq_ignore_ascii_case("gbc")
+        && !extension.eq_ignore_ascii_case("gba")
+    {
+        return Err("unsupported file type: choose a .gb, .gbc or .gba ROM".to_owned());
     }
 
     let metadata = std::fs::metadata(path)
