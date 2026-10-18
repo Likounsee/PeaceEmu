@@ -89,11 +89,7 @@ impl DesktopApp {
                 {
                     close_all = true;
                 }
-                theme::badge(
-                    ui,
-                    &format!("{session_count} session(s)"),
-                    palette.text_dim,
-                );
+                theme::badge(ui, &format!("{session_count} session(s)"), palette.text_dim);
             },
         );
 
@@ -207,27 +203,41 @@ impl DesktopApp {
                         (if french { "Contenu" } else { "Content" }, content_loaded),
                         (if french { "Vidéo" } else { "Video" }, video_available),
                         (
-                            if french { "Audio du cœur" } else { "Core audio" },
+                            if french {
+                                "Audio du cœur"
+                            } else {
+                                "Core audio"
+                            },
                             audio_available,
                         ),
                     ] {
                         theme::badge(
                             ui,
                             &format!("{} {label}", if on { "●" } else { "○" }),
-                            if on { palette.success } else { palette.text_dim },
+                            if on {
+                                palette.success
+                            } else {
+                                palette.text_dim
+                            },
                         );
                     }
                 });
                 if let Some(error) = &tick_error {
                     ui.colored_label(
                         palette.danger,
-                        format!("{}: {error}", self.language_pack.text("ui.sessions_page.025")),
+                        format!(
+                            "{}: {error}",
+                            self.language_pack.text("ui.sessions_page.025")
+                        ),
                     );
                 }
                 if let Some(error) = &core_error {
                     ui.colored_label(
                         palette.danger,
-                        format!("{}: {error}", self.language_pack.text("ui.sessions_page.026")),
+                        format!(
+                            "{}: {error}",
+                            self.language_pack.text("ui.sessions_page.026")
+                        ),
                     );
                 }
                 ui.horizontal_wrapped(|ui| {
@@ -530,7 +540,9 @@ impl DesktopApp {
                 match released {
                     Err(error) => {
                         self.message = if french {
-                            format!("Fermeture annulée ; impossible de libérer les commandes : {error}")
+                            format!(
+                                "Fermeture annulée ; impossible de libérer les commandes : {error}"
+                            )
                         } else {
                             format!("Close cancelled; could not release held inputs: {error}")
                         };

@@ -116,7 +116,11 @@ impl DesktopApp {
                         theme::badge(
                             ui,
                             self.language_pack.text(if on { yes } else { no }),
-                            if on { palette.success } else { palette.text_dim },
+                            if on {
+                                palette.success
+                            } else {
+                                palette.text_dim
+                            },
                         );
                     }
                     ui.label(

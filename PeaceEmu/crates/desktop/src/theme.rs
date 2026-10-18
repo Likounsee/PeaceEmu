@@ -192,7 +192,12 @@ pub fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
         .rounding(Rounding::same(10.0))
         .inner_margin(Margin::symmetric(8.0, 2.0))
         .show(ui, |ui| {
-            ui.label(egui::RichText::new(text).size(12.0).strong().color(text_color));
+            ui.label(
+                egui::RichText::new(text)
+                    .size(12.0)
+                    .strong()
+                    .color(text_color),
+            );
         });
 }
 

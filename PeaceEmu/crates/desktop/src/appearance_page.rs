@@ -187,9 +187,7 @@ impl DesktopApp {
 
         // Persist visual preferences as soon as the user changes them.
         // Comparing against this frame's snapshot avoids writing the config every frame.
-        if previous_dark_mode != self.dark_mode
-            || previous_accent_color != self.accent_color
-        {
+        if previous_dark_mode != self.dark_mode || previous_accent_color != self.accent_color {
             self.save_preferences();
         }
     }
