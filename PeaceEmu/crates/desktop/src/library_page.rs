@@ -512,6 +512,8 @@ impl DesktopApp {
                     Ok(_) => {
                         if self.selected_content.as_ref() == Some(&path) {
                             self.selected_content = None;
+                            // Do not leave a forgotten library item in the launch-path field.
+                            self.content_path.clear();
                         }
                         let removal_message = if french {
                             format!("« {} » a été retiré de la bibliothèque.", title)
