@@ -512,7 +512,7 @@ impl DesktopApp {
                     later_clicked = true;
                 }
             });
-            });
+        });
         if later_clicked {
             self.install_after_update_download = false;
             self.update_prompt_open = false;
