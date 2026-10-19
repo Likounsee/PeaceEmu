@@ -160,7 +160,15 @@ impl Cpu {
         } else if instruction & 0x0F80_00F0 == 0x0080_0090 {
             self.execute_long_multiply(address, instruction)?;
         } else if instruction & 0x0FFF_FFF0 == 0x012F_FF10 {
-            let target = self.read_operand_register((instruction & 0xF) as usize, address);
+            let rm = (instruction & 0xF) as usize;
+            // BX with Rm=PC is architecturally unpredictable on ARM7TDMI.
+            if rm == 15 {
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
+            }
+            let target = self.registers[rm];
             self.thumb = target & 1 != 0;
             self.registers[15] = if self.thumb { target & !1 } else { target & !3 };
         } else if instruction & 0x0FC0_00F0 == 0x0000_0090 {
@@ -2043,6 +2051,24 @@ mod tests {
         assert_eq!(cpu.register(3), Some(0x1122_3344));
         assert_eq!(cpu.register(4), Some(0xAABB_CCDD));
         assert_eq!(cpu.register(0), Some(0x0200_0108));
+    }
+
+    #[test]
+    fn bx_rejects_pc_as_target_register() {
+        let instruction = 0xE12F_FF1F; // BX pc (unpredictable on ARM7TDMI)
+        let mut bus = bus_with_program(&[instruction]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction,
+            })
+        );
+        assert!(!cpu.is_thumb());
+        assert_eq!(cpu.register(15), Some(0x0200_0004));
     }
 
     #[test]
