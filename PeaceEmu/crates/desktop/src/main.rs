@@ -171,7 +171,6 @@ struct DesktopApp {
     content_path: String,
     library_filter: String,
     library_format: LibraryFormat,
-    library_sort: LibrarySort,
     selected_content: Option<PathBuf>,
     message: String,
     import_warning: Option<String>,
@@ -233,23 +232,6 @@ impl LibraryFormat {
             Self::GameBoy => ["gb", "gbc", "gba"]
                 .iter()
                 .any(|supported| extension.eq_ignore_ascii_case(supported)),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum LibrarySort {
-    Largest,
-    Path,
-}
-
-impl LibrarySort {
-    fn label(self, french: bool) -> &'static str {
-        match (self, french) {
-            (Self::Largest, true) => "Taille décroissante",
-            (Self::Largest, false) => "Largest first",
-            (Self::Path, true) => "Chemin du fichier",
-            (Self::Path, false) => "File path",
         }
     }
 }
@@ -398,7 +380,6 @@ impl DesktopApp {
                 .unwrap_or_default(),
             library_filter: String::new(),
             library_format: LibraryFormat::All,
-            library_sort: LibrarySort::Largest,
             selected_content,
             message,
             import_warning: None,
