@@ -1212,9 +1212,10 @@ mod tests {
         bus.write16(0x0400_00B8, 0x4001); // DMA0 count is only 14 bits
         bus.write16(0x0400_00BA, 0x8000);
 
+        // 0x4001 is masked to 0x0001 for DMA0, so only one halfword moves.
         assert_eq!(bus.read16(0x0300_0000), 0xCAFE);
-        assert_eq!(bus.read16(0x0300_0002), 0xBABE);
-        assert_eq!(bus.read16(0x0300_7FFE), 0); // remaining transfer reads unmapped/zero
+        assert_eq!(bus.read16(0x0300_0002), 0);
+        assert_eq!(bus.read16(0x0300_7FFE), 0);
     }
 
     #[test]
