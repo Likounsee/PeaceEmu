@@ -61,11 +61,36 @@ pub(crate) fn persist(config_path: &Path, covers: &HashMap<PathBuf, PathBuf>) ->
         contents.push_str(&escape(&image.to_string_lossy()));
         contents.push('\n');
     }
-    let temp = path.with_extension(format!("conf.tmp-{}", std::process::id()));
-    let mut file = fs::File::create(&temp)?;
-    file.write_all(contents.as_bytes())?;
-    file.sync_all()?;
-    fs::rename(temp, path)
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(std::io::Error::other)?
+        .as_nanos();
+    let temp = path.with_extension(format!("conf.tmp-{}-{nonce}", std::process::id()));
+    let backup = path.with_extension("conf.bak");
+    let write_result = (|| {
+        let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&temp)?;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()
+    })();
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
+    let had_previous = path.exists();
+    if had_previous {
+        if backup.exists() { fs::remove_file(&backup)?; }
+        if let Err(error) = fs::rename(path, &backup) {
+            let _ = fs::remove_file(&temp);
+            return Err(error);
+        }
+    }
+    if let Err(error) = fs::rename(&temp, path) {
+        if had_previous { let _ = fs::rename(&backup, path); }
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
+    if had_previous { let _ = fs::remove_file(backup); }
+    Ok(())
 }
 
 fn safe_extension(path: &Path) -> Option<&'static str> {
@@ -94,7 +119,8 @@ fn store_bytes(config_path: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, 
         _ => return Err("Unsupported image format. Use PNG, JPEG, or WebP.".to_owned()),
     };
     let safe_name: String = name.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(48).collect();
-    let target = directory.join(format!("{}-{}.{}", safe_name, std::process::id(), extension));
+    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|error| error.to_string())?.as_nanos();
+    let target = directory.join(format!("{}-{}-{nonce}.{}", safe_name, std::process::id(), extension));
     fs::write(&target, bytes).map_err(|error| error.to_string())?;
     Ok(target)
 }
@@ -139,7 +165,7 @@ pub(crate) fn search_online(config_path: &Path, title: &str) -> Result<(PathBuf,
         let mut bytes = Vec::new();
         response.into_reader().take(MAX_COVER_BYTES + 1).read_to_end(&mut bytes).map_err(|error| error.to_string())?;
         if bytes.len() as u64 > MAX_COVER_BYTES { return Err("Online image exceeds the 10 MiB limit.".to_owned()); }
-        let saved = store_bytes(config_path, "wikimedia-cover", &bytes)?;
+        let saved = store_bytes(config_path, query, &bytes)?;
         let source = page.get("title").and_then(|v| v.as_str()).unwrap_or("Wikimedia Commons").to_owned();
         return Ok((saved, source));
     }
