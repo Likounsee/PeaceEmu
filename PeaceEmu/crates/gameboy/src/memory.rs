@@ -1172,6 +1172,39 @@ mod tests {
 
 
 
+
+    #[test]
+    fn dma_enable_bit_written_as_byte_starts_immediate_transfer() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0x5AA5);
+        bus.write32(0x0400_00B0, 0x0200_0000);
+        bus.write32(0x0400_00B4, 0x0300_0000);
+        bus.write16(0x0400_00B8, 1);
+        bus.write8(0x0400_00BA, 0x00);
+        bus.write8(0x0400_00BB, 0x80);
+
+        assert_eq!(bus.read16(0x0300_0000), 0x5AA5);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0);
+    }
+
+    #[test]
+    fn dma_decrement_modes_walk_source_and_destination_backwards() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0x1111);
+        bus.write16(0x0200_0002, 0x2222);
+        bus.write16(0x0200_0004, 0x3333);
+        bus.write32(0x0400_00B0, 0x0200_0004);
+        bus.write32(0x0400_00B4, 0x0300_0004);
+        bus.write16(0x0400_00B8, 3);
+        bus.write16(0x0400_00BA, 0x80C0); // decrement source and destination
+
+        assert_eq!(bus.read16(0x0300_0004), 0x3333);
+        assert_eq!(bus.read16(0x0300_0002), 0x2222);
+        assert_eq!(bus.read16(0x0300_0000), 0x1111);
+        assert_eq!(bus.read32(0x0400_00B0), 0x01FF_FFFE);
+        assert_eq!(bus.read32(0x0400_00B4), 0x02FF_FFFE);
+    }
+
     #[test]
     fn dma_count_is_limited_by_channel_register_width() {
         let mut bus = MemoryBus::new(cartridge());
