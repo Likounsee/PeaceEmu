@@ -106,10 +106,16 @@ fn store_bytes(config_path: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, 
     if bytes.is_empty() || bytes.len() as u64 > MAX_COVER_BYTES {
         return Err("Image must be smaller than 10 MiB.".to_owned());
     }
-    let image = image::load_from_memory(bytes).map_err(|_| "Unsupported or invalid image. Use PNG, JPEG, or WebP.".to_owned())?;
-    if image.width() == 0 || image.height() == 0 || image.width() > 8192 || image.height() > 8192 {
-        return Err("Image dimensions must be between 1 and 8192 pixels.".to_owned());
+    let reader = image::io::Reader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|_| "Unsupported or invalid image. Use PNG, JPEG, or WebP.".to_owned())?;
+    let (width, height) = reader.into_dimensions()
+        .map_err(|_| "Could not read image dimensions.".to_owned())?;
+    if width == 0 || height == 0 || width > 4096 || height > 4096 {
+        return Err("Image dimensions must be between 1 and 4096 pixels.".to_owned());
     }
+    let image = image::load_from_memory(bytes)
+        .map_err(|_| "Unsupported or invalid image. Use PNG, JPEG, or WebP.".to_owned())?;
     let directory = cover_dir(config_path);
     fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     let extension = match image::guess_format(bytes).ok() {
@@ -165,7 +171,10 @@ pub(crate) fn search_online(config_path: &Path, title: &str) -> Result<(PathBuf,
         let mut bytes = Vec::new();
         response.into_reader().take(MAX_COVER_BYTES + 1).read_to_end(&mut bytes).map_err(|error| error.to_string())?;
         if bytes.len() as u64 > MAX_COVER_BYTES { return Err("Online image exceeds the 10 MiB limit.".to_owned()); }
-        let saved = store_bytes(config_path, query, &bytes)?;
+        let saved = match store_bytes(config_path, query, &bytes) {
+            Ok(saved) => saved,
+            Err(_) => continue,
+        };
         let source = page.get("title").and_then(|v| v.as_str()).unwrap_or("Wikimedia Commons").to_owned();
         return Ok((saved, source));
     }
