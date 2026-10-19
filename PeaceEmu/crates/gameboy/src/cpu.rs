@@ -1014,7 +1014,10 @@ impl Cpu {
         let rd = ((instruction >> 12) & 0xF) as usize;
         let saved_status = instruction & (1 << 22) != 0;
         if saved_status || rd == 15 {
-            return Err(CpuError::UnsupportedInstruction { address, instruction });
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
         }
 
         let mut cpsr = 0_u32;
