@@ -1927,7 +1927,7 @@ mod tests {
 
     #[test]
     fn arm_register_shift_rejects_pc_as_shift_amount_register() {
-        let instruction = 0xE1A0_F112; // MOV r0, r2, LSL pc (unpredictable)
+        let instruction = 0xE1A0_0F12; // MOV r0, r2, LSL pc (unpredictable)
         let mut bus = bus_with_program(&[instruction]);
         let mut cpu = Cpu::new();
         cpu.reset(0x0200_0000);
