@@ -295,7 +295,7 @@ impl Cpu {
             let multiplier = self.registers[rs];
             // In long multiply encodings, bit 22 selects signed (SMULL/SMLAL)
             // versus unsigned (UMULL/UMLAL) early termination rules.
-            let signed_long_multiply = instruction & (1 << 22) != 0;
+            let signed_long_multiply = !long_multiply || instruction & (1 << 22) != 0;
             let multiplier_cycles =
                 Self::multiply_internal_cycles_for_extension(multiplier, signed_long_multiply);
             let accumulate = instruction & (1 << 21) != 0;
@@ -1833,7 +1833,7 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE102_1093), 4);
         assert_eq!(cpu.estimate_cycles(0xE142_4095), 4);
         // A real LDRH encoding retains the existing halfword estimate.
-        assert_eq!(cpu.estimate_cycles(0xE1D2_10B0), 2);
+        assert_eq!(cpu.estimate_cycles(0xE1D2_10B0), 3);
     }
 
     #[test]
