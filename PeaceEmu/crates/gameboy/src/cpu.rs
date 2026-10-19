@@ -919,8 +919,20 @@ impl Cpu {
             }
             let rm = (instruction & 0xF) as usize;
             let rs = ((instruction >> 8) & 0xF) as usize;
-            let value = self.read_operand_register(rm, address);
-            let amount = self.read_operand_register(rs, address) & 0xFF;
+            // ARM7TDMI register-controlled shifts cannot use PC as Rs.
+            // Rm=PC observes the extra register-shift pipeline cycle (PC+12).
+            if rs == 15 {
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
+            }
+            let value = if rm == 15 {
+                address.wrapping_add(12)
+            } else {
+                self.registers[rm]
+            };
+            let amount = self.registers[rs] & 0xFF;
             let shift_type = (instruction >> 5) & 3;
             Self::shift_register(value, shift_type, amount, self.flags.carry)
         } else {
@@ -1899,6 +1911,36 @@ mod tests {
             Cpu::shift_register(0x8000_0001, 0, 0, true),
             (0x8000_0001, None)
         );
+    }
+
+    #[test]
+    fn arm_register_shift_reads_pc_as_address_plus_twelve() {
+        let mut bus = bus_with_program(&[0xE1A0_211F]); // MOV r2, pc, LSL r1
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 0);
+
+        cpu.step(&mut bus).unwrap();
+
+        assert_eq!(cpu.register(2), Some(0x0200_000C));
+    }
+
+    #[test]
+    fn arm_register_shift_rejects_pc_as_shift_amount_register() {
+        let instruction = 0xE1A0_F112; // MOV r0, r2, LSL pc (unpredictable)
+        let mut bus = bus_with_program(&[instruction]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(2, 7);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction,
+            })
+        );
+        assert_eq!(cpu.register(0), Some(0));
     }
 
     #[test]
