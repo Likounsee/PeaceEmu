@@ -143,6 +143,8 @@ impl Cpu {
             self.execute_block_transfer(address, instruction, bus)?;
         } else if instruction & 0x0C00_0000 == 0x0400_0000 {
             self.execute_single_transfer(address, instruction, bus)?;
+        } else if instruction & 0x0E00_0090 == 0x0000_0090 {
+            self.execute_halfword_transfer(address, instruction, bus)?;
         } else if instruction & 0x0C00_0000 == 0 {
             self.execute_data_processing(address, instruction)?;
         } else {
@@ -362,6 +364,67 @@ impl Cpu {
         Ok(())
     }
 
+    fn execute_halfword_transfer(
+        &mut self,
+        address: u32,
+        instruction: u32,
+        bus: &mut MemoryBus,
+    ) -> Result<(), CpuError> {
+        let pre_index = instruction & (1 << 24) != 0;
+        let add_offset = instruction & (1 << 23) != 0;
+        let immediate_offset = instruction & (1 << 22) != 0;
+        let write_back = instruction & (1 << 21) != 0;
+        let load = instruction & (1 << 20) != 0;
+        let rn = ((instruction >> 16) & 0xF) as usize;
+        let rd = ((instruction >> 12) & 0xF) as usize;
+        let operation = (instruction >> 5) & 3;
+
+        // Operation 00 is multiply/other encoding space, not a halfword
+        // transfer. STR supports only the unsigned halfword operation.
+        if operation == 0 || (!load && operation != 1) {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
+        let offset = if immediate_offset {
+            ((instruction >> 4) & 0xF0) | (instruction & 0xF)
+        } else {
+            if instruction & 0xF00 != 0 {
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
+            }
+            self.read_operand_register((instruction & 0xF) as usize, address)
+        };
+        let base = self.read_operand_register(rn, address);
+        let adjusted = if add_offset {
+            base.wrapping_add(offset)
+        } else {
+            base.wrapping_sub(offset)
+        };
+        let effective = if pre_index { adjusted } else { base };
+
+        if load {
+            let value = match operation {
+                1 => u32::from(bus.read16(effective)),
+                2 => u32::from(bus.read8(effective) as i8 as i32 as u32),
+                3 => u32::from(bus.read16(effective) as i16 as i32 as u32),
+                _ => unreachable!(),
+            };
+            self.registers[rd] = if rd == 15 { value & !3 } else { value };
+        } else {
+            bus.write16(effective, self.registers[rd] as u16);
+        }
+
+        if !pre_index || write_back {
+            self.registers[rn] = adjusted;
+        }
+        Ok(())
+    }
+
     fn execute_single_transfer(
         &mut self,
         address: u32,
@@ -546,6 +609,29 @@ mod tests {
         assert_eq!(cpu.register(2), Some(0x1122_3344));
         assert_eq!(cpu.register(3), Some(0xAABB_CCDD));
         assert_eq!(cpu.register(13), Some(0x0200_0018));
+    }
+
+    #[test]
+    fn halfword_and_signed_loads_use_correct_width_and_sign_extension() {
+        let mut bus = bus_with_program(&[
+            0xE1C1_00B0, // STRH r0, [r1]
+            0xE1D1_20B0, // LDRH r2, [r1]
+            0xE1D1_20D0, // LDRSB r2, [r1]
+            0xE1D1_30F0, // LDRSH r3, [r1]
+        ]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0x0000_80FF);
+        cpu.set_register(1, 0x0200_0100);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read16(0x0200_0100), 0x80FF);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0x0000_80FF));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0xFFFF_FFFF));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(3), Some(0xFFFF_80FF));
     }
 
     #[test]
