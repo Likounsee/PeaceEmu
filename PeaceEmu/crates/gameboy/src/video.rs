@@ -249,8 +249,9 @@ mod tests {
                                      // In 8bpp mode tile index 1 aliases tile index 0; tile 2
                                      // starts at byte offset 64 in character data.
         bus.write16(VRAM_BASE, 2);
-        bus.write8(VRAM_BASE + 64, 3);
-        bus.write8(VRAM_BASE + 65, 4);
+        // VRAM byte writes replicate across the containing halfword; use a
+        // halfword write to preserve distinct adjacent 8bpp palette indices.
+        bus.write16(VRAM_BASE + 64, 0x0403);
         bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop for transparent index zero
         bus.write16(PALETTE_BASE + 6, 0x001F); // palette 3: red
         bus.write16(PALETTE_BASE + 8, 0x03E0); // palette 4: green
