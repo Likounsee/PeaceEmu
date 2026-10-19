@@ -1,8 +1,8 @@
 //! GBA renderer for text/affine background modes 0–2 and bitmap modes 3–5.
 //!
 //! This module renders the current video-memory snapshot, including tiled text
-//! and affine backgrounds, regular OBJ sprites, and bitmap modes. It does not yet
-//! advance scanlines or generate VBlank/HBlank IRQs.
+//! and affine backgrounds, regular OBJ sprites, and bitmap modes. Scanline timing
+//! and DISPSTAT-driven IRQ generation are advanced by the memory bus.
 
 use crate::MemoryBus;
 
