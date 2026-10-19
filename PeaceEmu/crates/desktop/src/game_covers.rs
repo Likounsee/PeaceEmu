@@ -71,10 +71,7 @@ pub(crate) fn persist(
 ) -> std::io::Result<()> {
     let path = map_path(config_path);
     let parent = path.parent().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "missing config parent",
-        )
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "missing config parent")
     })?;
     fs::create_dir_all(parent)?;
 
@@ -194,17 +191,17 @@ pub(crate) fn import_local(config_path: &Path, source: &Path) -> Result<PathBuf,
     let bytes = fs::read(source).map_err(|error| error.to_string())?;
     store_bytes(
         config_path,
-        source.file_stem().and_then(|s| s.to_str()).unwrap_or("local-cover"),
+        source
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("local-cover"),
         &bytes,
     )
 }
 
 /// Search Wikimedia Commons for a cover image and download the first matching result.
 /// Only image files are fetched; ROM/content files are never searched or downloaded.
-pub(crate) fn search_online(
-    config_path: &Path,
-    title: &str,
-) -> Result<(PathBuf, String), String> {
+pub(crate) fn search_online(config_path: &Path, title: &str) -> Result<(PathBuf, String), String> {
     let query = title.trim();
     if query.is_empty() {
         return Err("Enter a game title first.".to_owned());
@@ -238,8 +235,8 @@ pub(crate) fn search_online(
         .take(2 * 1024 * 1024)
         .read_to_end(&mut body)
         .map_err(|error| error.to_string())?;
-    let json: serde_json::Value =
-        serde_json::from_slice(&body).map_err(|error| format!("Invalid search response: {error}"))?;
+    let json: serde_json::Value = serde_json::from_slice(&body)
+        .map_err(|error| format!("Invalid search response: {error}"))?;
     if let Some(api_error) = json.pointer("/error") {
         let detail = api_error
             .get("info")
