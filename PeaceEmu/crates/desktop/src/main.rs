@@ -379,7 +379,10 @@ impl DesktopApp {
                 "Preferences unavailable: no user config directory was found.".to_owned()
             };
         }
-        let cover_paths = config_path.as_deref().map(game_covers::load).unwrap_or_default();
+        let cover_paths = config_path
+            .as_deref()
+            .map(game_covers::load)
+            .unwrap_or_default();
         let language_pack = language_pack::LanguagePack::load(&language);
         let mut app = Self {
             controller,
