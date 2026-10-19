@@ -10,7 +10,11 @@ fn names_path(config_path: &Path) -> PathBuf {
 }
 
 fn escape(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('\n', "\\n").replace('\r', "\\r").replace('\t', "\\t")
+    value
+        .replace('\\', "\\\\")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 fn unescape(value: &str) -> Option<String> {
@@ -51,9 +55,14 @@ pub(crate) fn load(config_path: &Path) -> HashMap<PathBuf, String> {
     names
 }
 
-pub(crate) fn persist(config_path: &Path, names: &HashMap<PathBuf, String>) -> std::io::Result<()> {
+pub(crate) fn persist(
+    config_path: &Path,
+    names: &HashMap<PathBuf, String>,
+) -> std::io::Result<()> {
     let path = names_path(config_path);
-    let parent = path.parent().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "missing config parent"))?;
+    let parent = path.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "missing config parent")
+    })?;
     fs::create_dir_all(parent)?;
     let mut rows: Vec<_> = names.iter().collect();
     rows.sort_by(|a, b| a.0.cmp(b.0));
@@ -70,7 +79,11 @@ pub(crate) fn persist(config_path: &Path, names: &HashMap<PathBuf, String>) -> s
     }
     let temp = path.with_extension(format!("conf.tmp-{}", std::process::id()));
     let backup = path.with_extension("conf.bak");
-    let mut file = fs::OpenOptions::new().write(true).create(true).truncate(true).open(&temp)?;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&temp)?;
     file.write_all(contents.as_bytes())?;
     file.sync_all()?;
     if path.exists() {
@@ -108,7 +121,10 @@ mod tests {
         let mut names = HashMap::new();
         names.insert(game.clone(), "Mon jeu préféré".to_owned());
         persist(&config, &names).unwrap();
-        assert_eq!(load(&config).get(&game).map(String::as_str), Some("Mon jeu préféré"));
+        assert_eq!(
+            load(&config).get(&game).map(String::as_str),
+            Some("Mon jeu préféré")
+        );
         names.insert(game.clone(), "   ".to_owned());
         persist(&config, &names).unwrap();
         assert!(!load(&config).contains_key(&game));
