@@ -226,7 +226,6 @@ fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut Vi
     }
 }
 
-
 /// Draws regular (non-affine) OBJ sprites for the requested priority.
 /// OBJ is composited after backgrounds of the same priority; lower OAM indices
 /// win ties, so entries are visited from 127 down to 0.
@@ -279,9 +278,17 @@ fn render_regular_objects(
         };
 
         let raw_x = u32::from(attr1 & 0x01FF);
-        let origin_x = if raw_x >= 256 { raw_x as i32 - 512 } else { raw_x as i32 };
+        let origin_x = if raw_x >= 256 {
+            raw_x as i32 - 512
+        } else {
+            raw_x as i32
+        };
         let raw_y = u32::from(attr0 & 0x00FF);
-        let origin_y = if raw_y >= 256 - height { raw_y as i32 - 256 } else { raw_y as i32 };
+        let origin_y = if raw_y >= 256 - height {
+            raw_y as i32 - 256
+        } else {
+            raw_y as i32
+        };
         let color_8bpp = attr0 & (1 << 13) != 0;
         let tile_index = u32::from(attr2 & 0x03FF) & if color_8bpp { !1 } else { !0 };
         let palette_bank = u32::from((attr2 >> 12) & 0xF);
