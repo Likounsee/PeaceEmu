@@ -312,7 +312,14 @@ impl Cpu {
             let rd = usize::from(raw & 7);
             let effective = self.registers[rb].wrapping_add(offset);
             if load {
-                self.registers[rd] = u32::from(bus.read16(effective));
+                // Unsigned Thumb LDRH rotates the aligned halfword by 8 bits
+                // when the effective address is odd, just like ARM-state LDRH.
+                let value = bus.read16(effective);
+                self.registers[rd] = u32::from(if effective & 1 != 0 {
+                    value.rotate_right(8)
+                } else {
+                    value
+                });
             } else {
                 bus.write16(effective, self.registers[rd] as u16);
             }
@@ -1904,6 +1911,19 @@ mod tests {
         thumb_cpu.set_register(0, 0);
         thumb_cpu.step(&mut thumb_bus).unwrap();
         assert_eq!(thumb_cpu.register(2), Some(0x3412));
+    }
+
+    #[test]
+    fn thumb_immediate_halfword_load_rotates_odd_address() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x880A); // LDRH r2, [r1, #0]
+        bus.write16(0x0200_0100, 0x1234);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(1, 0x0200_0101);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0x3412));
     }
 
     #[test]
