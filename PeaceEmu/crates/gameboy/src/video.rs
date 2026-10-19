@@ -537,6 +537,40 @@ mod tests {
     }
 
     #[test]
+    fn bitmap_mode4_renders_obj_with_obj_palette_and_transparency() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 4 | (1 << 12)); // mode 4, OBJ enabled
+        bus.write16(VRAM_BASE, 0); // framebuffer index 0: backdrop color
+        bus.write16(PALETTE_BASE, 0x7C00); // background palette index 0: blue
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
+        bus.write16(0x0601_4000, 0x0001); // OBJ tile pixel index 1
+        bus.write16(0x0601_4002, 0x0000); // next pixels transparent
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 4 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_00FF));
+    }
+
+    #[test]
+    fn bitmap_mode5_obj_uses_bitmap_mode_character_base() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 5 | (1 << 12)); // mode 5, OBJ enabled
+        bus.write16(VRAM_BASE, 0x03E0); // underlying framebuffer pixel: green
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
+        bus.write16(0x0601_4000, 0x0001);
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
     fn bitmap_mode3_renders_obj_from_bitmap_obj_vram_region() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 3 | (1 << 12)); // mode 3 and OBJ enabled
