@@ -730,8 +730,6 @@ impl Cpu {
         Ok(())
     }
 
-    /// Executes ARM7TDMI SWP/SWPB. The read and write are performed as
-    /// one instruction-level operation; bus-cycle atomicity is not modeled.
     /// Reads the modeled CPSR fields with ARM-state MRS.
     /// Mode, interrupt masks and other unmodeled CPSR bits read as zero.
     fn execute_mrs(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
@@ -751,6 +749,8 @@ impl Cpu {
         Ok(())
     }
 
+    /// Executes ARM7TDMI SWP/SWPB. The read and write are performed as
+    /// one instruction-level operation; bus-cycle atomicity is not modeled.
     fn execute_swap(
         &mut self,
         address: u32,
