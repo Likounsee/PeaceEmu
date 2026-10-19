@@ -40,6 +40,27 @@ pub struct MemoryBus {
     interrupt_master_enable: u16,
 }
 
+/// Error returned when loading save data whose size does not match the SRAM backing store.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SramSizeError {
+    /// Number of bytes required by this SRAM model.
+    pub expected: usize,
+    /// Number of bytes supplied by the caller.
+    pub actual: usize,
+}
+
+impl core::fmt::Display for SramSizeError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            formatter,
+            "invalid SRAM save size: expected {} bytes, got {}",
+            self.expected, self.actual
+        )
+    }
+}
+
+impl std::error::Error for SramSizeError {}
+
 impl MemoryBus {
     /// Creates a fresh bus with zeroed RAM and the supplied validated cartridge.
     pub fn new(cartridge: GbaCartridge) -> Self {
@@ -58,6 +79,30 @@ impl MemoryBus {
             interrupt_flags: 0,
             interrupt_master_enable: 0,
         }
+    }
+
+    /// Returns the SRAM save data for persistence by the frontend.
+    ///
+    /// The returned slice is the complete 64 KiB backing store, including
+    /// mirrored address regions only once. The slice is read-only so callers
+    /// cannot bypass the bus's memory semantics.
+    pub fn sram_data(&self) -> &[u8] {
+        &self.sram
+    }
+
+    /// Loads a complete SRAM save image.
+    ///
+    /// The size is validated before any bytes are changed, so a malformed save
+    /// cannot partially overwrite the currently loaded save.
+    pub fn load_sram_data(&mut self, data: &[u8]) -> Result<(), SramSizeError> {
+        if data.len() != SRAM_SIZE {
+            return Err(SramSizeError {
+                expected: SRAM_SIZE,
+                actual: data.len(),
+            });
+        }
+        self.sram.copy_from_slice(data);
+        Ok(())
     }
 
     /// Reads one byte using the current basic GBA address decoder.
@@ -510,6 +555,31 @@ mod tests {
         assert_eq!(bus.read16(0x0700_0000), 0xFFFF);
         bus.write32(0x0700_0000, 0x1234_5678);
         assert_eq!(bus.read32(0x0700_0000), 0x1234_5678);
+    }
+
+    #[test]
+    fn sram_save_data_round_trips_and_rejects_wrong_sizes_atomically() {
+        let mut bus = MemoryBus::new(cartridge());
+        assert_eq!(bus.sram_data().len(), SRAM_SIZE);
+        assert!(bus.sram_data().iter().all(|byte| *byte == 0xFF));
+
+        let mut save = vec![0xFF; SRAM_SIZE];
+        save[0x1234] = 0x5A;
+        save[0xFFFF] = 0xA5;
+        bus.load_sram_data(&save).unwrap();
+        assert_eq!(bus.read8(0x0E00_1234), 0x5A);
+        assert_eq!(bus.read8(0x0E00_FFFF), 0xA5);
+        assert_eq!(bus.sram_data(), save.as_slice());
+
+        let before = bus.sram_data().to_vec();
+        let error = bus.load_sram_data(&save[..save.len() - 1]).unwrap_err();
+        assert_eq!(error.expected, SRAM_SIZE);
+        assert_eq!(error.actual, SRAM_SIZE - 1);
+        assert_eq!(bus.sram_data(), before.as_slice());
+
+        let error = bus.load_sram_data(&[0; SRAM_SIZE + 1]).unwrap_err();
+        assert_eq!(error.actual, SRAM_SIZE + 1);
+        assert_eq!(bus.sram_data(), before.as_slice());
     }
 
     #[test]
