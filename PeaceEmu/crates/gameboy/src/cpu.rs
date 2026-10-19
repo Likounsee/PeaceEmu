@@ -1138,12 +1138,10 @@ impl Cpu {
         let rd = ((instruction >> 12) & 0xF) as usize;
         let operation = (instruction >> 5) & 3;
 
-        // ARM7TDMI halfword/signed-byte loads do not permit PC as Rd.
+        // ARM7TDMI halfword/signed-byte transfers do not permit PC as Rd.
         // Loads that write back into their own base register are also
         // unpredictable for post-indexed or explicitly write-back forms.
-        if load
-            && (rd == 15 || (rd == rn && (!pre_index || write_back)))
-        {
+        if rd == 15 || (load && rd == rn && (!pre_index || write_back)) {
             return Err(CpuError::UnsupportedInstruction {
                 address,
                 instruction,
@@ -2514,10 +2512,15 @@ mod tests {
     }
 
     #[test]
-    fn arm_halfword_and_signed_loads_to_pc_are_rejected() {
-        // ARM7TDMI does not define PC as a valid destination for these
-        // halfword/signed-byte transfer encodings.
-        for instruction in [0xE1D1_F0B0_u32, 0xE1D1_F0D0, 0xE1D1_F0F0] {
+    fn arm_halfword_and_signed_transfers_to_pc_are_rejected() {
+        // ARM7TDMI does not define PC as Rd for halfword/signed-byte transfers,
+        // including STRH (whose PC source value would otherwise be mis-modeled).
+        for instruction in [
+            0xE1D1_F0B0_u32, // LDRH
+            0xE1D1_F0D0,      // LDRSB
+            0xE1D1_F0F0,      // LDRSH
+            0xE1C1_F0B0,      // STRH
+        ] {
             let mut bus = bus_with_program(&[instruction]);
             let mut cpu = Cpu::new();
             cpu.reset(0x0200_0000);
