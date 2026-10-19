@@ -471,6 +471,44 @@ impl Cpu {
                     self.registers[rd] = result;
                     self.set_logic_flags(result, None);
                 }
+                2 | 3 | 4 | 7 => {
+                    // Register-controlled Thumb shifts use the low byte of Rs.
+                    let amount = right & 0xFF;
+                    if amount != 0 {
+                        let (result, carry) = match operation {
+                            2 => match amount {
+                                1..=31 => (left << amount, Some((left >> (32 - amount)) & 1 != 0)),
+                                32 => (0, Some(left & 1 != 0)),
+                                _ => (0, Some(false)),
+                            },
+                            3 => match amount {
+                                1..=31 => (left >> amount, Some((left >> (amount - 1)) & 1 != 0)),
+                                32 => (0, Some(left >> 31 != 0)),
+                                _ => (0, Some(false)),
+                            },
+                            4 => {
+                                let sign = left >> 31 != 0;
+                                if amount >= 32 {
+                                    (if sign { u32::MAX } else { 0 }, Some(sign))
+                                } else {
+                                    (((left as i32) >> amount) as u32, Some((left >> (amount - 1)) & 1 != 0))
+                                }
+                            }
+                            7 => {
+                                let rotation = amount & 31;
+                                if rotation == 0 {
+                                    (left, Some(left >> 31 != 0))
+                                } else {
+                                    let result = left.rotate_right(rotation);
+                                    (result, Some(result >> 31 != 0))
+                                }
+                            }
+                            _ => unreachable!(),
+                        };
+                        self.registers[rd] = result;
+                        self.set_logic_flags(result, carry);
+                    }
+                }
                 5 => {
                     let (result, carry, overflow) = Self::add(left, right, self.flags.carry);
                     self.registers[rd] = result;
@@ -484,6 +522,11 @@ impl Cpu {
                 }
                 8 => {
                     self.set_logic_flags(left & right, None);
+                }
+                9 => {
+                    let (result, carry, overflow) = Self::subtract(0, right, false);
+                    self.registers[rd] = result;
+                    self.set_arithmetic_flags(result, carry, overflow);
                 }
                 10 => {
                     let (result, carry, overflow) = Self::subtract(left, right, false);
@@ -1329,6 +1372,53 @@ mod tests {
         cpu.step(&mut bus).unwrap();
         assert!(!cpu.is_thumb());
         assert_eq!(cpu.register(15), Some(0x0200_0010));
+    }
+
+    #[test]
+    fn thumb_register_shifts_and_negate_update_results_and_flags() {
+        let mut bus = bus_with_program(&[0]);
+        // LSL r0, r1; LSR r2, r3; ASR r4, r5; ROR r6, r7; NEG r0, r1.
+        for (index, instruction) in [
+            0x4088_u16, // LSL r0, r1
+            0x40DA,     // LSR r2, r3
+            0x416C,     // ASR r4, r5
+            0x41FE,     // ROR r6, r7
+            0x4248,     // NEG r0, r1
+        ].into_iter().enumerate() {
+            bus.write16(0x0200_0000 + index as u32 * 2, instruction);
+        }
+
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(0, 0x8000_0001);
+        cpu.set_register(1, 1);
+        cpu.set_register(2, 0x8000_0001);
+        cpu.set_register(3, 1);
+        cpu.set_register(4, 0x8000_0001);
+        cpu.set_register(5, 1);
+        cpu.set_register(6, 0x8000_0001);
+        cpu.set_register(7, 1);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(2));
+        assert!(cpu.flags().carry);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0x4000_0000));
+        assert!(cpu.flags().carry);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(4), Some(0xC000_0000));
+        assert!(cpu.flags().carry);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(6), Some(0xC000_0000));
+        assert!(cpu.flags().carry);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(u32::MAX));
+        assert!(cpu.flags().negative);
     }
 
     #[test]
