@@ -1,8 +1,8 @@
 //! GBA renderer for text background mode 0 and bitmap modes 3, 4, and 5.
 //!
 //! This module renders the current video-memory snapshot, including tiled text
-//! backgrounds and bitmap modes. It does not yet advance scanlines, render OBJ
-//! sprites or affine backgrounds, or generate VBlank/HBlank IRQs.
+//! backgrounds, regular OBJ sprites, and bitmap modes. It does not yet advance
+//! scanlines, render affine backgrounds, or generate VBlank/HBlank IRQs.
 
 use crate::MemoryBus;
 
@@ -108,11 +108,19 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
         _ => return None,
     }
 
+    if mode >= 3 {
+        // Bitmap modes reserve VRAM through 0x06013FFF for the framebuffer;
+        // OBJ character data therefore begins at 0x06014000 instead.
+        for priority in (0..=3).rev() {
+            render_regular_objects(bus, display_control, priority, &mut frame);
+        }
+    }
+
     Some(frame)
 }
 
 /// Composites regular text backgrounds from back to front (priority 3 to 0).
-/// Sprites and affine backgrounds are not implemented yet.
+/// Affine backgrounds are not implemented yet.
 fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame) {
     frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
     for priority in (0..=3).rev() {
@@ -232,7 +240,8 @@ fn render_regular_objects(
         return;
     }
     const OAM_BASE: u32 = 0x0700_0000;
-    const OBJ_VRAM_BASE: u32 = 0x0601_0000;
+    let mode = display_control & 7;
+    let obj_vram_base: u32 = if mode >= 3 { 0x0601_4000 } else { 0x0601_0000 };
     let one_dimensional = display_control & (1 << 6) != 0;
 
     for index in (0..128_u32).rev() {
@@ -278,7 +287,6 @@ fn render_regular_objects(
         let palette_bank = u32::from((attr2 >> 12) & 0xF);
         let hflip = attr1 & (1 << 12) != 0;
         let vflip = attr1 & (1 << 13) != 0;
-        let tile_bytes = if color_8bpp { 64 } else { 32 };
         let row_stride = if one_dimensional {
             (width / 8) * if color_8bpp { 2 } else { 1 }
         } else {
@@ -300,7 +308,7 @@ fn render_regular_objects(
                 let tile_x = source_x / 8;
                 let tile_y = source_y / 8;
                 let slot = tile_index + tile_y * row_stride + tile_x * if color_8bpp { 2 } else { 1 };
-                let address = OBJ_VRAM_BASE + slot * 32
+                let address = obj_vram_base + slot * 32
                     + (source_y & 7) * if color_8bpp { 8 } else { 4 };
                 let palette_index = if color_8bpp {
                     u32::from(bus.read8(address + (source_x & 7)))
@@ -510,5 +518,47 @@ mod tests {
         bus.write16(0x0700_0004, 0);
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_00FF));
+    }
+
+    #[test]
+    fn bitmap_mode3_renders_obj_from_bitmap_obj_vram_region() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 3 | (1 << 12)); // mode 3 and OBJ enabled
+        bus.write16(VRAM_BASE, 0x03E0); // framebuffer pixel (0,0): green
+        // OBJ tile 0 starts at 0x06014000 in bitmap modes.
+        bus.write16(0x0601_4000, 0x0001);
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(rgb555(bus.read16(VRAM_BASE + 2))));
+    }
+
+    #[test]
+    fn mode0_obj_hflip_reverses_4bpp_pixels() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // index 1 red
+        bus.write16(PALETTE_BASE + 0x204, 0x03E0); // index 2 green
+        // First two tile pixels are index 1, then index 2.
+        bus.write16(0x0601_0000, 0x0021);
+        bus.write16(0x0601_0002, 0x0000);
+        bus.write16(0x0601_0004, 0x0000);
+        bus.write16(0x0601_0006, 0x0000);
+        bus.write16(0x0601_0008, 0x0000);
+        bus.write16(0x0601_000A, 0x0000);
+        bus.write16(0x0601_000C, 0x0000);
+        bus.write16(0x0601_000E, 0x0000);
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 1 << 12); // horizontal flip
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_0000));
+        assert_eq!(frame.pixel(6, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(7, 0), Some(0xFFFF_0000));
     }
 }
