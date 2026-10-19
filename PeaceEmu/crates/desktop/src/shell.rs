@@ -12,7 +12,7 @@ impl DesktopPage {
         match self {
             Self::Home => Icon::Home,
             Self::Library => Icon::Library,
-            Self::Sessions => Icon::Sessions,
+            Self::Sessions => Icon::Game,
             Self::Game => Icon::Game,
             Self::Systems => Icon::Systems,
             Self::Settings => Icon::Settings,
@@ -63,7 +63,6 @@ impl DesktopApp {
                     DesktopPage::Home,
                     DesktopPage::Library,
                     DesktopPage::Sessions,
-                    DesktopPage::Game,
                     DesktopPage::Systems,
                 ] {
                     if theme::rail_button(
