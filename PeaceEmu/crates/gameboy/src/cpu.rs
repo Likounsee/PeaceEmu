@@ -263,12 +263,9 @@ impl Cpu {
                 let rs = usize::from((raw >> 3) & 7);
                 let rd = usize::from(raw & 7);
                 let value = self.registers[rs];
-                let (result, carry) = Self::shift_immediate(
-                    value,
-                    u32::from(operation),
-                    immediate,
-                    self.flags.carry,
-                );
+                let carry_in = self.flags.carry;
+                let (result, carry) =
+                    Self::shift_immediate(value, u32::from(operation), immediate, carry_in);
                 self.registers[rd] = result;
                 self.set_logic_flags(result, carry);
             } else {
