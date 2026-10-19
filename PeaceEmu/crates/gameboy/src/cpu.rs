@@ -340,7 +340,10 @@ impl Cpu {
             let offset = u32::from(raw & 0xFF) * 4;
             let effective = self.registers[13].wrapping_add(offset);
             if load {
-                self.registers[rd] = bus.read32(effective);
+                // This is an ordinary Thumb word load: preserve ARM7TDMI's
+                // rotate-right behavior even if software has made SP unaligned.
+                self.registers[rd] =
+                    bus.read32(effective).rotate_right((effective & 3) * 8);
             } else {
                 bus.write32(effective, self.registers[rd]);
             }
@@ -1911,6 +1914,19 @@ mod tests {
         thumb_cpu.set_register(0, 0);
         thumb_cpu.step(&mut thumb_bus).unwrap();
         assert_eq!(thumb_cpu.register(2), Some(0x3412));
+    }
+
+    #[test]
+    fn thumb_sp_relative_word_load_rotates_unaligned_address() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x9800); // LDR r0, [SP, #0]
+        bus.write32(0x0200_0100, 0x1234_5678);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(13, 0x0200_0101);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0x7812_3456));
     }
 
     #[test]
