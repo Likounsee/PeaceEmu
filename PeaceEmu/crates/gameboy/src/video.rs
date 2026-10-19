@@ -613,6 +613,44 @@ mod tests {
     }
 
     #[test]
+    fn mode0_renders_8bpp_obj_pixels_and_zero_transparency() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
+        bus.write16(PALETTE_BASE + 0x204, 0x03E0); // OBJ palette index 2: green
+        bus.write16(0x0601_0000, 0x0201); // 8bpp pixels 1, 2
+        bus.write16(0x0601_0002, 0x0000); // transparent pixels
+        bus.write16(0x0700_0000, 1 << 13); // 8bpp, regular 8x8
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(2, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn obj_rectangular_size_renders_expected_extent() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F);
+        // Fill the first 16x8 sprite row with palette index 1.
+        for offset in (0..64).step_by(2) {
+            bus.write16(0x0601_0000 + offset, 0x1111);
+        }
+        bus.write16(0x0700_0000, 1 << 14); // horizontal shape, size 0 = 16x8
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(15, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(16, 0), Some(0xFF00_0000));
+        assert_eq!(frame.pixel(15, 7), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(0, 8), Some(0xFF00_0000));
+    }
+
+    #[test]
     fn mode0_obj_vflip_reverses_4bpp_rows() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
