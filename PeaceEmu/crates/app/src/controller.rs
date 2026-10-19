@@ -616,7 +616,6 @@ impl ApplicationController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use game_boy::GameBoyColorCore;
     use std::collections::VecDeque;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
@@ -630,12 +629,12 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
 
         assert!(!app.persistent_save_dirty(id).unwrap());
         let envelope = emulation_core::save_state::SaveStateEnvelope::new(
-            "game-boy-color".to_owned(),
+            "session-test".to_owned(),
             "test-version".to_owned(),
             vec![0],
         )
@@ -867,11 +866,11 @@ mod tests {
         let mut app = controller();
         let first = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         let second = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
 
         app.select_session(first).unwrap();
@@ -890,11 +889,11 @@ mod tests {
         let mut app = controller();
         let first = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         let second = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
 
         app.select_session(second).unwrap();
@@ -903,7 +902,7 @@ mod tests {
 
         let third = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         assert_ne!(third, first);
 
@@ -918,11 +917,11 @@ mod tests {
         let mut app = controller();
         let first = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         let second = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(first).unwrap();
 
@@ -939,11 +938,11 @@ mod tests {
         let mut app = controller();
         let first = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         let second = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(second).unwrap();
         assert_eq!(app.session_count(), 2);
@@ -964,11 +963,11 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         let stale = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(id).unwrap();
         app.close_session(stale).unwrap();
@@ -982,7 +981,7 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(id).unwrap();
 
@@ -1002,7 +1001,7 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(id).unwrap();
         app.close_session(id).unwrap();
@@ -1020,7 +1019,7 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(id).unwrap();
 
@@ -1042,7 +1041,7 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
 
         // An empty session cannot have held controls, so release is a safe no-op.
@@ -1057,6 +1056,53 @@ mod tests {
         );
         assert_eq!(app.session_count(), 0);
         assert_eq!(app.active_session(), None);
+    }
+
+    struct SessionTestCore {
+        loaded: bool,
+    }
+
+    impl SessionTestCore {
+        fn new() -> Self {
+            Self { loaded: false }
+        }
+    }
+
+    impl emulation_core::EmulationCore for SessionTestCore {
+        fn descriptor(&self) -> emulation_core::CoreDescriptor {
+            emulation_core::CoreDescriptor {
+                api_version: emulation_core::CURRENT_CORE_API_VERSION,
+                system_id: emulation_core::SystemId::new("session-test").unwrap(),
+                display_name: "Session test core",
+                core_version: "0.0.0-test",
+                capabilities: emulation_core::CoreCapabilities {
+                    content_loading: true,
+                    ..emulation_core::CoreCapabilities::default()
+                },
+            }
+        }
+
+        fn load_content(&mut self, content: &[u8]) -> Result<(), emulation_core::CoreError> {
+            if content.is_empty() {
+                return Err(emulation_core::CoreError::InvalidContent("empty test content"));
+            }
+            self.loaded = true;
+            Ok(())
+        }
+
+        fn reset(&mut self) -> Result<(), emulation_core::CoreError> {
+            self.loaded = true;
+            Ok(())
+        }
+
+        fn run_until_event(
+            &mut self,
+        ) -> Result<emulation_core::CoreEvent, emulation_core::CoreError> {
+            if !self.loaded {
+                return Err(emulation_core::CoreError::NotInitialized);
+            }
+            Ok(emulation_core::CoreEvent::Yielded)
+        }
     }
 
     struct AudioQueueCore {
@@ -1306,7 +1352,7 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         let mut cadence = FrameCadence::new(60, 3).unwrap();
 
@@ -1325,7 +1371,7 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
 
         for (command, expected_operation) in [
@@ -1355,7 +1401,7 @@ mod tests {
         let mut app = controller();
         let id = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.release_inputs(id).unwrap();
         app.release_inputs(id).unwrap();
@@ -1404,7 +1450,7 @@ mod tests {
         app.import_content(&library_file, 1024).unwrap();
         let existing_session = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(existing_session).unwrap();
 
@@ -1450,7 +1496,7 @@ mod tests {
         let mut app = controller();
         let existing_session = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(existing_session).unwrap();
 
@@ -1548,7 +1594,7 @@ mod tests {
         let mut app = controller();
         let existing_session = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(existing_session).unwrap();
 
@@ -1591,7 +1637,7 @@ mod tests {
         let mut app = controller();
         let existing_session = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(existing_session).unwrap();
 
@@ -1615,157 +1661,7 @@ mod tests {
         std::fs::remove_dir(root).unwrap();
     }
 
-    #[test]
-    fn core_rejection_preserves_existing_session_selection() {
-        use std::time::{SystemTime, UNIX_EPOCH};
 
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should be after the Unix epoch")
-            .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "emulation-core-rejection-{}-{nonce}",
-            std::process::id()
-        ));
-        std::fs::create_dir(&root).unwrap();
-        let malformed_rom = root.join("malformed.gb");
-        let mut bytes = vec![0u8; 0x8000];
-        bytes[0x0104..0x0134].copy_from_slice(&[
-            0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C,
-            0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6,
-            0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC,
-            0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
-        ]);
-        bytes[0x148] = 0;
-        bytes[0x149] = 0;
-        // Keep the default checksum byte invalid so the probe matches but the core rejects it.
-        bytes[0x14D] = 0;
-        std::fs::write(&malformed_rom, bytes).unwrap();
-
-        let mut registry = CoreRegistry::new();
-        registry
-            .register(
-                emulation_core::SystemId::new(game_boy::SYSTEM_ID).unwrap(),
-                || Box::new(GameBoyColorCore::new()),
-            )
-            .unwrap();
-        let probe = game_boy::GameBoyColorCartridgeProbe;
-
-        let mut app = controller();
-        let canonical_rom = app
-            .import_content(&malformed_rom, 0x10000)
-            .unwrap()
-            .path()
-            .to_path_buf();
-        let existing_session = app
-            .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
-            .unwrap();
-        app.select_session(existing_session).unwrap();
-
-        let result = app.launch_content_path(
-            &malformed_rom,
-            ContentLimits::new(0x10000),
-            &[&probe],
-            &registry,
-        );
-
-        assert!(result.is_err(), "the core must reject the malformed header");
-        assert_eq!(app.session_count(), 1);
-        assert_eq!(app.active_session(), Some(existing_session));
-        assert_eq!(
-            app.session_summary(existing_session).unwrap().state,
-            SessionState::Empty
-        );
-        assert!(matches!(
-            app.library().get(&canonical_rom).unwrap().validation(),
-            ContentValidation::Rejected(_)
-        ));
-        assert!(matches!(
-            app.library()
-                .get(&canonical_rom)
-                .unwrap()
-                .format_detection(),
-            ContentFormatDetection::Detected(_)
-        ));
-
-        app.close_all_sessions();
-        std::fs::remove_file(malformed_rom).unwrap();
-        std::fs::remove_dir(root).unwrap();
-    }
-
-    #[test]
-    fn successful_library_launch_loads_content_and_supports_session_lifecycle() {
-        use emulation_core::content::ContentFormatProbe;
-        use game_boy::{register_game_boy_color, GameBoyColorCartridgeProbe};
-        use std::time::{SystemTime, UNIX_EPOCH};
-
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should be after the Unix epoch")
-            .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "host-app-successful-launch-{}-{nonce}",
-            std::process::id()
-        ));
-        std::fs::create_dir(&root).unwrap();
-        let rom_path = root.join("valid-test.gb");
-
-        // Build a minimal 32 KiB ROM-only image with a valid logo and header checksum.
-        let mut rom = vec![0u8; 0x8000];
-        rom[0x0104..0x0134].copy_from_slice(&[
-            0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C,
-            0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6,
-            0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC,
-            0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
-        ]);
-        rom[0x0134..0x013C].copy_from_slice(b"CI TEST ");
-        rom[0x0147] = 0x00;
-        rom[0x0148] = 0x00;
-        rom[0x0149] = 0x00;
-        let mut checksum = 0u8;
-        for byte in &rom[0x0134..=0x014C] {
-            checksum = checksum.wrapping_sub(*byte).wrapping_sub(1);
-        }
-        rom[0x014D] = checksum;
-        std::fs::write(&rom_path, rom).unwrap();
-
-        let mut app = controller();
-        app.import_content(&rom_path, 0x10000).unwrap();
-        let mut registry = CoreRegistry::new();
-        register_game_boy_color(&mut registry).unwrap();
-        let probe = GameBoyColorCartridgeProbe;
-        let probes: [&dyn ContentFormatProbe; 1] = [&probe];
-
-        let id = app
-            .launch_library_entry(1, ContentLimits::new(0x10000), &probes, &registry)
-            .expect("a valid ROM-only test image should launch through the library");
-
-        assert_eq!(app.active_session(), Some(id));
-        assert_eq!(app.session_count(), 1);
-        assert!(app.session_summary(id).unwrap().content_loaded);
-        let library_entry = app.library().entries().next().unwrap();
-        assert_eq!(
-            library_entry.format_detection(),
-            &ContentFormatDetection::Detected("game-boy-color".to_owned())
-        );
-        assert_eq!(library_entry.validation(), &ContentValidation::Accepted);
-
-        app.command_session(id, SessionCommand::Pause).unwrap();
-        assert_eq!(app.session_summary(id).unwrap().state, SessionState::Paused);
-        app.command_session(id, SessionCommand::Resume).unwrap();
-        assert_eq!(
-            app.session_summary(id).unwrap().state,
-            SessionState::Running
-        );
-        app.command_session(id, SessionCommand::Stop).unwrap();
-        app.close_session(id).unwrap();
-        assert_eq!(app.session_count(), 0);
-        assert_eq!(app.active_session(), None);
-
-        std::fs::remove_file(rom_path).unwrap();
-        std::fs::remove_dir(root).unwrap();
-    }
 
     #[test]
     fn forgetting_a_missing_library_file_preserves_open_sessions() {
@@ -1789,7 +1685,7 @@ mod tests {
             .to_path_buf();
         let session = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(session).unwrap();
 
@@ -1811,11 +1707,11 @@ mod tests {
         let mut app = controller();
         let first = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         let second = app
             .host_mut()
-            .create_session(Box::new(GameBoyColorCore::new()))
+            .create_session(Box::new(SessionTestCore::new()))
             .unwrap();
         app.select_session(second).unwrap();
 

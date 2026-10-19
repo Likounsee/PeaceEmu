@@ -103,7 +103,6 @@ impl DesktopApp {
                         {
                             self.sidebar_open = !self.sidebar_open;
                         }
-
                     });
                 });
             });
