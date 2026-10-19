@@ -1907,6 +1907,21 @@ mod tests {
     }
 
     #[test]
+    fn thumb_signed_halfword_load_uses_signed_byte_for_odd_address() {
+        // Thumb LDRSH r2, [r1, r0] with an odd effective address behaves as LDRSB.
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x5E0A);
+        bus.write8(0x0200_0101, 0x80);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(1, 0x0200_0101);
+        cpu.set_register(0, 0);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0xFFFF_FF80));
+    }
+
+    #[test]
     fn arm_signed_halfword_load_uses_signed_byte_for_odd_address() {
         // LDRSH r2, [r1]: odd addresses behave as signed-byte loads.
         let mut bus = bus_with_program(&[0xE1D1_20F0]);
