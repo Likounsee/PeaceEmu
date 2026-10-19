@@ -726,9 +726,11 @@ impl Cpu {
                 && !empty_list
                 && register_list & (1 << rb) != 0
                 && register_list.trailing_zeros() == rb as u32;
-            if empty_list || !load || !loaded_base_wins && register_list & (1 << rb) == 0 {
-                self.registers[rb] = base.wrapping_add(count * 4);
-            } else if load && !empty_list && register_list & (1 << rb) != 0 && !loaded_base_wins {
+            if empty_list
+                || !load
+                || register_list & (1 << rb) == 0
+                || !loaded_base_wins
+            {
                 self.registers[rb] = base.wrapping_add(count * 4);
             }
         } else if raw & 0xE000 == 0x2000 {
