@@ -353,6 +353,10 @@ impl MemoryBus {
                 if old_control & 0x0080 == 0 && self.timer_control[timer] & 0x0080 != 0 {
                     self.timer_counter[timer] = self.timer_reload[timer];
                     self.timer_prescaler_phase[timer] = 0;
+                } else if self.timer_control[timer] & 0x0080 == 0 {
+                    // Keep byte-wide control writes consistent with write16:
+                    // a disabled timer must not retain a partial prescaler phase.
+                    self.timer_prescaler_phase[timer] = 0;
                 }
                 let io_offset = (address - 0x0400_0000) as usize;
                 self.io[io_offset] = ((self.timer_control[timer] >> shift) & 0xFF) as u8;
@@ -772,6 +776,25 @@ mod tests {
         assert_eq!(bus.read16(0x0400_0100), 0xFFFF);
         assert_eq!(bus.read16(0x0400_0104), 0xFFFF);
         assert_eq!(bus.read16(0x0400_0108), 0x1235);
+    }
+
+    #[test]
+    fn disabling_timer_with_byte_write_resets_prescaler_phase() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        // Divisor 64: accumulate a partial prescaler phase, then disable the
+        // timer through its high control byte (the byte-wide register path).
+        bus.write16(0x0400_0100, 0);
+        bus.write16(0x0400_0102, 0x0081);
+        bus.advance_cycles(32);
+        assert_eq!(bus.read16(0x0400_0100), 0);
+
+        bus.write8(0x0400_0103, 0x00);
+        bus.write8(0x0400_0103, 0x80);
+        bus.advance_cycles(63);
+        assert_eq!(bus.read16(0x0400_0100), 0);
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0400_0100), 1);
     }
 
     #[test]
