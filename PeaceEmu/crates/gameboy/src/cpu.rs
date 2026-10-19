@@ -983,7 +983,14 @@ impl Cpu {
                     })
                 },
                 2 => bus.read8(effective) as i8 as i32 as u32,
-                3 => bus.read16(effective) as i16 as i32 as u32,
+                // LDRSH at an odd address behaves like LDRSB on ARM7TDMI.
+                3 => {
+                    if effective & 1 != 0 {
+                        bus.read8(effective) as i8 as i32 as u32
+                    } else {
+                        bus.read16(effective) as i16 as i32 as u32
+                    }
+                },
                 _ => unreachable!(),
             };
             self.registers[rd] = if rd == 15 { value & !3 } else { value };
@@ -1897,6 +1904,18 @@ mod tests {
         thumb_cpu.set_register(0, 0);
         thumb_cpu.step(&mut thumb_bus).unwrap();
         assert_eq!(thumb_cpu.register(2), Some(0x3412));
+    }
+
+    #[test]
+    fn arm_signed_halfword_load_uses_signed_byte_for_odd_address() {
+        // LDRSH r2, [r1]: odd addresses behave as signed-byte loads.
+        let mut bus = bus_with_program(&[0xE1D1_20F0]);
+        bus.write8(0x0200_0101, 0x80);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 0x0200_0101);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0xFFFF_FF80));
     }
 
     #[test]
