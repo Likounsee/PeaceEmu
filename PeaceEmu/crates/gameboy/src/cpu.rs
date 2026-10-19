@@ -139,6 +139,8 @@ impl Cpu {
 
         if instruction & 0x0E00_0000 == 0x0A00_0000 {
             self.execute_branch(address, instruction);
+        } else if instruction & 0x0E00_0000 == 0x0800_0000 {
+            self.execute_block_transfer(address, instruction, bus)?;
         } else if instruction & 0x0C00_0000 == 0x0400_0000 {
             self.execute_single_transfer(address, instruction, bus)?;
         } else if instruction & 0x0C00_0000 == 0 {
@@ -293,6 +295,73 @@ impl Cpu {
             } else if let Some(carry) = shifter_carry {
                 self.flags.carry = carry;
             }
+        }
+        Ok(())
+    }
+
+    fn execute_block_transfer(
+        &mut self,
+        address: u32,
+        instruction: u32,
+        bus: &mut MemoryBus,
+    ) -> Result<(), CpuError> {
+        let pre_index = instruction & (1 << 24) != 0;
+        let increment = instruction & (1 << 23) != 0;
+        let user_registers = instruction & (1 << 22) != 0;
+        let write_back = instruction & (1 << 21) != 0;
+        let load = instruction & (1 << 20) != 0;
+        let rn = ((instruction >> 16) & 0xF) as usize;
+        let register_list = instruction & 0xFFFF;
+
+        // User-bank transfers require exception/banked-register support, and an
+        // empty list has special architectural behavior not modeled here.
+        if user_registers || register_list == 0 {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
+        let count = register_list.count_ones();
+        let base = self.read_operand_register(rn, address);
+        let bytes = count * 4;
+        let first_address = match (increment, pre_index) {
+            (true, false) => base,
+            (true, true) => base.wrapping_add(4),
+            (false, false) => base.wrapping_sub(bytes).wrapping_add(4),
+            (false, true) => base.wrapping_sub(bytes),
+        };
+
+        let mut transfer_address = first_address;
+        for register in 0..16 {
+            if register_list & (1 << register) == 0 {
+                continue;
+            }
+
+            if load {
+                let value = bus.read32(transfer_address);
+                self.registers[register] = if register == 15 {
+                    value & !3
+                } else {
+                    value
+                };
+            } else {
+                let value = if register == 15 {
+                    address.wrapping_add(12)
+                } else {
+                    self.registers[register]
+                };
+                bus.write32(transfer_address, value);
+            }
+            transfer_address = transfer_address.wrapping_add(4);
+        }
+
+        if write_back {
+            self.registers[rn] = if increment {
+                base.wrapping_add(bytes)
+            } else {
+                base.wrapping_sub(bytes)
+            };
         }
         Ok(())
     }
@@ -456,6 +525,31 @@ mod tests {
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(14), Some(0x0200_0004));
         assert_eq!(cpu.register(15), Some(0x0200_0008));
+    }
+
+    #[test]
+    fn block_transfers_store_and_load_register_lists_with_writeback() {
+        let mut bus = bus_with_program(&[
+            0xE8AD_0003, // STMIA sp!, {r0, r1}
+            0xE8BD_000C, // LDMIA sp!, {r2, r3}
+        ]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(13, 0x0200_0010);
+        cpu.set_register(0, 0x1122_3344);
+        cpu.set_register(1, 0xAABB_CCDD);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read32(0x0200_0010), 0x1122_3344);
+        assert_eq!(bus.read32(0x0200_0014), 0xAABB_CCDD);
+        assert_eq!(cpu.register(13), Some(0x0200_0018));
+
+        // Reload the same memory range to exercise ascending register ordering.
+        cpu.set_register(13, 0x0200_0010);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0x1122_3344));
+        assert_eq!(cpu.register(3), Some(0xAABB_CCDD));
+        assert_eq!(cpu.register(13), Some(0x0200_0018));
     }
 
     #[test]
