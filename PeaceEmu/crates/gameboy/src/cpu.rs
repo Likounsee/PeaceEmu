@@ -149,7 +149,9 @@ impl Cpu {
             });
         }
 
-        if instruction & 0x0F80_00F0 == 0x0080_0090 {
+        if instruction & 0x0FB0_0FF0 == 0x0100_0090 {
+            self.execute_swap(address, instruction, bus)?;
+        } else if instruction & 0x0F80_00F0 == 0x0080_0090 {
             self.execute_long_multiply(address, instruction)?;
         } else if instruction & 0x0FFF_FFF0 == 0x012F_FF10 {
             let target = self.read_operand_register((instruction & 0xF) as usize, address);
@@ -681,6 +683,49 @@ impl Cpu {
         }
         let displacement = (((instruction & 0x00FF_FFFF) << 8) as i32 >> 6) as u32;
         self.registers[15] = address.wrapping_add(8).wrapping_add(displacement) & !3;
+    }
+
+    /// Executes ARM7TDMI SWP/SWPB. The read and write are performed as
+    /// one instruction-level operation; bus-cycle atomicity is not modeled.
+    fn execute_swap(
+        &mut self,
+        address: u32,
+        instruction: u32,
+        bus: &mut MemoryBus,
+    ) -> Result<(), CpuError> {
+        let byte = instruction & (1 << 22) != 0;
+        let rn = ((instruction >> 16) & 0xF) as usize;
+        let rd = ((instruction >> 12) & 0xF) as usize;
+        let rm = (instruction & 0xF) as usize;
+
+        if rn == 15 || rd == 15 || rm == 15 {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
+        let effective = self.registers[rn];
+        if !byte && effective & 3 != 0 {
+            // Word SWP requires a word-aligned address on ARM7TDMI.
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
+        let source = self.registers[rm];
+        let previous = if byte {
+            let previous = u32::from(bus.read8(effective));
+            bus.write8(effective, source as u8);
+            previous
+        } else {
+            let previous = bus.read32(effective);
+            bus.write32(effective, source);
+            previous
+        };
+        self.registers[rd] = previous;
+        Ok(())
     }
 
     fn execute_long_multiply(
@@ -1490,6 +1535,52 @@ mod tests {
         assert_eq!(cpu.register(2), Some(0xFFFF_FFFF));
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(3), Some(0xFFFF_80FF));
+    }
+
+    #[test]
+    fn arm_swap_and_swap_byte_exchange_memory_and_register_values() {
+        let mut bus = bus_with_program(&[
+            0xE102_1093, // SWP r1, r3, [r2]
+            0xE142_4095, // SWPB r4, r5, [r2]
+        ]);
+        bus.write32(0x0200_0100, 0x1234_5678);
+        bus.write8(0x0200_0100, 0x78);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(2, 0x0200_0100);
+        cpu.set_register(3, 0xAABB_CCDD);
+        cpu.set_register(5, 0x42);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(1), Some(0x1234_5678));
+        assert_eq!(bus.read32(0x0200_0100), 0xAABB_CCDD);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(4), Some(0xDD));
+        assert_eq!(bus.read8(0x0200_0100), 0x42);
+        assert_eq!(cpu.register(2), Some(0x0200_0100));
+    }
+
+    #[test]
+    fn arm_word_swap_rejects_unaligned_address_without_modifying_state() {
+        let instruction = 0xE102_1093; // SWP r1, r3, [r2]
+        let mut bus = bus_with_program(&[instruction]);
+        bus.write32(0x0200_0100, 0x1234_5678);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 0xDEAD_BEEF);
+        cpu.set_register(2, 0x0200_0101);
+        cpu.set_register(3, 0xAABB_CCDD);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction,
+            })
+        );
+        assert_eq!(cpu.register(1), Some(0xDEAD_BEEF));
+        assert_eq!(bus.read32(0x0200_0100), 0x1234_5678);
     }
 
     #[test]
