@@ -1508,6 +1508,22 @@ mod tests {
     }
 
     #[test]
+    fn timed_step_advances_memory_timers_after_instruction_execution() {
+        let mut bus = bus_with_program(&[0xE3A0_002A]); // MOV r0, #42
+        bus.write16(0x0400_0100, 0xFFFE);
+        bus.write16(0x0400_0102, 0x0080); // Enable timer 0, divisor 1.
+
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        let (outcome, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+
+        assert!(matches!(outcome, StepOutcome::Executed { .. }));
+        assert_eq!(cycles, 1);
+        assert_eq!(cpu.register(0), Some(42));
+        assert_eq!(bus.read16(0x0400_0100), 0xFFFF);
+    }
+
+    #[test]
     fn executes_data_processing_and_updates_flags() {
         let mut bus = bus_with_program(&[
             0xE3A0_002A, // MOV r0, #42
