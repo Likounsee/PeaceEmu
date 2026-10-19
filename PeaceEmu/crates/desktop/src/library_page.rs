@@ -383,14 +383,33 @@ impl DesktopApp {
                 );
                 let cover = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 98.0));
                 if let Some(texture) = &cover_texture {
-                    painter.image(texture.id(), cover, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                    painter.image(
+                        texture.id(),
+                        cover,
+                        egui::Rect::from_min_max(
+                            egui::pos2(0.0, 0.0),
+                            egui::pos2(1.0, 1.0),
+                        ),
+                        egui::Color32::WHITE,
+                    );
                 } else {
                     painter.rect_filled(
                         cover,
-                        egui::Rounding { nw: 12.0, ne: 12.0, sw: 0.0, se: 0.0 },
+                        egui::Rounding {
+                            nw: 12.0,
+                            ne: 12.0,
+                            sw: 0.0,
+                            se: 0.0,
+                        },
                         cover_color(title),
                     );
-                    painter.text(cover.center(), egui::Align2::CENTER_CENTER, initials(title), egui::FontId::proportional(28.0), egui::Color32::WHITE);
+                    painter.text(
+                        cover.center(),
+                        egui::Align2::CENTER_CENTER,
+                        initials(title),
+                        egui::FontId::proportional(28.0),
+                        egui::Color32::WHITE,
+                    );
                 }
                 let max_chars = ((card_width - 24.0) / 7.2) as usize;
                 painter.text(
@@ -496,15 +515,38 @@ impl DesktopApp {
         let file_available = availability == ContentAvailability::Available;
 
         let detail_cover_texture = self.cover_texture(ui.ctx(), &path);
-        if self.cover_query.is_empty() { self.cover_query = title.clone(); }
+        if self.cover_query.is_empty() {
+            self.cover_query = title.clone();
+        }
         theme::card(ui, palette, |ui| {
             let width = ui.available_width();
-            let (cover, _) = ui.allocate_exact_size(egui::vec2(width, 110.0), egui::Sense::hover());
+            let (cover, _) = ui.allocate_exact_size(
+                egui::vec2(width, 110.0),
+                egui::Sense::hover(),
+            );
             if let Some(texture) = &detail_cover_texture {
-                ui.painter().image(texture.id(), cover, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                ui.painter().image(
+                    texture.id(),
+                    cover,
+                    egui::Rect::from_min_max(
+                        egui::pos2(0.0, 0.0),
+                        egui::pos2(1.0, 1.0),
+                    ),
+                    egui::Color32::WHITE,
+                );
             } else {
-                ui.painter().rect_filled(cover, egui::Rounding::same(10.0), cover_color(&title));
-                ui.painter().text(cover.center(), egui::Align2::CENTER_CENTER, initials(&title), egui::FontId::proportional(32.0), egui::Color32::WHITE);
+                ui.painter().rect_filled(
+                    cover,
+                    egui::Rounding::same(10.0),
+                    cover_color(&title),
+                );
+                ui.painter().text(
+                    cover.center(),
+                    egui::Align2::CENTER_CENTER,
+                    initials(&title),
+                    egui::FontId::proportional(32.0),
+                    egui::Color32::WHITE,
+                );
             }
             ui.label(egui::RichText::new(&title).size(18.0).strong());
             let extension = path
@@ -526,27 +568,89 @@ impl DesktopApp {
                 },
             );
             ui.add_space(8.0);
-            ui.label(egui::RichText::new(if french { "Jaquette du jeu" } else { "Game cover" }).strong());
-            ui.add(egui::TextEdit::singleline(&mut self.cover_query).hint_text(if french { "Titre à rechercher en ligne" } else { "Title to search online" }));
+            ui.label(
+                egui::RichText::new(if french {
+                    "Jaquette du jeu"
+                } else {
+                    "Game cover"
+                })
+                .strong(),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut self.cover_query).hint_text(if french {
+                    "Titre à rechercher en ligne"
+                } else {
+                    "Title to search online"
+                }),
+            );
             ui.horizontal_wrapped(|ui| {
-                if ui.button(if french { "Image locale…" } else { "Choose local image…" }).clicked() {
-                    if let Some(source) = rfd::FileDialog::new().add_filter("Cover images", &["png", "jpg", "jpeg", "webp"]).pick_file() {
-                        let result = self.config_path.as_deref().ok_or_else(|| "Configuration directory unavailable".to_owned()).and_then(|config| game_covers::import_local(config, &source));
+                if ui
+                    .button(if french {
+                        "Image locale…"
+                    } else {
+                        "Choose local image…"
+                    })
+                    .clicked()
+                {
+                    if let Some(source) = rfd::FileDialog::new()
+                        .add_filter("Cover images", &["png", "jpg", "jpeg", "webp"])
+                        .pick_file()
+                    {
+                        let result = self
+                            .config_path
+                            .as_deref()
+                            .ok_or_else(|| "Configuration directory unavailable".to_owned())
+                            .and_then(|config| game_covers::import_local(config, &source));
                         match result {
                             Ok(saved) => self.set_game_cover(&path, saved, "local"),
-                            Err(error) => self.message = if french { format!("Import de jaquette impossible : {error}") } else { format!("Could not import cover: {error}") },
+                            Err(error) => {
+                                self.message = if french {
+                                    format!("Import de jaquette impossible : {error}")
+                                } else {
+                                    format!("Could not import cover: {error}")
+                                }
+                            }
                         }
                     }
                 }
-                if ui.button(if french { "Chercher en ligne" } else { "Search online" }).clicked() {
-                    let query = if self.cover_query.trim().is_empty() { title.clone() } else { self.cover_query.trim().to_owned() };
-                    let result = self.config_path.as_deref().ok_or_else(|| "Configuration directory unavailable".to_owned()).and_then(|config| game_covers::search_online(config, &query));
+                if ui
+                    .button(if french {
+                        "Chercher en ligne"
+                    } else {
+                        "Search online"
+                    })
+                    .clicked()
+                {
+                    let query = if self.cover_query.trim().is_empty() {
+                        title.clone()
+                    } else {
+                        self.cover_query.trim().to_owned()
+                    };
+                    let result = self
+                        .config_path
+                        .as_deref()
+                        .ok_or_else(|| "Configuration directory unavailable".to_owned())
+                        .and_then(|config| game_covers::search_online(config, &query));
                     match result {
                         Ok((saved, source)) => self.set_game_cover(&path, saved, &source),
-                        Err(error) => self.message = if french { format!("Recherche de jaquette impossible : {error}") } else { format!("Cover search failed: {error}") },
+                        Err(error) => {
+                            self.message = if french {
+                                format!("Recherche de jaquette impossible : {error}")
+                            } else {
+                                format!("Cover search failed: {error}")
+                            }
+                        }
                     }
                 }
-                if self.cover_paths.contains_key(&path) && ui.button(if french { "Supprimer la jaquette" } else { "Remove cover" }).clicked() {
+                if self.cover_paths.contains_key(&path)
+                    && ui
+                        .button(if french {
+                            "Supprimer la jaquette"
+                        } else {
+                            "Remove cover"
+                        })
+                        .clicked()
+                {
                     self.remove_game_cover(&path);
                 }
             });
