@@ -438,7 +438,6 @@ pub fn paint_icon(painter: &egui::Painter, center: Pos2, size: f32, icon: Icon, 
             );
             painter.line_segment([at(-0.3, -0.75), at(-0.3, 0.75)], stroke);
         }
-
     }
 }
 
