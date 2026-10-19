@@ -1501,6 +1501,43 @@ mod tests {
     }
 
     #[test]
+    fn thumb_register_shifts_handle_32_and_over_32_bit_amounts() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x4088); // LSL r0, r1
+        bus.write16(0x0200_0002, 0x40DA); // LSR r2, r3
+        bus.write16(0x0200_0004, 0x412C); // ASR r4, r5
+        bus.write16(0x0200_0006, 0x41FE); // ROR r6, r7
+
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(0, 0x8000_0001);
+        cpu.set_register(1, 32);
+        cpu.set_register(2, 0x8000_0001);
+        cpu.set_register(3, 33);
+        cpu.set_register(4, 0x8000_0001);
+        cpu.set_register(5, 40);
+        cpu.set_register(6, 0x8000_0001);
+        cpu.set_register(7, 32);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0));
+        assert!(cpu.flags().carry); // LSL by 32 takes bit 0 into carry.
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0));
+        assert!(!cpu.flags().carry); // LSR above 32 produces zero and clears carry.
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(4), Some(u32::MAX));
+        assert!(cpu.flags().carry); // ASR above 32 sign-fills and preserves the sign in carry.
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(6), Some(0x8000_0001));
+        assert!(cpu.flags().carry); // ROR by a nonzero multiple of 32 preserves bit 31.
+    }
+
+    #[test]
     fn unsupported_instruction_is_reported() {
         let mut bus = bus_with_program(&[0xF000_0000]);
         let mut cpu = Cpu::new();
