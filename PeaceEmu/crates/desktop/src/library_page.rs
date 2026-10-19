@@ -769,47 +769,46 @@ impl DesktopApp {
                 })
                 .strong(),
             );
-                if ui
-                    .button(if french {
-                        "Image locale…"
-                    } else {
-                        "Choose local image…"
-                    })
-                    .clicked()
+            if ui
+                .button(if french {
+                    "Image locale…"
+                } else {
+                    "Choose local image…"
+                })
+                .clicked()
+            {
+                if let Some(source) = rfd::FileDialog::new()
+                    .add_filter("Cover images", &["png", "jpg", "jpeg", "webp"])
+                    .pick_file()
                 {
-                    if let Some(source) = rfd::FileDialog::new()
-                        .add_filter("Cover images", &["png", "jpg", "jpeg", "webp"])
-                        .pick_file()
-                    {
-                        let result = self
-                            .config_path
-                            .as_deref()
-                            .ok_or_else(|| "Configuration directory unavailable".to_owned())
-                            .and_then(|config| game_covers::import_local(config, &source));
-                        match result {
-                            Ok(saved) => self.set_game_cover(&path, saved, "local"),
-                            Err(error) => {
-                                self.message = if french {
-                                    format!("Import de jaquette impossible : {error}")
-                                } else {
-                                    format!("Could not import cover: {error}")
-                                }
+                    let result = self
+                        .config_path
+                        .as_deref()
+                        .ok_or_else(|| "Configuration directory unavailable".to_owned())
+                        .and_then(|config| game_covers::import_local(config, &source));
+                    match result {
+                        Ok(saved) => self.set_game_cover(&path, saved, "local"),
+                        Err(error) => {
+                            self.message = if french {
+                                format!("Import de jaquette impossible : {error}")
+                            } else {
+                                format!("Could not import cover: {error}")
                             }
                         }
                     }
                 }
-                if self.cover_paths.contains_key(&path)
-                    && ui
-                        .button(if french {
-                            "Supprimer la jaquette"
-                        } else {
-                            "Remove cover"
-                        })
-                        .clicked()
-                {
-                    self.remove_game_cover(&path);
-                }
-            });
+            }
+            if self.cover_paths.contains_key(&path)
+                && ui
+                    .button(if french {
+                        "Supprimer la jaquette"
+                    } else {
+                        "Remove cover"
+                    })
+                    .clicked()
+            {
+                self.remove_game_cover(&path);
+            }
             ui.add_space(4.0);
 
             let launch = ui
