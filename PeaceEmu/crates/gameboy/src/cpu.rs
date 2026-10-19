@@ -1580,7 +1580,7 @@ mod tests {
 
         // Register-offset LDR r2, [r1, r3].
         let mut register_bus = bus_with_program(&[]);
-        register_bus.write16(0x0200_0000, 0x589A);
+        register_bus.write16(0x0200_0000, 0x58CA);
         register_bus.write32(0x0200_0100, 0x1234_5678);
         let mut register_cpu = Cpu::new();
         register_cpu.reset(0x0200_0000);
