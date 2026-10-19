@@ -1880,7 +1880,10 @@ mod tests {
         assert_eq!(cycles, 1);
         assert_eq!(cpu.register(0), Some(0));
         assert_eq!(cpu.register(15), Some(0x0800_0004));
-        assert_eq!(bus.read16(0x0400_0100), 0);
+        // Overflow reloads the configured value, which is FFFF here;
+        // the timer IRQ flag is the observable proof that the tick occurred.
+        assert_eq!(bus.read16(0x0400_0100), 0xFFFF);
+        assert_eq!(bus.read16(0x0400_0202) & (1 << 3), 1 << 3);
     }
 
     #[test]
