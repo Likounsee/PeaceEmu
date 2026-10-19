@@ -142,8 +142,15 @@ impl Cpu {
         } else {
             bus.read32(address & !3)
         };
-        let cycles = self.estimate_cycles(instruction);
+        let estimated_cycles = self.estimate_cycles(instruction);
         let outcome = self.step(bus)?;
+        // A condition-failed ARM instruction is skipped without a branch or
+        // data access, so it consumes only the sequential instruction cycle.
+        let cycles = if matches!(outcome, StepOutcome::ConditionFailed { .. }) {
+            1
+        } else {
+            estimated_cycles
+        };
         bus.advance_cycles(cycles);
         Ok((outcome, cycles))
     }
@@ -152,7 +159,7 @@ impl Cpu {
         if self.thumb {
             let raw = instruction as u16;
             // Conditional/unconditional branches and BL may refill the pipeline.
-            if raw & 0xF000 == 0xD000 && (raw >> 8) & 0xF < 0xE {
+            if raw & 0xF000 == 0xD000 && ((raw >> 8) & 0xF) < 0xE {
                 return 3;
             }
             if raw & 0xF800 == 0xE000 || raw & 0xF800 == 0xF000 || raw & 0xF800 == 0xF800 {
