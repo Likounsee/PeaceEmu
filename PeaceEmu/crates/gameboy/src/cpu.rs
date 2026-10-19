@@ -1008,7 +1008,7 @@ mod tests {
         bus.write16(0x0200_0000, 0x6008); // STR r0, [r1]
         bus.write16(0x0200_0002, 0x680A); // LDR r2, [r1]
         bus.write16(0x0200_0004, 0x704B); // STRB r3, [r1, #1]
-        bus.write16(0x0200_0006, 0x788C); // LDRB r4, [r1, #2]
+        bus.write16(0x0200_0006, 0x784C); // LDRB r4, [r1, #1]
         bus.write16(0x0200_0008, 0x800D); // STRH r5, [r1]
         bus.write16(0x0200_000A, 0x880E); // LDRH r6, [r1]
         let mut cpu = Cpu::new();
