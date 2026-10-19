@@ -23,6 +23,7 @@ mod appearance_page;
 mod audio_output;
 mod game_page;
 mod game_covers;
+mod game_names;
 mod game_saves;
 mod game_view;
 mod home_page;
@@ -203,6 +204,8 @@ struct DesktopApp {
     cover_paths: HashMap<PathBuf, PathBuf>,
     cover_textures: HashMap<PathBuf, egui::TextureHandle>,
     cover_query: String,
+    game_names: HashMap<PathBuf, String>,
+    display_name_edit: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -383,6 +386,10 @@ impl DesktopApp {
             .as_deref()
             .map(game_covers::load)
             .unwrap_or_default();
+        let game_names = config_path
+            .as_deref()
+            .map(game_names::load)
+            .unwrap_or_default();
         let language_pack = language_pack::LanguagePack::load(&language);
         let mut app = Self {
             controller,
@@ -428,6 +435,8 @@ impl DesktopApp {
             cover_paths,
             cover_textures: HashMap::new(),
             cover_query: String::new(),
+            game_names,
+            display_name_edit: String::new(),
         };
         // Check the official stable manifest without blocking the first window render.
         // The user can still trigger another check from Settings after this completes.
