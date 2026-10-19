@@ -1709,23 +1709,23 @@ mod tests {
         // MLA adds one internal accumulate cycle.
         cpu.set_register(2, 7);
         assert_eq!(cpu.estimate_cycles(0xE020_0291), 3);
-        // Long multiply uses the same multiplier-dependent timing.
-        assert_eq!(cpu.estimate_cycles(0xE081_0392), 2);
+        // UMULL includes an extra result cycle beyond the internal multiply.
+        assert_eq!(cpu.estimate_cycles(0xE081_0392), 3);
         cpu.set_register(3, 0x1234_5678);
         assert_eq!(cpu.estimate_cycles(0xE081_0392), 6);
-        // UMLAL adds the accumulate cycle.
+        // UMLAL adds the accumulate cycle to the long-multiply estimate.
         assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 7);
     }
 
     #[test]
     fn arm_long_multiply_cycle_estimates_include_extra_result_cycle() {
         let mut cpu = Cpu::new();
-        // RS=0 uses one internal multiply cycle.
-        assert_eq!(cpu.estimate_cycles(0xE081_0392), 2); // MUL r1,r2,r3
-        assert_eq!(cpu.estimate_cycles(0xE091_0392), 2); // MULS: S does not affect timing
-        assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 3); // MLA r1,r2,r3,r0
-        assert_eq!(cpu.estimate_cycles(0xE0C1_0392), 3); // UMULL r0,r1,r2,r3
-        assert_eq!(cpu.estimate_cycles(0xE0E1_0392), 4); // UMLAL r0,r1,r2,r3
+        // RS=0 uses one internal multiply cycle; long multiply adds one result cycle.
+        assert_eq!(cpu.estimate_cycles(0xE081_0392), 3); // UMULL r0,r1,r2,r3
+        assert_eq!(cpu.estimate_cycles(0xE091_0392), 3); // UMULLS: setting flags does not affect timing
+        assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 4); // UMLAL r0,r1,r2,r3
+        assert_eq!(cpu.estimate_cycles(0xE0C1_0392), 3); // SMULL r0,r1,r2,r3
+        assert_eq!(cpu.estimate_cycles(0xE0E1_0392), 4); // SMLAL r0,r1,r2,r3
     }
 
     #[test]
