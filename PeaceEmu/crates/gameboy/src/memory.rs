@@ -520,8 +520,8 @@ impl MemoryBus {
             let old_match = self.dispstat & (1 << 2) != 0;
             let shift = (address - 0x0400_0004) * 8;
             let writable_mask = 0xFF_u16 << shift & 0xFF38;
-            self.dispstat = (self.dispstat & !writable_mask)
-                | ((u16::from(value) << shift) & writable_mask);
+            self.dispstat =
+                (self.dispstat & !writable_mask) | ((u16::from(value) << shift) & writable_mask);
             let matches = self.vcount == (self.dispstat >> 8);
             if matches {
                 self.dispstat |= 1 << 2;
@@ -1060,7 +1060,6 @@ mod tests {
         bus.write32(0x0700_0000, 0x1234_5678);
         assert_eq!(bus.read32(0x0700_0000), 0x1234_5678);
     }
-
 
     #[test]
     fn video_timing_updates_hblank_vblank_and_vcount_irq_flags() {
