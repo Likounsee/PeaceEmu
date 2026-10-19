@@ -184,9 +184,9 @@ impl MemoryBus {
             0x0C00_0000..=0x0DFF_FFFF => self
                 .cartridge
                 .read_rom_byte((address as usize - 0x0C00_0000) % self.cartridge.len()),
-            // The 64 KiB save SRAM is mirrored throughout the 32 MiB
-            // Game Pak SRAM window (0x0E00_0000..=0x0FFF_FFFF).
-            0x0E00_0000..=0x0FFF_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
+            // GBA save SRAM is mapped only in the first 64 KiB of region 0x0E.
+            // The rest of regions 0x0E/0x0F are not SRAM aliases.
+            0x0E00_0000..=0x0E00_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
             _ => 0,
         }
     }
@@ -288,7 +288,7 @@ impl MemoryBus {
     pub fn read16(&self, address: u32) -> u16 {
         // SRAM is byte-wide and uses the original byte address even for an
         // unsupported wider access; unlike ordinary halfword RAM, do not align it.
-        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
+        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
             let byte = u16::from(self.read8(address));
             return byte | (byte << 8);
         }
@@ -819,14 +819,15 @@ mod tests {
         bus.write8(0x0601_8000, 0x5A);
         assert_eq!(bus.read8(0x0601_0000), 0x5A);
 
-        // The 64 KiB save chip mirrors throughout the 32 MiB SRAM window.
+        // Only 0x0E00_0000..=0x0E00_FFFF is mapped to save SRAM.
         bus.write8(0x0E00_1234, 0xA5);
         assert_eq!(bus.read8(0x0E00_1234), 0xA5);
-        assert_eq!(bus.read8(0x0E01_1234), 0xA5);
-        assert_eq!(bus.read8(0x0F00_1234), 0xA5);
+        assert_eq!(bus.read8(0x0E01_1234), 0);
+        assert_eq!(bus.read8(0x0F00_1234), 0);
 
+        // Writes outside the SRAM window must not alias into the save.
         bus.write8(0x0F00_1234, 0x3C);
-        assert_eq!(bus.read8(0x0E00_1234), 0x3C);
-        assert_eq!(bus.read8(0x0F00_1234), 0x3C);
+        assert_eq!(bus.read8(0x0E00_1234), 0xA5);
+        assert_eq!(bus.read8(0x0F00_1234), 0);
     }
 }
