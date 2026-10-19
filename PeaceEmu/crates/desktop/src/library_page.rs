@@ -132,6 +132,51 @@ fn detail_row(ui: &mut egui::Ui, palette: &theme::Palette, label: &str, value: &
 }
 
 impl DesktopApp {
+    fn cover_texture(&mut self, context: &egui::Context, game_path: &Path) -> Option<egui::TextureHandle> {
+        if let Some(texture) = self.cover_textures.get(game_path) { return Some(texture.clone()); }
+        let image_path = self.cover_paths.get(game_path)?.clone();
+        let bytes = std::fs::read(image_path).ok()?;
+        let rgba = image::load_from_memory(&bytes).ok()?.into_rgba8();
+        let size = [rgba.width() as usize, rgba.height() as usize];
+        let color_image = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+        let texture = context.load_texture(format!("game-cover:{}", game_path.display()), color_image, egui::TextureOptions::LINEAR);
+        self.cover_textures.insert(game_path.to_path_buf(), texture.clone());
+        Some(texture)
+    }
+
+    fn set_game_cover(&mut self, game_path: &Path, image_path: PathBuf, source: &str) {
+        let Some(config_path) = self.config_path.clone() else {
+            self.message = if self.language == "fr" { "Impossible d’enregistrer la jaquette : dossier de configuration indisponible.".to_owned() } else { "Could not save cover: configuration directory is unavailable.".to_owned() };
+            return;
+        };
+        let old = self.cover_paths.insert(game_path.to_path_buf(), image_path);
+        match game_covers::persist(&config_path, &self.cover_paths) {
+            Ok(()) => {
+                self.cover_textures.remove(game_path);
+                self.message = if self.language == "fr" { format!("Jaquette enregistrée ({source}).") } else { format!("Cover saved ({source}).") };
+            }
+            Err(error) => {
+                if let Some(previous) = old { self.cover_paths.insert(game_path.to_path_buf(), previous); } else { self.cover_paths.remove(game_path); }
+                self.message = if self.language == "fr" { format!("Impossible d’enregistrer la jaquette : {error}") } else { format!("Could not save cover: {error}") };
+            }
+        }
+    }
+
+    fn remove_game_cover(&mut self, game_path: &Path) {
+        let Some(config_path) = self.config_path.clone() else { return; };
+        let old = self.cover_paths.remove(game_path);
+        match game_covers::persist(&config_path, &self.cover_paths) {
+            Ok(()) => {
+                self.cover_textures.remove(game_path);
+                self.message = if self.language == "fr" { "Jaquette supprimée.".to_owned() } else { "Cover removed.".to_owned() };
+            }
+            Err(error) => {
+                if let Some(previous) = old { self.cover_paths.insert(game_path.to_path_buf(), previous); }
+                self.message = if self.language == "fr" { format!("Impossible de supprimer la jaquette : {error}") } else { format!("Could not remove cover: {error}") };
+            }
+        }
+    }
+
     pub(super) fn show_library(&mut self, ui: &mut egui::Ui) {
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
         let french = self.language == "fr";
@@ -323,6 +368,7 @@ impl DesktopApp {
                 // files can be moved or removed while the library screen stays open.
                 let availability = path_availability(path);
                 let file_available = availability == ContentAvailability::Available;
+                let cover_texture = self.cover_texture(ui.ctx(), path);
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(card_width, 170.0), egui::Sense::click());
                 let painter = ui.painter();
@@ -336,23 +382,16 @@ impl DesktopApp {
                     },
                 );
                 let cover = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 98.0));
-                painter.rect_filled(
-                    cover,
-                    egui::Rounding {
-                        nw: 12.0,
-                        ne: 12.0,
-                        sw: 0.0,
-                        se: 0.0,
-                    },
-                    cover_color(title),
-                );
-                painter.text(
-                    cover.center(),
-                    egui::Align2::CENTER_CENTER,
-                    initials(title),
-                    egui::FontId::proportional(28.0),
-                    egui::Color32::WHITE,
-                );
+                if let Some(texture) = &cover_texture {
+                    painter.image(texture.id(), cover, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                } else {
+                    painter.rect_filled(
+                        cover,
+                        egui::Rounding { nw: 12.0, ne: 12.0, sw: 0.0, se: 0.0 },
+                        cover_color(title),
+                    );
+                    painter.text(cover.center(), egui::Align2::CENTER_CENTER, initials(title), egui::FontId::proportional(28.0), egui::Color32::WHITE);
+                }
                 let max_chars = ((card_width - 24.0) / 7.2) as usize;
                 painter.text(
                     rect.min + egui::vec2(12.0, 110.0),
@@ -455,18 +494,17 @@ impl DesktopApp {
         let availability = path_availability(&path);
         let file_available = availability == ContentAvailability::Available;
 
+        let detail_cover_texture = self.cover_texture(ui.ctx(), &path);
+        if self.cover_query.is_empty() { self.cover_query = title.clone(); }
         theme::card(ui, palette, |ui| {
             let width = ui.available_width();
             let (cover, _) = ui.allocate_exact_size(egui::vec2(width, 110.0), egui::Sense::hover());
-            ui.painter()
-                .rect_filled(cover, egui::Rounding::same(10.0), cover_color(&title));
-            ui.painter().text(
-                cover.center(),
-                egui::Align2::CENTER_CENTER,
-                initials(&title),
-                egui::FontId::proportional(32.0),
-                egui::Color32::WHITE,
-            );
+            if let Some(texture) = &detail_cover_texture {
+                ui.painter().image(texture.id(), cover, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+            } else {
+                ui.painter().rect_filled(cover, egui::Rounding::same(10.0), cover_color(&title));
+                ui.painter().text(cover.center(), egui::Align2::CENTER_CENTER, initials(&title), egui::FontId::proportional(32.0), egui::Color32::WHITE);
+            }
             ui.label(egui::RichText::new(&title).size(18.0).strong());
             let extension = path
                 .extension()
@@ -486,6 +524,31 @@ impl DesktopApp {
                     palette.warning
                 },
             );
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new(if french { "Jaquette du jeu" } else { "Game cover" }).strong());
+            ui.add(egui::TextEdit::singleline(&mut self.cover_query).hint_text(if french { "Titre à rechercher en ligne" } else { "Title to search online" }));
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(if french { "Image locale…" } else { "Choose local image…" }).clicked() {
+                    if let Some(source) = rfd::FileDialog::new().add_filter("Cover images", &["png", "jpg", "jpeg", "webp"]).pick_file() {
+                        let result = self.config_path.as_deref().ok_or_else(|| "Configuration directory unavailable".to_owned()).and_then(|config| game_covers::import_local(config, &source));
+                        match result {
+                            Ok(saved) => self.set_game_cover(&path, saved, "local"),
+                            Err(error) => self.message = if french { format!("Import de jaquette impossible : {error}") } else { format!("Could not import cover: {error}") },
+                        }
+                    }
+                }
+                if ui.button(if french { "Chercher en ligne" } else { "Search online" }).clicked() {
+                    let query = if self.cover_query.trim().is_empty() { title.clone() } else { self.cover_query.trim().to_owned() };
+                    let result = self.config_path.as_deref().ok_or_else(|| "Configuration directory unavailable".to_owned()).and_then(|config| game_covers::search_online(config, &query));
+                    match result {
+                        Ok((saved, source)) => self.set_game_cover(&path, saved, &source),
+                        Err(error) => self.message = if french { format!("Recherche de jaquette impossible : {error}") } else { format!("Cover search failed: {error}") },
+                    }
+                }
+                if self.cover_paths.contains_key(&path) && ui.button(if french { "Supprimer la jaquette" } else { "Remove cover" }).clicked() {
+                    self.remove_game_cover(&path);
+                }
+            });
             ui.add_space(4.0);
 
             let launch = ui
