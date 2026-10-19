@@ -153,6 +153,8 @@ fn store_bytes(config_path: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, 
     if width == 0 || height == 0 || width > 4096 || height > 4096 {
         return Err("Image dimensions must be between 1 and 4096 pixels.".to_owned());
     }
+    image::load_from_memory(bytes)
+        .map_err(|_| "Unsupported or invalid image. Use PNG, JPEG, or WebP.".to_owned())?;
 
     let directory = cover_dir(config_path);
     fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
