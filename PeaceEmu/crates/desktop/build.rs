@@ -12,8 +12,8 @@ fn main() {
     }
 
     let png = include_bytes!("assets/branding/bird.png");
-    let icon_path = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set"))
-        .join("PeaceEmu.ico");
+    let icon_path =
+        PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set")).join("PeaceEmu.ico");
     write_png_icon(&icon_path, png).expect("generate PeaceEmu Windows icon");
 
     let mut resource = winres::WindowsResource::new();
@@ -24,7 +24,9 @@ fn main() {
         .set("InternalName", PRODUCT_NAME)
         .set("OriginalFilename", "PeaceEmu.exe")
         .set("CompanyName", "Likounsee");
-    resource.compile().expect("embed PeaceEmu icon and version metadata");
+    resource
+        .compile()
+        .expect("embed PeaceEmu icon and version metadata");
 }
 
 // ICO supports PNG payloads on modern Windows. Render the same official bird
@@ -47,8 +49,7 @@ fn write_png_icon(
     );
 
     let mut png = Cursor::new(Vec::new());
-    image::DynamicImage::ImageRgba8(canvas)
-        .write_to(&mut png, image::ImageOutputFormat::Png)?;
+    image::DynamicImage::ImageRgba8(canvas).write_to(&mut png, image::ImageOutputFormat::Png)?;
     let png = png.into_inner();
 
     let mut ico = Vec::with_capacity(22 + png.len());
@@ -67,4 +68,3 @@ fn write_png_icon(
     fs::write(path, ico)?;
     Ok(())
 }
-
