@@ -1519,11 +1519,16 @@ mod tests {
         cpu.set_register(1, 0);
         cpu.set_register(2, (-2_i32) as u32);
         cpu.set_register(3, 3);
+        cpu.flags.carry = true;
+        cpu.flags.overflow = true;
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(0), Some(0xFFFF_FFFF));
         assert_eq!(cpu.register(1), Some(0xFFFF_FFFF));
         assert!(cpu.flags().negative);
         assert!(!cpu.flags().zero);
+        // Long multiply with S set updates N/Z only.
+        assert!(cpu.flags().carry);
+        assert!(cpu.flags().overflow);
     }
 
     #[test]
