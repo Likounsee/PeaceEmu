@@ -219,6 +219,23 @@ mod tests {
 
 
     #[test]
+    fn mode0_renders_8bpp_tile_pixels_and_zero_transparency() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
+        bus.write16(BG0CNT, 1 << 7); // 8bpp tiles
+        bus.write16(VRAM_BASE, 1); // map uses tile 1
+        bus.write8(VRAM_BASE + 64, 3);
+        bus.write8(VRAM_BASE + 65, 4);
+        bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop for transparent index zero
+        bus.write16(PALETTE_BASE + 6, 0x001F); // palette 3: red
+        bus.write16(PALETTE_BASE + 8, 0x03E0); // palette 4: green
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(2, 0), Some(0xFF00_00FF));
+    }
+
+    #[test]
     fn mode0_zero_pixel_stays_transparent_in_nonzero_palette_bank() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
