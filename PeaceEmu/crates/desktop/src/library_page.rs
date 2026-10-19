@@ -57,6 +57,38 @@ fn matches_library_query(title: &str, path: &Path, query: &str) -> bool {
         .all(|term| title.contains(term) || path.contains(term))
 }
 
+/// Display cover art in either a 16:9 banner or a square logo tile.
+fn cover_target_aspect(texture: Option<&egui::TextureHandle>) -> f32 {
+    texture
+        .map(|texture| {
+            let size = texture.size_vec2();
+            if size.y > 0.0 && size.x / size.y >= 1.25 {
+                16.0 / 9.0
+            } else {
+                1.0
+            }
+        })
+        .unwrap_or(16.0 / 9.0)
+}
+
+/// Center-crop the source UVs to fill the target shape without stretching the image.
+fn cover_uv(texture: &egui::TextureHandle, target_aspect: f32) -> egui::Rect {
+    let size = texture.size_vec2();
+    if size.x <= 0.0 || size.y <= 0.0 || target_aspect <= 0.0 {
+        return egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+    }
+    let source_aspect = size.x / size.y;
+    if source_aspect > target_aspect {
+        let visible_width = target_aspect / source_aspect;
+        let margin = (1.0 - visible_width) * 0.5;
+        egui::Rect::from_min_max(egui::pos2(margin, 0.0), egui::pos2(1.0 - margin, 1.0))
+    } else {
+        let visible_height = source_aspect / target_aspect;
+        let margin = (1.0 - visible_height) * 0.5;
+        egui::Rect::from_min_max(egui::pos2(0.0, margin), egui::pos2(1.0, 1.0 - margin))
+    }
+}
+
 fn shorten(text: &str, max_chars: usize) -> String {
     if text.chars().count() <= max_chars {
         return text.to_owned();
@@ -492,8 +524,13 @@ impl DesktopApp {
                 let availability = path_availability(path);
                 let file_available = availability == ContentAvailability::Available;
                 let cover_texture = self.cover_texture(ui.ctx(), path);
-                let (rect, response) =
-                    ui.allocate_exact_size(egui::vec2(card_width, 170.0), egui::Sense::click());
+                let cover_aspect = cover_target_aspect(cover_texture.as_ref());
+                let cover_height = card_width / cover_aspect;
+                let card_height = cover_height + 72.0;
+                let (rect, response) = ui.allocate_exact_size(
+                    egui::vec2(card_width, card_height),
+                    egui::Sense::click(),
+                );
                 let painter = ui.painter();
                 painter.rect_filled(
                     rect,
@@ -504,15 +541,15 @@ impl DesktopApp {
                         palette.sidebar
                     },
                 );
-                let cover = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 98.0));
+                let cover = egui::Rect::from_min_size(
+                    rect.min,
+                    egui::vec2(rect.width(), cover_height),
+                );
                 if let Some(texture) = &cover_texture {
                     painter.image(
                         texture.id(),
                         cover,
-                        egui::Rect::from_min_max(
-                            egui::pos2(0.0, 0.0),
-                            egui::pos2(1.0, 1.0),
-                        ),
+                        cover_uv(texture, cover_aspect),
                         egui::Color32::WHITE,
                     );
                 } else {
@@ -536,7 +573,7 @@ impl DesktopApp {
                 }
                 let max_chars = ((card_width - 24.0) / 7.2) as usize;
                 painter.text(
-                    rect.min + egui::vec2(12.0, 110.0),
+                    rect.min + egui::vec2(12.0, cover_height + 10.0),
                     egui::Align2::LEFT_TOP,
                     shorten(title, max_chars),
                     egui::FontId::proportional(14.0),
@@ -548,7 +585,7 @@ impl DesktopApp {
                     .unwrap_or("?")
                     .to_ascii_uppercase();
                 painter.text(
-                    rect.min + egui::vec2(12.0, 132.0),
+                    rect.min + egui::vec2(12.0, cover_height + 32.0),
                     egui::Align2::LEFT_TOP,
                     format!("{extension} · {}", display_path_size(*size, french)),
                     egui::FontId::proportional(12.0),
@@ -556,7 +593,7 @@ impl DesktopApp {
                 );
                 if !file_available {
                     painter.text(
-                        rect.min + egui::vec2(12.0, 150.0),
+                        rect.min + egui::vec2(12.0, cover_height + 50.0),
                         egui::Align2::LEFT_TOP,
                         card_availability_label(availability, french),
                         egui::FontId::proportional(11.0),
@@ -650,18 +687,17 @@ impl DesktopApp {
         }
         theme::card(ui, palette, |ui| {
             let width = ui.available_width();
+            let cover_aspect = cover_target_aspect(detail_cover_texture.as_ref());
+            let cover_height = (width / cover_aspect).min(260.0);
             let (cover, _) = ui.allocate_exact_size(
-                egui::vec2(width, 110.0),
+                egui::vec2(width, cover_height),
                 egui::Sense::hover(),
             );
             if let Some(texture) = &detail_cover_texture {
                 ui.painter().image(
                     texture.id(),
                     cover,
-                    egui::Rect::from_min_max(
-                        egui::pos2(0.0, 0.0),
-                        egui::pos2(1.0, 1.0),
-                    ),
+                    cover_uv(texture, cover_aspect),
                     egui::Color32::WHITE,
                 );
             } else {
