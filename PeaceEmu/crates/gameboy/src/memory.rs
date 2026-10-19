@@ -165,12 +165,22 @@ impl MemoryBus {
     /// Reads a little-endian halfword, aligned down to a two-byte boundary.
     pub fn read16(&self, address: u32) -> u16 {
         let address = address & !1;
+        // Game Pak SRAM is an 8-bit device. Halfword reads repeat the byte
+        // driven on the data bus rather than reading two adjacent save bytes.
+        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
+            let byte = u16::from(self.read8(address));
+            return byte | (byte << 8);
+        }
         u16::from_le_bytes([self.read8(address), self.read8(address.wrapping_add(1))])
     }
 
     /// Reads a little-endian word, aligned down to a four-byte boundary.
     pub fn read32(&self, address: u32) -> u32 {
         let address = address & !3;
+        // The 8-bit SRAM data bus repeats the selected save byte for wider reads.
+        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
+            return u32::from(self.read8(address)) * 0x0101_0101;
+        }
         u32::from_le_bytes([
             self.read8(address),
             self.read8(address.wrapping_add(1)),
@@ -263,6 +273,13 @@ impl MemoryBus {
     pub fn write16(&mut self, address: u32, value: u16) {
         let address = address & !1;
 
+        // SRAM has an 8-bit data bus: a wider store writes only its low byte
+        // to the addressed save-memory location.
+        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
+            self.write8(address, value as u8);
+            return;
+        }
+
         // KEYCNT is a single 16-bit register. Apply a halfword write atomically
         // so intermediate byte values cannot spuriously latch a keypad IRQ.
         if address == 0x0400_0132 {
@@ -303,6 +320,12 @@ impl MemoryBus {
     /// Writes a little-endian word, aligned down to a four-byte boundary.
     pub fn write32(&mut self, address: u32, value: u32) {
         let address = address & !3;
+        // SRAM is byte-wide; do not turn a single CPU word store into four
+        // consecutive writes to different save-memory cells.
+        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
+            self.write8(address, value as u8);
+            return;
+        }
         let bytes = value.to_le_bytes();
         self.write16(address, u16::from_le_bytes([bytes[0], bytes[1]]));
         self.write16(address.wrapping_add(2), u16::from_le_bytes([bytes[2], bytes[3]]));
@@ -485,6 +508,24 @@ mod tests {
         assert_eq!(bus.read16(0x0700_0000), 0xFFFF);
         bus.write32(0x0700_0000, 0x1234_5678);
         assert_eq!(bus.read32(0x0700_0000), 0x1234_5678);
+    }
+
+    #[test]
+    fn sram_wide_accesses_follow_the_eight_bit_data_bus() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write8(0x0E00_0000, 0x12);
+        bus.write8(0x0E00_0001, 0x34);
+
+        assert_eq!(bus.read16(0x0E00_0000), 0x1212);
+        assert_eq!(bus.read32(0x0E00_0000), 0x1212_1212);
+
+        bus.write16(0x0E00_0000, 0xABCD);
+        assert_eq!(bus.read8(0x0E00_0000), 0xCD);
+        assert_eq!(bus.read8(0x0E00_0001), 0x34);
+
+        bus.write32(0x0E00_0000, 0x7654_3210);
+        assert_eq!(bus.read8(0x0E00_0000), 0x10);
+        assert_eq!(bus.read8(0x0E00_0001), 0x34);
     }
 
     #[test]
