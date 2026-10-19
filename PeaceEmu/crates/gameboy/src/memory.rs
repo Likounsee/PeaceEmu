@@ -259,7 +259,7 @@ impl MemoryBus {
                     if overflow {
                         self.timer_counter[timer] = self.timer_reload[timer];
                         if control & 0x0040 != 0 {
-                            self.interrupt_flags |= 1 << (3 + timer);
+                            self.request_interrupt(1 << (3 + timer));
                         }
                         previous_overflow = true;
                     } else {
@@ -270,17 +270,32 @@ impl MemoryBus {
         }
     }
 
+    /// Requests one or more GBA interrupt sources by setting their IF bits.
+    ///
+    /// Only the 14 defined interrupt sources are retained. Peripheral models
+    /// such as video, DMA, and serial can use this without bypassing IF semantics.
+    pub fn request_interrupt(&mut self, sources: u16) {
+        self.interrupt_flags |= sources & 0x3FFF;
+    }
+
+    /// Returns enabled interrupt sources, independent of IME.
+    ///
+    /// This is the IE/IF intersection used by CPU exception entry once IRQ
+    /// modes and interrupt masking are implemented.
+    pub fn pending_interrupts(&self) -> u16 {
+        self.interrupt_enable & self.interrupt_flags & 0x3FFF
+    }
+
     /// Returns true when IME is enabled and an enabled interrupt is pending.
     pub fn interrupt_pending(&self) -> bool {
-        self.interrupt_master_enable & 1 != 0
-            && self.interrupt_enable & self.interrupt_flags & 0x3FFF != 0
+        self.interrupt_master_enable & 1 != 0 && self.pending_interrupts() != 0
     }
 
     /// Latches the keypad IRQ (interrupt bit 12) when its condition changes
     /// from inactive to active. IF remains latched until software writes one to clear it.
     fn latch_keypad_irq_on_rising_edge(&mut self, was_requested: bool) {
         if !was_requested && self.keypad_irq_requested() {
-            self.interrupt_flags |= 1 << 12;
+            self.request_interrupt(1 << 12);
         }
     }
 
@@ -566,6 +581,23 @@ mod tests {
             assert_eq!(bus.read8(address), 0xEA, "ROM base at {address:#010X}");
             assert_eq!(bus.read8(address + 1), 0x12, "ROM byte at {:#010X}", address + 1);
         }
+    }
+
+    #[test]
+    fn interrupt_requests_are_masked_and_pending_sources_ignore_ime() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        bus.write16(0x0400_0200, 0xFFFF); // IE: reserved bits are ignored.
+        bus.request_interrupt(0xFFFF); // IF accepts only defined sources.
+        assert_eq!(bus.read16(0x0400_0202), 0x3FFF);
+        assert_eq!(bus.pending_interrupts(), 0x3FFF);
+        assert!(!bus.interrupt_pending()); // IME remains disabled.
+
+        bus.write16(0x0400_0208, 1);
+        assert!(bus.interrupt_pending());
+        bus.write16(0x0400_0202, 0x3FFF); // IF is write-one-to-clear.
+        assert_eq!(bus.pending_interrupts(), 0);
+        assert!(!bus.interrupt_pending());
     }
 
     #[test]
