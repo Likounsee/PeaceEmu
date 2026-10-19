@@ -697,6 +697,18 @@ impl Cpu {
         let set_flags = instruction & (1 << 20) != 0;
         let rn = ((instruction >> 16) & 0xF) as usize;
         let rd = ((instruction >> 12) & 0xF) as usize;
+
+        // Data-processing instructions with S=1 and Rd=PC perform an
+        // exception return: the CPSR is restored from the current SPSR.
+        // Since this core does not model SPSRs or exception modes yet, reject
+        // these instructions rather than silently branch with incorrect flags.
+        if set_flags && rd == 15 {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
         let left = self.read_operand_register(rn, address);
         let (right, shifter_carry) = if immediate {
             let value = instruction & 0xFF;
@@ -1763,6 +1775,24 @@ mod tests {
         register_cpu.set_register(3, 3);
         register_cpu.step(&mut register_bus).unwrap();
         assert_eq!(register_cpu.register(2), Some(0x3456_7812));
+    }
+
+    #[test]
+    fn arm_exception_return_is_rejected_until_spsr_is_modeled() {
+        // SUBS pc, lr, #4 is an exception return on ARM7TDMI. It must restore
+        // CPSR from SPSR, which this core does not model yet.
+        let mut bus = bus_with_program(&[0xE25E_F004]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(14, 0x0200_0100);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction: 0xE25E_F004,
+            })
+        );
     }
 
     #[test]
