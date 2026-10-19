@@ -1547,31 +1547,48 @@ mod tests {
     }
 
     #[test]
-    fn arm_word_load_rotates_unaligned_bus_data() {
-        let mut bus = bus_with_program(&[0xE591_2000]); // LDR r2, [r1]
-        bus.write32(0x0200_0100, 0x1234_5678);
-        let mut cpu = Cpu::new();
-        cpu.reset(0x0200_0000);
-        cpu.set_register(1, 0x0200_0101);
+    fn arm_word_load_rotates_unaligned_bus_data_for_each_byte_offset() {
+        for (offset, expected) in [
+            (1, 0x7812_3456),
+            (2, 0x5678_1234),
+            (3, 0x3456_7812),
+        ] {
+            let mut bus = bus_with_program(&[0xE591_2000]); // LDR r2, [r1]
+            bus.write32(0x0200_0100, 0x1234_5678);
+            let mut cpu = Cpu::new();
+            cpu.reset(0x0200_0000);
+            cpu.set_register(1, 0x0200_0100 + offset);
 
-        cpu.step(&mut bus).unwrap();
+            cpu.step(&mut bus).unwrap();
 
-        assert_eq!(cpu.register(2), Some(0x7812_3456));
+            assert_eq!(cpu.register(2), Some(expected), "offset {offset}");
+        }
     }
 
     #[test]
-    fn thumb_word_load_rotates_unaligned_bus_data() {
-        let mut bus = bus_with_program(&[]);
-        bus.write16(0x0200_0000, 0x680A); // LDR r2, [r1, #0]
-        bus.write32(0x0200_0100, 0x1234_5678);
-        let mut cpu = Cpu::new();
-        cpu.reset(0x0200_0000);
-        cpu.thumb = true;
-        cpu.set_register(1, 0x0200_0101);
+    fn thumb_word_load_rotates_unaligned_bus_data_for_each_addressing_form() {
+        // Immediate-offset LDR r2, [r1, #0].
+        let mut immediate_bus = bus_with_program(&[]);
+        immediate_bus.write16(0x0200_0000, 0x680A);
+        immediate_bus.write32(0x0200_0100, 0x1234_5678);
+        let mut immediate_cpu = Cpu::new();
+        immediate_cpu.reset(0x0200_0000);
+        immediate_cpu.thumb = true;
+        immediate_cpu.set_register(1, 0x0200_0102);
+        immediate_cpu.step(&mut immediate_bus).unwrap();
+        assert_eq!(immediate_cpu.register(2), Some(0x5678_1234));
 
-        cpu.step(&mut bus).unwrap();
-
-        assert_eq!(cpu.register(2), Some(0x7812_3456));
+        // Register-offset LDR r2, [r1, r3].
+        let mut register_bus = bus_with_program(&[]);
+        register_bus.write16(0x0200_0000, 0x589A);
+        register_bus.write32(0x0200_0100, 0x1234_5678);
+        let mut register_cpu = Cpu::new();
+        register_cpu.reset(0x0200_0000);
+        register_cpu.thumb = true;
+        register_cpu.set_register(1, 0x0200_0100);
+        register_cpu.set_register(3, 3);
+        register_cpu.step(&mut register_bus).unwrap();
+        assert_eq!(register_cpu.register(2), Some(0x3456_7812));
     }
 
     #[test]
