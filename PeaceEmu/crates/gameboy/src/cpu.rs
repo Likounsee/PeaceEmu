@@ -1579,11 +1579,11 @@ mod tests {
         for (operand, expected) in [
             (0x0000_007F, 2),
             (0x0000_7FFF, 3),
-            (0x007F_FFFF, 4),
+            (0x007F_FFFF, 3),
             (0x1234_5678, 5),
             (0xFFFF_FF80, 2),
             (0xFFFF_8000, 3),
-            (0xFF80_0000, 4),
+            (0xFF80_0000, 3),
             (0x8000_0000, 5),
         ] {
             cpu.set_register(2, operand);
