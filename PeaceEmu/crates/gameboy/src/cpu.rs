@@ -1133,6 +1133,17 @@ impl Cpu {
             });
         }
 
+        // A PC-relative halfword literal load is only valid without write-back.
+        // Post-indexing or explicitly writing back through r15 would turn the
+        // instruction fetch address into a data base and unpredictably redirect
+        // execution on ARM7TDMI.
+        if rn == 15 && (!pre_index || write_back) {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
         // Operation 00 is multiply/other encoding space, not a halfword
         // transfer. STR supports only the unsigned halfword operation.
         if operation == 0 || (!load && operation != 1) {
@@ -2486,6 +2497,26 @@ mod tests {
             })
         );
         assert_eq!(cpu.register(1), Some(0x0200_0100));
+    }
+
+    #[test]
+    fn arm_halfword_pc_base_writeback_is_rejected() {
+        // LDRH r0, [pc], #2 and LDRH r0, [pc, #2]! are unpredictable.
+        for instruction in [0xE0DF_00B2_u32, 0xE1FF_00B2] {
+            let mut bus = bus_with_program(&[instruction]);
+            let mut cpu = Cpu::new();
+            cpu.reset(0x0200_0000);
+
+            assert_eq!(
+                cpu.step(&mut bus),
+                Err(CpuError::UnsupportedInstruction {
+                    address: 0x0200_0000,
+                    instruction,
+                }),
+                "instruction 0x{instruction:08X}"
+            );
+            assert_eq!(cpu.register(15), Some(0x0200_0004));
+        }
     }
 
     #[test]
