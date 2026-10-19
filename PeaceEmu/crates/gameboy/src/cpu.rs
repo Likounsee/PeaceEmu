@@ -1620,7 +1620,8 @@ mod tests {
         let mut cpu = Cpu::new();
         // RS=0 uses one internal multiply cycle.
         assert_eq!(cpu.estimate_cycles(0xE081_0392), 2); // MUL r1,r2,r3
-        assert_eq!(cpu.estimate_cycles(0xE091_0392), 3); // MULS r1,r2,r3 encoding class
+        assert_eq!(cpu.estimate_cycles(0xE091_0392), 2); // MULS: S does not affect timing
+        assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 3); // MLA r1,r2,r3,r0
         assert_eq!(cpu.estimate_cycles(0xE0C1_0392), 3); // UMULL r0,r1,r2,r3
         assert_eq!(cpu.estimate_cycles(0xE0E1_0392), 4); // UMLAL r0,r1,r2,r3
     }
