@@ -245,14 +245,18 @@ impl Cpu {
         // Match multiply encodings before the broad halfword-transfer
         // pattern below: that pattern also matches the low opcode bits of
         // MUL/MLA and long multiply, making operand-dependent timing unreachable.
-        if instruction & 0x0FC0_00F0 == 0x0000_0090
-            || instruction & 0x0F80_00F0 == 0x0080_0090
-        {
+        let long_multiply = instruction & 0x0F80_00F0 == 0x0080_0090;
+        if instruction & 0x0FC0_00F0 == 0x0000_0090 || long_multiply {
             let rs = ((instruction >> 8) & 0xF) as usize;
             let multiplier = self.registers[rs];
             let multiplier_cycles = Self::multiply_internal_cycles(multiplier);
             let accumulate = instruction & (1 << 21) != 0;
-            return 1 + multiplier_cycles + u32::from(accumulate);
+            // Long multiply writes a 64-bit result and needs one additional
+            // internal cycle beyond MUL/MLA for the high result word.
+            return 1
+                + multiplier_cycles
+                + u32::from(accumulate)
+                + u32::from(long_multiply);
         }
         if instruction & 0x0C00_0000 == 0x0400_0000 {
             let load = instruction & (1 << 20) != 0;
@@ -1609,6 +1613,16 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE081_0392), 5);
         // UMLAL adds the accumulate cycle.
         assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 6);
+    }
+
+    #[test]
+    fn arm_long_multiply_cycle_estimates_include_extra_result_cycle() {
+        let mut cpu = Cpu::new();
+        // RS=0 uses one internal multiply cycle.
+        assert_eq!(cpu.estimate_cycles(0xE081_0392), 2); // MUL r1,r2,r3
+        assert_eq!(cpu.estimate_cycles(0xE091_0392), 3); // MULS r1,r2,r3 encoding class
+        assert_eq!(cpu.estimate_cycles(0xE0C1_0392), 3); // UMULL r0,r1,r2,r3
+        assert_eq!(cpu.estimate_cycles(0xE0E1_0392), 4); // UMLAL r0,r1,r2,r3
     }
 
     #[test]
