@@ -105,9 +105,66 @@ impl DesktopApp {
             });
     }
 
+    /// Measure the active sidebar's content so labels and counters never rely on
+    /// a fixed width. Keep the animation proportional to this measured width.
+    fn context_sidebar_width(&self, context: &egui::Context) -> f32 {
+        let french = self.language == "fr";
+        let labels: Vec<(&str, f32)> = match self.active_page {
+            DesktopPage::Library => vec![
+                (self.language_pack.text("ui.shell.003"), 18.0),
+                (self.language_pack.text("ui.shell.004"), 13.0),
+                (self.language_pack.text("ui.shell.005"), 14.0),
+                ("Game Boy (GB / GBC / GBA)", 14.0),
+            ],
+            DesktopPage::Settings => vec![
+                (self.language_pack.text("ui.shell.006"), 18.0),
+                (self.language_pack.text("ui.shell.007"), 13.0),
+                (self.language_pack.text("ui.shell.008"), 14.0),
+                ("Application", 14.0),
+            ],
+            _ => Vec::new(),
+        };
+        let text_width = context.fonts(|fonts| {
+            labels
+                .iter()
+                .map(|(label, size)| {
+                    fonts
+                        .layout_no_wrap(
+                            (*label).to_owned(),
+                            egui::FontId::proportional(*size),
+                            egui::Color32::WHITE,
+                        )
+                        .size()
+                        .x
+                })
+                .fold(0.0_f32, f32::max)
+        });
+        // Navigation rows reserve space for the icon and the optional count pill.
+        let nav_label_width = context.fonts(|fonts| {
+            labels
+                .iter()
+                .filter(|(_, size)| *size == 14.0)
+                .map(|(label, _)| {
+                    fonts
+                        .layout_no_wrap(
+                            (*label).to_owned(),
+                            egui::FontId::proportional(14.0),
+                            egui::Color32::WHITE,
+                        )
+                        .size()
+                        .x
+                })
+                .fold(0.0_f32, f32::max)
+        });
+        let navigation_width = nav_label_width + 42.0 + 44.0;
+        let _ = french;
+        (text_width.max(navigation_width) + 2.0 * SIDEBAR_PADDING + 4.0).max(SIDEBAR_WIDTH)
+    }
+
     fn show_context_sidebar(&mut self, context: &egui::Context, palette: &Palette) {
         let visible = self.sidebar_open && self.active_page.has_sidebar();
-        // The sidebar only ever changes width: it slides open and closed sideways.
+        let desired_width = self.context_sidebar_width(context);
+        // The sidebar width follows its measured content while retaining the open/close animation.
         let openness =
             context.animate_bool_with_time(egui::Id::new("context_sidebar_open"), visible, 0.15);
         if openness <= 0.0 {
@@ -115,7 +172,7 @@ impl DesktopApp {
         }
         egui::SidePanel::left("context_sidebar")
             .resizable(false)
-            .exact_width(SIDEBAR_WIDTH * openness)
+            .exact_width(desired_width * openness)
             .frame(egui::Frame::none().fill(palette.sidebar))
             .show(context, |ui| {
                 let clip = ui.clip_rect().intersect(ui.max_rect());
@@ -123,7 +180,7 @@ impl DesktopApp {
                 egui::Frame::none()
                     .inner_margin(egui::Margin::symmetric(SIDEBAR_PADDING, 20.0))
                     .show(ui, |ui| {
-                        ui.set_width(SIDEBAR_WIDTH - 2.0 * SIDEBAR_PADDING);
+                        ui.set_width((desired_width - 2.0 * SIDEBAR_PADDING).max(0.0));
                         match self.active_page {
                             DesktopPage::Library => self.show_library_sidebar(ui, palette),
                             DesktopPage::Settings => self.show_settings_sidebar(ui, palette),
