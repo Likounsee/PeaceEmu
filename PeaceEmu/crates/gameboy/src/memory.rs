@@ -38,6 +38,8 @@ pub struct MemoryBus {
     interrupt_enable: u16,
     interrupt_flags: u16,
     interrupt_master_enable: u16,
+    /// Game Pak wait-state configuration (WAITCNT, with reserved bits masked).
+    wait_control: u16,
     /// Timer reload values (TM0CNT_L through TM3CNT_L).
     timer_reload: [u16; 4],
     /// Current timer counters, advanced by `advance_cycles`.
@@ -86,6 +88,7 @@ impl MemoryBus {
             interrupt_enable: 0,
             interrupt_flags: 0,
             interrupt_master_enable: 0,
+            wait_control: 0,
             timer_reload: [0; 4],
             timer_counter: [0; 4],
             timer_control: [0; 4],
@@ -138,6 +141,7 @@ impl MemoryBus {
         for (base, value) in [
             (0x0400_0200, self.interrupt_enable),
             (0x0400_0202, self.interrupt_flags),
+            (0x0400_0204, self.wait_control),
             (0x0400_0208, self.interrupt_master_enable),
         ] {
             if (base..=base + 1).contains(&address) {
@@ -369,6 +373,15 @@ impl MemoryBus {
             self.interrupt_flags &= !(((value as u16) << shift) & 0x3FFF);
             return;
         }
+        // WAITCNT exposes SRAM/Game Pak wait-state, PHI, and prefetch controls;
+        // reserved bits 13 and 15 read as zero.
+        if (0x0400_0204..=0x0400_0205).contains(&address) {
+            let shift = (address - 0x0400_0204) * 8;
+            let byte_mask = 0xFF_u16 << shift;
+            self.wait_control = ((self.wait_control & !byte_mask)
+                | ((value as u16) << shift & byte_mask)) & 0x5FFF;
+            return;
+        }
         // IME exposes only bit 0.
         if (0x0400_0208..=0x0400_0209).contains(&address) {
             if address == 0x0400_0208 {
@@ -459,6 +472,10 @@ impl MemoryBus {
                 self.io[io_offset] = bytes[0];
                 self.io[io_offset + 1] = bytes[1];
             }
+            return;
+        }
+        if (0x0400_0204..=0x0400_0205).contains(&address) {
+            self.wait_control = value & 0x5FFF;
             return;
         }
         // SRAM is byte-wide. The bus selects the addressed byte lane, so an
@@ -598,6 +615,23 @@ mod tests {
         bus.write16(0x0400_0202, 0x3FFF); // IF is write-one-to-clear.
         assert_eq!(bus.pending_interrupts(), 0);
         assert!(!bus.interrupt_pending());
+    }
+
+    #[test]
+    fn waitcnt_masks_reserved_bits_and_supports_byte_writes() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        // WAITCNT has writable timing/PHI/prefetch fields, but bits 13 and 15
+        // are reserved and must not be retained by the register model.
+        bus.write16(0x0400_0204, 0xFFFF);
+        assert_eq!(bus.read16(0x0400_0204), 0x5FFF);
+
+        bus.write16(0x0400_0204, 0);
+        bus.write8(0x0400_0204, 0xA5);
+        bus.write8(0x0400_0205, 0x7F);
+        assert_eq!(bus.read16(0x0400_0204), 0x5FA5);
+        assert_eq!(bus.read8(0x0400_0204), 0xA5);
+        assert_eq!(bus.read8(0x0400_0205), 0x5F);
     }
 
     #[test]
