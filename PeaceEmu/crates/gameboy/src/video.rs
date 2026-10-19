@@ -1,8 +1,8 @@
 //! GBA renderer for text background mode 0 and bitmap modes 3, 4, and 5.
 //!
-//! This module renders the current video-memory snapshot. It does not yet
-//! advance scanlines, composite multiple backgrounds/objects, model affine
-//! backgrounds, or generate VBlank/HBlank IRQs.
+//! This module renders the current video-memory snapshot, including tiled text
+//! backgrounds and bitmap modes. It does not yet advance scanlines, render OBJ
+//! sprites or affine backgrounds, or generate VBlank/HBlank IRQs.
 
 use crate::MemoryBus;
 
@@ -65,7 +65,7 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     }
 
     match mode {
-        0 => render_text_bg0(bus, display_control, &mut frame),
+        0 => render_text_backgrounds(bus, display_control, &mut frame),
         3 => {
             for y in 0..SCREEN_HEIGHT {
                 for x in 0..SCREEN_WIDTH {
@@ -113,7 +113,7 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
 
 /// Composites regular text backgrounds from back to front (priority 3 to 0).
 /// Sprites and affine backgrounds are not implemented yet.
-fn render_text_bg0(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame) {
+fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame) {
     frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
     for priority in (0..=3).rev() {
         // On equal priorities BG0 wins over BG1, then BG2, then BG3.
