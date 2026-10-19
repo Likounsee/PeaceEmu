@@ -132,47 +132,87 @@ fn detail_row(ui: &mut egui::Ui, palette: &theme::Palette, label: &str, value: &
 }
 
 impl DesktopApp {
-    fn cover_texture(&mut self, context: &egui::Context, game_path: &Path) -> Option<egui::TextureHandle> {
-        if let Some(texture) = self.cover_textures.get(game_path) { return Some(texture.clone()); }
+    fn cover_texture(
+        &mut self,
+        context: &egui::Context,
+        game_path: &Path,
+    ) -> Option<egui::TextureHandle> {
+        if let Some(texture) = self.cover_textures.get(game_path) {
+            return Some(texture.clone());
+        }
         let image_path = self.cover_paths.get(game_path)?.clone();
         let bytes = std::fs::read(image_path).ok()?;
         let rgba = image::load_from_memory(&bytes).ok()?.into_rgba8();
         let size = [rgba.width() as usize, rgba.height() as usize];
         let color_image = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-        let texture = context.load_texture(format!("game-cover:{}", game_path.display()), color_image, egui::TextureOptions::LINEAR);
-        self.cover_textures.insert(game_path.to_path_buf(), texture.clone());
+        let texture = context.load_texture(
+            format!("game-cover:{}", game_path.display()),
+            color_image,
+            egui::TextureOptions::LINEAR,
+        );
+        self.cover_textures
+            .insert(game_path.to_path_buf(), texture.clone());
         Some(texture)
     }
 
     fn set_game_cover(&mut self, game_path: &Path, image_path: PathBuf, source: &str) {
         let Some(config_path) = self.config_path.clone() else {
-            self.message = if self.language == "fr" { "Impossible d’enregistrer la jaquette : dossier de configuration indisponible.".to_owned() } else { "Could not save cover: configuration directory is unavailable.".to_owned() };
+            self.message = if self.language == "fr" {
+                "Impossible d’enregistrer la jaquette : dossier de configuration indisponible."
+                    .to_owned()
+            } else {
+                "Could not save cover: configuration directory is unavailable.".to_owned()
+            };
             return;
         };
         let old = self.cover_paths.insert(game_path.to_path_buf(), image_path);
         match game_covers::persist(&config_path, &self.cover_paths) {
             Ok(()) => {
                 self.cover_textures.remove(game_path);
-                self.message = if self.language == "fr" { format!("Jaquette enregistrée ({source}).") } else { format!("Cover saved ({source}).") };
+                self.message = if self.language == "fr" {
+                    format!("Jaquette enregistrée ({source}).")
+                } else {
+                    format!("Cover saved ({source}).")
+                };
             }
             Err(error) => {
-                if let Some(previous) = old { self.cover_paths.insert(game_path.to_path_buf(), previous); } else { self.cover_paths.remove(game_path); }
-                self.message = if self.language == "fr" { format!("Impossible d’enregistrer la jaquette : {error}") } else { format!("Could not save cover: {error}") };
+                if let Some(previous) = old {
+                    self.cover_paths.insert(game_path.to_path_buf(), previous);
+                } else {
+                    self.cover_paths.remove(game_path);
+                }
+                self.message = if self.language == "fr" {
+                    format!("Impossible d’enregistrer la jaquette : {error}")
+                } else {
+                    format!("Could not save cover: {error}")
+                };
             }
         }
     }
 
     fn remove_game_cover(&mut self, game_path: &Path) {
-        let Some(config_path) = self.config_path.clone() else { return; };
+        let Some(config_path) = self.config_path.clone() else {
+            return;
+        };
         let old = self.cover_paths.remove(game_path);
         match game_covers::persist(&config_path, &self.cover_paths) {
             Ok(()) => {
                 self.cover_textures.remove(game_path);
-                self.message = if self.language == "fr" { "Jaquette supprimée.".to_owned() } else { "Cover removed.".to_owned() };
+                self.message = if self.language == "fr" {
+                    "Jaquette supprimée.".to_owned()
+                } else {
+                    "Cover removed.".to_owned()
+                };
             }
             Err(error) => {
-                if let Some(previous) = old { self.cover_paths.insert(game_path.to_path_buf(), previous); }
-                self.message = if self.language == "fr" { format!("Impossible de supprimer la jaquette : {error}") } else { format!("Could not remove cover: {error}") };
+                if let Some(previous) = old {
+                    self.cover_paths.insert(game_path.to_path_buf(), previous);
+                }
+                self.message = if self.language == "fr" {
+                    format!("Impossible de supprimer la jaquette : {error}")
+                } else {
+                    format!("Could not remove cover: {error}")
+                };
             }
         }
     }
