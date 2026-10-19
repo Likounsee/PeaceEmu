@@ -432,7 +432,7 @@ impl Cpu {
                 let value = self.registers[rs];
                 let carry_in = self.flags.carry;
                 let (result, carry) =
-                    Self::shift_immediate(value, u32::from(operation), immediate, carry_in);
+                    Self::shift_thumb_immediate(value, u32::from(operation), immediate, carry_in);
                 self.registers[rd] = result;
                 self.set_logic_flags(result, carry);
             } else {
@@ -979,6 +979,32 @@ impl Cpu {
         }
     }
 
+    /// Applies a Thumb immediate shift. Unlike ARM's operand shifter, an
+    /// encoded LSR/ASR amount of zero means a shift by 32.
+    fn shift_thumb_immediate(
+        value: u32,
+        kind: u32,
+        amount: u32,
+        _old_carry: bool,
+    ) -> (u32, Option<bool>) {
+        match (kind, amount) {
+            (0, 0) => (value, None),
+            (0, n) => (value << n, Some((value >> (32 - n)) & 1 != 0)),
+            (1, 0) => (0, Some(value >> 31 != 0)),
+            (1, n) => (value >> n, Some((value >> (n - 1)) & 1 != 0)),
+            (2, 0) => {
+                let sign = value >> 31 != 0;
+                (if sign { u32::MAX } else { 0 }, Some(sign))
+            }
+            (2, n) => (
+                ((value as i32) >> n) as u32,
+                Some((value >> (n - 1)) & 1 != 0),
+            ),
+            (3, _) => unreachable!("Thumb immediate shifts do not encode ROR"),
+            _ => unreachable!("invalid Thumb immediate shift"),
+        }
+    }
+
     /// Applies an ARM register-controlled shift (ARM7TDMI register operand form).
     fn shift_register(value: u32, kind: u32, amount: u32, old_carry: bool) -> (u32, Option<bool>) {
         if amount == 0 {
@@ -1375,6 +1401,28 @@ mod tests {
         cpu.step(&mut bus).unwrap();
         assert!(!cpu.is_thumb());
         assert_eq!(cpu.register(15), Some(0x0200_0010));
+    }
+
+    #[test]
+    fn thumb_immediate_lsr_and_asr_zero_encode_shift_by_32() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x0848); // LSRS r0, r1, #1? replaced below
+        bus.write16(0x0200_0000, 0x0808); // LSRS r0, r1, #0 (shift by 32)
+        bus.write16(0x0200_0002, 0x100A); // ASRS r2, r1, #0 (shift by 32)
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(1, 0x8000_0001);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0));
+        assert!(cpu.flags().negative == false);
+        assert!(cpu.flags().carry);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(u32::MAX));
+        assert!(cpu.flags().negative);
+        assert!(cpu.flags().carry);
     }
 
     #[test]
