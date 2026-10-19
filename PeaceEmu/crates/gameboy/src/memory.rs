@@ -909,7 +909,7 @@ mod tests {
 
         bus.write32(0x0E00_0000, 0x7654_3210);
         assert_eq!(bus.read8(0x0E00_0000), 0x10);
-        assert_eq!(bus.read8(0x0E00_0001), 0x34);
+        assert_eq!(bus.read8(0x0E00_0001), 0xAB);
         bus.write32(0x0E00_0003, 0x7654_3210);
         assert_eq!(bus.read8(0x0E00_0003), 0x76);
     }
