@@ -18,3 +18,8 @@ pub mod memory;
 pub use cartridge::{CartridgeError, GbaCartridge};
 pub use cpu::{ConditionFlags, Cpu, CpuError, StepOutcome};
 pub use memory::{MemoryBus, SramSizeError};
+
+/// Initial bitmap-mode renderer for the Game Boy Advance display.
+pub mod video;
+
+pub use video::{render_bitmap_frame, VideoFrame, SCREEN_HEIGHT, SCREEN_WIDTH};
