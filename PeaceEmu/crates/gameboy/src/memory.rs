@@ -114,9 +114,9 @@ impl MemoryBus {
             0x0C00_0000..=0x0DFF_FFFF => self
                 .cartridge
                 .read_rom_byte((address as usize - 0x0C00_0000) % self.cartridge.len()),
-            // GBA save SRAM occupies the 64 KiB window at 0x0E00_0000.
-            // The following 0x0F region is not another SRAM mirror.
-            0x0E00_0000..=0x0E00_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
+            // The 64 KiB save SRAM is mirrored throughout the 32 MiB
+            // Game Pak SRAM window (0x0E00_0000..=0x0FFF_FFFF).
+            0x0E00_0000..=0x0FFF_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
             _ => 0,
         }
     }
@@ -166,7 +166,7 @@ impl MemoryBus {
     pub fn read16(&self, address: u32) -> u16 {
         // SRAM is byte-wide and uses the original byte address even for an
         // unsupported wider access; unlike ordinary halfword RAM, do not align it.
-        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
+        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
             let byte = u16::from(self.read8(address));
             return byte | (byte << 8);
         }
@@ -178,7 +178,7 @@ impl MemoryBus {
     pub fn read32(&self, address: u32) -> u32 {
         // The 8-bit SRAM data bus repeats the byte selected by the original
         // address for wider reads, including addresses that are not word-aligned.
-        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
+        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
             return u32::from(self.read8(address)) * 0x0101_0101;
         }
         let address = address & !3;
@@ -263,7 +263,7 @@ impl MemoryBus {
             }
             // OAM does not support byte writes on GBA hardware.
             0x0700_0000..=0x07FF_FFFF => {}
-            0x0E00_0000..=0x0E00_FFFF => {
+            0x0E00_0000..=0x0FFF_FFFF => {
                 self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE] = value
             }
             _ => {}
@@ -274,7 +274,7 @@ impl MemoryBus {
     pub fn write16(&mut self, address: u32, value: u16) {
         // SRAM is byte-wide. The bus selects the addressed byte lane, so an
         // odd-address halfword store presents the source's high byte.
-        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
+        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
             let byte = value.rotate_right((address & 1) * 8) as u8;
             self.write8(address, byte);
             return;
@@ -322,7 +322,7 @@ impl MemoryBus {
     pub fn write32(&mut self, address: u32, value: u32) {
         // SRAM is byte-wide. Rotate by the original address so the selected
         // byte lane reaches SRAM, and perform only one physical byte write.
-        if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
+        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
             let byte = value.rotate_right((address & 3) * 8) as u8;
             self.write8(address, byte);
             return;
@@ -540,14 +540,14 @@ mod tests {
         bus.write8(0x0601_8000, 0x5A);
         assert_eq!(bus.read8(0x0601_0000), 0x5A);
 
-        // SRAM is decoded in the 64 KiB 0x0E window, not in region 0x0F.
+        // The 64 KiB save chip mirrors throughout the 32 MiB SRAM window.
         bus.write8(0x0E00_1234, 0xA5);
         assert_eq!(bus.read8(0x0E00_1234), 0xA5);
-        assert_eq!(bus.read8(0x0E00_0000), 0xFF);
-        assert_eq!(bus.read8(0x0F00_1234), 0);
+        assert_eq!(bus.read8(0x0E01_1234), 0xA5);
+        assert_eq!(bus.read8(0x0F00_1234), 0xA5);
 
         bus.write8(0x0F00_1234, 0x3C);
-        assert_eq!(bus.read8(0x0E00_1234), 0xA5);
-        assert_eq!(bus.read8(0x0F00_1234), 0);
+        assert_eq!(bus.read8(0x0E00_1234), 0x3C);
+        assert_eq!(bus.read8(0x0F00_1234), 0x3C);
     }
 }
