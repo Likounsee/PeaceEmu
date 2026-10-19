@@ -1239,6 +1239,7 @@ mod tests {
     fn timed_dma_stays_enabled_until_its_trigger_exists() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0200_0000, 0xCAFE);
+        bus.write16(0x0200_0002, 0xFACE);
         bus.write32(0x0400_00B0, 0x0200_0000);
         bus.write32(0x0400_00B4, 0x0300_0000);
         bus.write16(0x0400_00B8, 1);
@@ -1266,7 +1267,7 @@ mod tests {
         // A repeated VBlank transfer reuses the count and continues the source
         // address on the following frame.
         bus.advance_cycles(1232 * 228);
-        assert_eq!(bus.read16(0x0300_0002), 0xCAFE);
+        assert_eq!(bus.read16(0x0300_0002), 0xFACE);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
     }
 
