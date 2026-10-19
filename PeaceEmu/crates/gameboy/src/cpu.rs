@@ -49,7 +49,10 @@ pub enum CpuError {
 impl core::fmt::Display for CpuError {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnsupportedInstruction { address, instruction } => write!(
+            Self::UnsupportedInstruction {
+                address,
+                instruction,
+            } => write!(
                 formatter,
                 "unsupported ARM instruction 0x{instruction:08X} at 0x{address:08X}"
             ),
@@ -122,7 +125,10 @@ impl Cpu {
 
         let condition = instruction >> 28;
         if !self.condition_passed(condition) {
-            return Ok(StepOutcome::ConditionFailed { address, instruction });
+            return Ok(StepOutcome::ConditionFailed {
+                address,
+                instruction,
+            });
         }
 
         if instruction & 0x0E00_0000 == 0x0A00_0000 {
@@ -132,10 +138,16 @@ impl Cpu {
         } else if instruction & 0x0C00_0000 == 0 {
             self.execute_data_processing(address, instruction)?;
         } else {
-            return Err(CpuError::UnsupportedInstruction { address, instruction });
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
         }
 
-        Ok(StepOutcome::Executed { address, instruction })
+        Ok(StepOutcome::Executed {
+            address,
+            instruction,
+        })
     }
 
     fn condition_passed(&self, condition: u32) -> bool {
@@ -176,11 +188,7 @@ impl Cpu {
         self.registers[15] = address.wrapping_add(8).wrapping_add(displacement) & !3;
     }
 
-    fn execute_data_processing(
-        &mut self,
-        address: u32,
-        instruction: u32,
-    ) -> Result<(), CpuError> {
+    fn execute_data_processing(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
         // Multiply and miscellaneous encodings also occupy this major opcode.
         if instruction & 0x0FC0_00F0 == 0x0000_0090 {
             return Err(CpuError::UnsupportedInstruction {
@@ -199,7 +207,14 @@ impl Cpu {
             let value = instruction & 0xFF;
             let rotate = ((instruction >> 8) & 0xF) * 2;
             let result = value.rotate_right(rotate);
-            (result, if rotate == 0 { None } else { Some(result >> 31 != 0) })
+            (
+                result,
+                if rotate == 0 {
+                    None
+                } else {
+                    Some(result >> 31 != 0)
+                },
+            )
         } else if instruction & (1 << 4) != 0 {
             return Err(CpuError::UnsupportedInstruction {
                 address,
@@ -210,7 +225,8 @@ impl Cpu {
             let value = self.read_operand_register(rm, address);
             let shift_type = (instruction >> 5) & 3;
             let shift_amount = (instruction >> 7) & 0x1F;
-            let (result, carry) = Self::shift_immediate(value, shift_type, shift_amount, self.flags.carry);
+            let (result, carry) =
+                Self::shift_immediate(value, shift_type, shift_amount, self.flags.carry);
             (result, carry)
         };
 
@@ -291,7 +307,10 @@ impl Cpu {
         let rd = ((instruction >> 12) & 0xF) as usize;
 
         if register_offset && instruction & (1 << 4) != 0 {
-            return Err(CpuError::UnsupportedInstruction { address, instruction });
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
         }
         let base = self.read_operand_register(rn, address);
         let offset = if register_offset {
@@ -336,7 +355,10 @@ impl Cpu {
             (1, 0) => (0, Some(value >> 31 != 0)),
             (1, n) => (value >> n, Some(value & (1 << (n - 1)) != 0)),
             (2, 0) => ((value as i32 >> 31) as u32, Some(value >> 31 != 0)),
-            (2, n) => (((value as i32) >> n) as u32, Some(value & (1 << (n - 1)) != 0)),
+            (2, n) => (
+                ((value as i32) >> n) as u32,
+                Some(value & (1 << (n - 1)) != 0),
+            ),
             (3, 0) => {
                 let result = (u32::from(old_carry) << 31) | (value >> 1);
                 (result, Some(value & 1 != 0))
