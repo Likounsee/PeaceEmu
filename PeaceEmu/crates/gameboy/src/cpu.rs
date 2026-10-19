@@ -126,6 +126,73 @@ impl Cpu {
         self.flags
     }
 
+    /// Executes one instruction and advances bus timers by an approximate cycle count.
+    ///
+    /// This is a transitional timing API: it accounts for common instruction
+    /// classes, but does not yet model Game Pak wait states, sequential accesses,
+    /// pipeline refill timing, or DMA stalls. Use `step` when callers need the
+    /// original instruction-only behavior.
+    pub fn step_with_cycles(
+        &mut self,
+        bus: &mut MemoryBus,
+    ) -> Result<(StepOutcome, u32), CpuError> {
+        let address = self.registers[15];
+        let instruction = if self.thumb {
+            u32::from(bus.read16(address & !1))
+        } else {
+            bus.read32(address & !3)
+        };
+        let cycles = self.estimate_cycles(instruction);
+        let outcome = self.step(bus)?;
+        bus.advance_cycles(cycles);
+        Ok((outcome, cycles))
+    }
+
+    fn estimate_cycles(&self, instruction: u32) -> u32 {
+        if self.thumb {
+            let raw = instruction as u16;
+            // Conditional/unconditional branches and BL may refill the pipeline.
+            if raw & 0xF000 == 0xD000 && (raw >> 8) & 0xF < 0xE {
+                return 3;
+            }
+            if raw & 0xF800 == 0xE000 || raw & 0xF800 == 0xF000 || raw & 0xF800 == 0xF800 {
+                return 3;
+            }
+            // Thumb loads/stores, including register-offset and stack transfers.
+            if raw & 0xF000 == 0x5000
+                || raw & 0xE000 == 0x6000
+                || raw & 0xF000 == 0x8000
+                || raw & 0xF000 == 0x9000
+                || raw & 0xF600 == 0xB400
+                || raw & 0xF000 == 0xC000
+                || raw & 0xF800 == 0x4800
+            {
+                return 2;
+            }
+            return 1;
+        }
+
+        // ARM branch and branch-with-link require a pipeline refill.
+        if instruction & 0x0E00_0000 == 0x0A00_0000 {
+            return 3;
+        }
+        // Single and halfword transfers use at least one data access cycle.
+        if instruction & 0x0C00_0000 == 0x0400_0000
+            || instruction & 0x0E00_0090 == 0x0000_0090
+            || instruction & 0x0E00_0000 == 0x0800_0000
+        {
+            return 2;
+        }
+        // Multiply latency depends on operand magnitude; use a conservative
+        // fixed estimate until the ARM7TDMI pipeline is modeled.
+        if instruction & 0x0FC0_00F0 == 0x0000_0090
+            || instruction & 0x0F80_00F0 == 0x0080_0090
+        {
+            return 2;
+        }
+        1
+    }
+
     /// Executes one ARM-state instruction from the current program counter.
     ///
     /// The CPU advances the PC by four bytes before executing the operation.
