@@ -717,7 +717,18 @@ impl Cpu {
                 }
                 transfer_address = transfer_address.wrapping_add(4);
             }
-            if empty_list || !load || register_list & (1 << rb) == 0 {
+            // For LDMIA with write-back and the base in the list, the
+            // ARM7TDMI keeps the loaded base only when it is the lowest
+            // register transferred. Otherwise write-back takes precedence.
+            // STMIA always writes back, and an empty list has its special
+            // sixteen-word span regardless of the synthetic PC transfer.
+            let loaded_base_wins = load
+                && !empty_list
+                && register_list & (1 << rb) != 0
+                && register_list.trailing_zeros() == rb as u32;
+            if empty_list || !load || !loaded_base_wins && register_list & (1 << rb) == 0 {
+                self.registers[rb] = base.wrapping_add(count * 4);
+            } else if load && !empty_list && register_list & (1 << rb) != 0 && !loaded_base_wins {
                 self.registers[rb] = base.wrapping_add(count * 4);
             }
         } else if raw & 0xE000 == 0x2000 {
@@ -3349,4 +3360,34 @@ mod tests {
             Err(CpuError::UnsupportedInstruction { .. })
         ));
     }
+    #[test]
+    fn thumb_ldmia_base_in_list_obeys_register_order_for_writeback() {
+        let mut bus = bus_with_program(&[0]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+
+        // LDMIA r0!, {r0, r1}: because r0 is the lowest listed register,
+        // the value loaded from memory wins over the updated base.
+        cpu.set_register(0, 0x0200_0100);
+        bus.write32(0x0200_0100, 0x1234_5678);
+        bus.write32(0x0200_0104, 0x8765_4321);
+        bus.write16(0x0200_0000, 0xC803);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0x1234_5678));
+        assert_eq!(cpu.register(1), Some(0x8765_4321));
+
+        // LDMIA r1!, {r0, r1}: when the base is not the lowest listed
+        // register, write-back wins over the loaded value for r1.
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(1, 0x0200_0120);
+        bus.write32(0x0200_0120, 0xAABB_CCDD);
+        bus.write32(0x0200_0124, 0x1122_3344);
+        bus.write16(0x0200_0000, 0xC903);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0xAABB_CCDD));
+        assert_eq!(cpu.register(1), Some(0x0200_0128));
+    }
+
 }
