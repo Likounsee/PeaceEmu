@@ -1381,7 +1381,7 @@ mod tests {
         for (index, instruction) in [
             0x4088_u16, // LSL r0, r1
             0x40DA,     // LSR r2, r3
-            0x416C,     // ASR r4, r5
+            0x412C,     // ASR r4, r5
             0x41FE,     // ROR r6, r7
             0x4248,     // NEG r0, r1
         ].into_iter().enumerate() {
