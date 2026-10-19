@@ -194,6 +194,15 @@ impl Cpu {
             if raw & 0xF800 == 0xE000 || raw & 0xF800 == 0xF000 || raw & 0xF800 == 0xF800 {
                 return 3;
             }
+            // High-register ADD/MOV to PC and BX redirect execution and
+            // refill the Thumb pipeline; do not estimate them as one-cycle ALU ops.
+            if raw & 0xFC00 == 0x4400 {
+                let operation = (raw >> 8) & 3;
+                let destination = (raw & 7) | ((raw >> 4) & 8);
+                if operation == 3 || (operation != 1 && destination == 15) {
+                    return 3;
+                }
+            }
             // PUSH/POP and Thumb multiple transfers take one transfer
             // cycle per register, plus the instruction-fetch cycle. POP {pc}
             // also refills the pipeline.
@@ -1663,6 +1672,18 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE142_4095), 4);
         // A real LDRH encoding retains the existing halfword estimate.
         assert_eq!(cpu.estimate_cycles(0xE1D2_10B0), 2);
+    }
+
+    #[test]
+    fn thumb_high_register_control_flow_estimates_pipeline_refill() {
+        let mut cpu = Cpu::new();
+        cpu.thumb = true;
+
+        assert_eq!(cpu.estimate_cycles(0x4700), 3); // BX r0
+        assert_eq!(cpu.estimate_cycles(0x4487), 3); // ADD pc, r0
+        assert_eq!(cpu.estimate_cycles(0x4687), 3); // MOV pc, r0
+        assert_eq!(cpu.estimate_cycles(0x4607), 1); // MOV r7, r0
+        assert_eq!(cpu.estimate_cycles(0x4507), 1); // CMP r0, r0
     }
 
     #[test]
