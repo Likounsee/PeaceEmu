@@ -164,23 +164,24 @@ impl MemoryBus {
 
     /// Reads a little-endian halfword, aligned down to a two-byte boundary.
     pub fn read16(&self, address: u32) -> u16 {
-        let address = address & !1;
-        // Game Pak SRAM is an 8-bit device. Halfword reads repeat the byte
-        // driven on the data bus rather than reading two adjacent save bytes.
+        // SRAM is byte-wide and uses the original byte address even for an
+        // unsupported wider access; unlike ordinary halfword RAM, do not align it.
         if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
             let byte = u16::from(self.read8(address));
             return byte | (byte << 8);
         }
+        let address = address & !1;
         u16::from_le_bytes([self.read8(address), self.read8(address.wrapping_add(1))])
     }
 
     /// Reads a little-endian word, aligned down to a four-byte boundary.
     pub fn read32(&self, address: u32) -> u32 {
-        let address = address & !3;
-        // The 8-bit SRAM data bus repeats the selected save byte for wider reads.
+        // The 8-bit SRAM data bus repeats the byte selected by the original
+        // address for wider reads, including addresses that are not word-aligned.
         if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
             return u32::from(self.read8(address)) * 0x0101_0101;
         }
+        let address = address & !3;
         u32::from_le_bytes([
             self.read8(address),
             self.read8(address.wrapping_add(1)),
@@ -271,14 +272,14 @@ impl MemoryBus {
 
     /// Writes a little-endian halfword, aligned down to a two-byte boundary.
     pub fn write16(&mut self, address: u32, value: u16) {
-        let address = address & !1;
-
-        // SRAM has an 8-bit data bus: a wider store writes only its low byte
-        // to the addressed save-memory location.
+        // SRAM is byte-wide. The bus selects the addressed byte lane, so an
+        // odd-address halfword store presents the source's high byte.
         if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
-            self.write8(address, value as u8);
+            let byte = value.rotate_right((address & 1) * 8) as u8;
+            self.write8(address, byte);
             return;
         }
+        let address = address & !1;
 
         // KEYCNT is a single 16-bit register. Apply a halfword write atomically
         // so intermediate byte values cannot spuriously latch a keypad IRQ.
@@ -319,13 +320,14 @@ impl MemoryBus {
 
     /// Writes a little-endian word, aligned down to a four-byte boundary.
     pub fn write32(&mut self, address: u32, value: u32) {
-        let address = address & !3;
-        // SRAM is byte-wide; do not turn a single CPU word store into four
-        // consecutive writes to different save-memory cells.
+        // SRAM is byte-wide. Rotate by the original address so the selected
+        // byte lane reaches SRAM, and perform only one physical byte write.
         if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
-            self.write8(address, value as u8);
+            let byte = value.rotate_right((address & 3) * 8) as u8;
+            self.write8(address, byte);
             return;
         }
+        let address = address & !3;
         let bytes = value.to_le_bytes();
         self.write16(address, u16::from_le_bytes([bytes[0], bytes[1]]));
         self.write16(address.wrapping_add(2), u16::from_le_bytes([bytes[2], bytes[3]]));
@@ -522,10 +524,14 @@ mod tests {
         bus.write16(0x0E00_0000, 0xABCD);
         assert_eq!(bus.read8(0x0E00_0000), 0xCD);
         assert_eq!(bus.read8(0x0E00_0001), 0x34);
+        bus.write16(0x0E00_0001, 0xABCD);
+        assert_eq!(bus.read8(0x0E00_0001), 0xAB);
 
         bus.write32(0x0E00_0000, 0x7654_3210);
         assert_eq!(bus.read8(0x0E00_0000), 0x10);
         assert_eq!(bus.read8(0x0E00_0001), 0x34);
+        bus.write32(0x0E00_0003, 0x7654_3210);
+        assert_eq!(bus.read8(0x0E00_0003), 0x54);
     }
 
     #[test]
