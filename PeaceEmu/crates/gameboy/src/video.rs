@@ -443,8 +443,9 @@ mod tests {
     fn mode2_renders_affine_bg3_from_its_own_registers_and_map() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 2 | (1 << 11)); // mode 2, BG3 enabled
-        // BG3 map is at screen block 8; character data uses block 1.
-        bus.write16(0x0400_000E, (1 << 2) | (8 << 8));
+        // Keep the affine map in screen block 9, separate from character block 1.
+        bus.write16(0x0400_000E, (1 << 2) | (9 << 8));
+        bus.write16(VRAM_BASE + 0x4800, 1);
         bus.write16(VRAM_BASE + 0x4000, 1);
         bus.write16(VRAM_BASE + 0x4000 + 64, 1);
         bus.write16(PALETTE_BASE + 2, 0x03E0); // palette 1: green
