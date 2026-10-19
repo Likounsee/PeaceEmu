@@ -436,7 +436,14 @@ mod tests {
             .iter()
             .fold(0x19_u8, |sum, byte| sum.wrapping_add(*byte))
             .wrapping_neg();
-        MemoryBus::new(GbaCartridge::parse(&rom).expect("valid test ROM"))
+        let mut bus = MemoryBus::new(GbaCartridge::parse(&rom).expect("valid test ROM"));
+        // Real software initializes unused OAM entries as disabled. Keeping
+        // the test bus deterministic prevents default all-zero entries from
+        // aliasing tile 0 and overwriting the sprite under test.
+        for index in 0..128_u32 {
+            bus.write16(0x0700_0000 + index * 8, 1 << 9);
+        }
+        bus
     }
 
     #[test]
@@ -659,7 +666,7 @@ mod tests {
         bus.write16(PALETTE_BASE + 2, 0x03E0); // BG palette index 1: green
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
         bus.write16(VRAM_BASE, 1);
-        bus.write8(VRAM_BASE + 32, 1); // BG tile 1: green
+        bus.write8(VRAM_BASE + 32, 0x11); // BG tile 1: green in both first pixels
 
         bus.write16(0x0601_0000, 0x0001);
         // OAM entry 0: regular 8x8 sprite at (0,0), tile 0, priority 0.
@@ -756,8 +763,9 @@ mod tests {
         bus.write16(VRAM_BASE + 0xA000, 0x001F); // first visible pixel: red
 
         let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
-        assert_eq!(frame.pixel(39, 16), Some(0xFFFF_0000));
-        assert_eq!(frame.pixel(40, 16), Some(0xFF00_0000));
+        assert_eq!(frame.pixel(39, 16), Some(0xFF00_0000));
+        assert_eq!(frame.pixel(40, 16), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(41, 16), Some(0xFF00_0000));
         assert_eq!(frame.pixel(200, 16), Some(0xFF00_0000));
     }
 
