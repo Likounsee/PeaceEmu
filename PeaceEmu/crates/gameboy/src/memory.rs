@@ -292,6 +292,43 @@ impl MemoryBus {
         }
     }
 
+    /// Writes a DMA control register and performs immediate-timing transfers.
+    ///
+    /// HBlank, VBlank, and FIFO-triggered DMA remain enabled until their event
+    /// scheduler is implemented.
+    fn write_dma_control(&mut self, channel: usize, value: u16) {
+        if channel >= 4 { return; }
+        let base = 0xB0 + channel as u32 * 12;
+        let control_offset = (base + 10) as usize;
+        let old = u16::from_le_bytes([self.io[control_offset], self.io[control_offset + 1]]);
+        let control = value & 0xF7E0;
+        self.io[control_offset..control_offset + 2].copy_from_slice(&control.to_le_bytes());
+        if control & 0x8000 == 0 || old & 0x8000 != 0 || (control >> 12) & 3 != 0 { return; }
+
+        let source_offset = base as usize;
+        let destination_offset = (base + 4) as usize;
+        let count_offset = (base + 8) as usize;
+        let source = u32::from_le_bytes(self.io[source_offset..source_offset + 4].try_into().unwrap());
+        let destination = u32::from_le_bytes(self.io[destination_offset..destination_offset + 4].try_into().unwrap());
+        let raw_count = u16::from_le_bytes([self.io[count_offset], self.io[count_offset + 1]]);
+        let count = if raw_count == 0 { if channel == 3 { 0x1_0000 } else { 0x4000 } } else { u32::from(raw_count) };
+        let word = control & (1 << 10) != 0;
+        let step = if word { 4_u32 } else { 2_u32 };
+        let source_mode = (control >> 7) & 3;
+        let destination_mode = (control >> 5) & 3;
+        let mut src = source & !(step - 1);
+        let mut dst = destination & !(step - 1);
+        for _ in 0..count {
+            if word { let data = self.read32(src); self.write32(dst, data); }
+            else { let data = self.read16(src); self.write16(dst, data); }
+            src = match source_mode { 1 => src.wrapping_sub(step), 2 => src, _ => src.wrapping_add(step) };
+            dst = match destination_mode { 1 => dst.wrapping_sub(step), 2 | 3 => dst, _ => dst.wrapping_add(step) };
+        }
+        if control & (1 << 14) != 0 { self.request_interrupt(1 << (8 + channel)); }
+        // Immediate DMA is one-shot, even when the repeat bit is set.
+        self.io[control_offset..control_offset + 2].copy_from_slice(&(control & !(1 << 15)).to_le_bytes());
+    }
+
     /// Advances the PPU timing state by one CPU cycle.
     ///
     /// A scanline lasts 1232 cycles: HBlank begins at cycle 960, and VBlank
@@ -395,6 +432,17 @@ impl MemoryBus {
 
     /// Writes one byte to writable memory. Cartridge ROM and BIOS writes are ignored.
     pub fn write8(&mut self, address: u32, value: u8) {
+        // DMA control's high byte contains the enable bit; support STRB writes.
+        if (0x0400_00B0..=0x0400_00DF).contains(&address) {
+            let offset = address - 0x0400_0000;
+            if offset % 12 == 11 {
+                let control_address = address & !1;
+                let current = self.read16(control_address);
+                let next = (current & 0x00FF) | (u16::from(value) << 8);
+                self.write_dma_control(((offset - 0x00B0) / 12) as usize, next);
+                return;
+            }
+        }
         // Timer registers are 16-bit. Byte writes update the corresponding
         // half of the reload/control register without bypassing timer state.
         if (0x0400_0100..=0x0400_010F).contains(&address) {
@@ -536,6 +584,10 @@ impl MemoryBus {
 
     /// Writes a little-endian halfword, aligned down to a two-byte boundary.
     pub fn write16(&mut self, address: u32, value: u16) {
+        if (0x0400_00BA..=0x0400_00DF).contains(&address) && (address - 0x0400_00B0) % 12 == 10 {
+            self.write_dma_control(((address - 0x0400_00B0) / 12) as usize, value);
+            return;
+        }
         if (0x0400_0004..=0x0400_0005).contains(&address) {
             let old_match = self.dispstat & (1 << 2) != 0;
             self.dispstat = (self.dispstat & 0x0007) | (value & 0xFF38);
@@ -1012,6 +1064,47 @@ mod tests {
         assert_eq!(bus.read16(0x0400_0006), 2);
         assert_eq!(bus.read16(0x0400_0004) & (1 << 2), 1 << 2);
         assert_eq!(bus.read16(0x0400_0202) & (1 << 2), 1 << 2);
+    }
+
+
+    #[test]
+    fn immediate_dma_copies_halfwords_and_raises_optional_irq() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0x1234);
+        bus.write16(0x0200_0002, 0xABCD);
+        bus.write32(0x0400_00B0, 0x0200_0000);
+        bus.write32(0x0400_00B4, 0x0300_0000);
+        bus.write16(0x0400_00B8, 2);
+        bus.write16(0x0400_00BA, 0xC000);
+        assert_eq!(bus.read16(0x0300_0000), 0x1234);
+        assert_eq!(bus.read16(0x0300_0002), 0xABCD);
+        assert_eq!(bus.read16(0x0400_0202) & (1 << 8), 1 << 8);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0);
+    }
+
+    #[test]
+    fn immediate_dma_supports_word_transfers_and_fixed_destination() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write32(0x0200_0000, 0x1234_5678);
+        bus.write32(0x0200_0004, 0xAABB_CCDD);
+        bus.write32(0x0400_00BC, 0x0200_0000);
+        bus.write32(0x0400_00C0, 0x0300_0000);
+        bus.write16(0x0400_00C4, 2);
+        bus.write16(0x0400_00C6, 0x8460);
+        assert_eq!(bus.read32(0x0300_0000), 0xAABB_CCDD);
+        assert_eq!(bus.read16(0x0400_00C6) & 0x8000, 0);
+    }
+
+    #[test]
+    fn timed_dma_stays_enabled_until_its_trigger_exists() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0xCAFE);
+        bus.write32(0x0400_00B0, 0x0200_0000);
+        bus.write32(0x0400_00B4, 0x0300_0000);
+        bus.write16(0x0400_00B8, 1);
+        bus.write16(0x0400_00BA, 0x9000);
+        assert_eq!(bus.read16(0x0300_0000), 0);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
     }
 
     #[test]
