@@ -1170,9 +1170,6 @@ mod tests {
         assert_eq!(bus.read16(0x0400_00C6) & 0x8000, 0);
     }
 
-
-
-
     #[test]
     fn dma_enable_bit_written_as_byte_starts_immediate_transfer() {
         let mut bus = MemoryBus::new(cartridge());
