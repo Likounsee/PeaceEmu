@@ -362,7 +362,7 @@ mod tests {
         // IF is write-one-to-clear, including byte writes; zero doesn't clear.
         bus.write8(0x0400_0202, 0);
         assert_eq!(bus.read16(0x0400_0202), 1 << 12);
-        bus.write8(0x0400_0203, 1);
+        bus.write8(0x0400_0203, 0x10);
         assert_eq!(bus.read16(0x0400_0202), 0);
         assert!(!bus.interrupt_pending());
 
