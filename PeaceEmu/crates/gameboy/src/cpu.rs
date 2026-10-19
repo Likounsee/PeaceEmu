@@ -258,7 +258,12 @@ impl Cpu {
                 3 => {
                     self.registers[rd] = bus.read8(effective) as i8 as i32 as u32;
                 }
-                4 => self.registers[rd] = bus.read32(effective),
+                4 => {
+                    // Thumb LDR uses the same ARM7TDMI unaligned-word
+                    // rotation behavior as ARM-state LDR.
+                    self.registers[rd] =
+                        bus.read32(effective).rotate_right((effective & 3) * 8);
+                },
                 5 => self.registers[rd] = u32::from(bus.read16(effective)),
                 6 => self.registers[rd] = u32::from(bus.read8(effective)),
                 7 => {
@@ -282,7 +287,9 @@ impl Cpu {
                 self.registers[rd] = if byte_transfer {
                     u32::from(bus.read8(effective))
                 } else {
-                    bus.read32(effective)
+                    // The bus returns an aligned word; rotate it to model the
+                    // ARM7TDMI result for an unaligned Thumb LDR address.
+                    bus.read32(effective).rotate_right((effective & 3) * 8)
                 };
             } else if byte_transfer {
                 bus.write8(effective, self.registers[rd] as u8);
@@ -941,7 +948,9 @@ impl Cpu {
             let value = if byte_transfer {
                 u32::from(bus.read8(effective))
             } else {
-                bus.read32(effective)
+                // ARM7TDMI word loads align the bus access and rotate the
+                // fetched word right when the effective address is unaligned.
+                bus.read32(effective).rotate_right((effective & 3) * 8)
             };
             self.registers[rd] = if rd == 15 { value & !3 } else { value };
         } else if byte_transfer {
@@ -1535,6 +1544,34 @@ mod tests {
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(6), Some(0x8000_0001));
         assert!(cpu.flags().carry); // ROR by a nonzero multiple of 32 preserves bit 31.
+    }
+
+    #[test]
+    fn arm_word_load_rotates_unaligned_bus_data() {
+        let mut bus = bus_with_program(&[0xE591_2000]); // LDR r2, [r1]
+        bus.write32(0x0200_0100, 0x1234_5678);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 0x0200_0101);
+
+        cpu.step(&mut bus).unwrap();
+
+        assert_eq!(cpu.register(2), Some(0x7812_3456));
+    }
+
+    #[test]
+    fn thumb_word_load_rotates_unaligned_bus_data() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x680A); // LDR r2, [r1, #0]
+        bus.write32(0x0200_0100, 0x1234_5678);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(1, 0x0200_0101);
+
+        cpu.step(&mut bus).unwrap();
+
+        assert_eq!(cpu.register(2), Some(0x7812_3456));
     }
 
     #[test]
