@@ -310,6 +310,18 @@ impl Cpu {
         {
             return 3;
         }
+        // Register-controlled operand shifts need an extra internal cycle
+        // on ARM7TDMI. Handle only ordinary data-processing encodings here;
+        // multiply, SWP, status-register operations and PC writes were matched
+        // above and retain their dedicated estimates.
+        if instruction & 0x0C00_0090 == 0x0000_0010
+            && (instruction >> 12) & 0xF != 15
+            && instruction & 0x0FBF_0FFF != 0x010F_0000
+            && instruction & 0x0FB0_FFF0 != 0x0120_F000
+            && instruction & 0x0FB0_F000 != 0x0320_F000
+        {
+            return 2;
+        }
         if instruction & 0x0C00_0000 == 0x0400_0000 {
             let load = instruction & (1 << 20) != 0;
             let destination = (instruction >> 12) & 0xF;
@@ -1733,6 +1745,20 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE591_F000), 4);
         // STR pc, [r1] does not redirect execution.
         assert_eq!(cpu.estimate_cycles(0xE581_F000), 2);
+    }
+
+    #[test]
+    fn arm_register_controlled_shifts_include_internal_cycle() {
+        let mut cpu = Cpu::new();
+
+        // MOV r0, r1, LSL r2 uses a register-controlled shift and takes
+        // one additional internal cycle compared with an immediate shift.
+        assert_eq!(cpu.estimate_cycles(0xE1A0_0001), 1);
+        assert_eq!(cpu.estimate_cycles(0xE1A0_0211), 2);
+
+        // PC writes still use their pipeline-refill estimate, not the
+        // ordinary non-branch ALU estimate.
+        assert_eq!(cpu.estimate_cycles(0xE1A0_F211), 3);
     }
 
     #[test]
