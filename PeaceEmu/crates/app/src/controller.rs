@@ -1084,7 +1084,9 @@ mod tests {
 
         fn load_content(&mut self, content: &[u8]) -> Result<(), emulation_core::CoreError> {
             if content.is_empty() {
-                return Err(emulation_core::CoreError::InvalidContent("empty test content"));
+                return Err(emulation_core::CoreError::InvalidContent(
+                    "empty test content",
+                ));
             }
             self.loaded = true;
             Ok(())
