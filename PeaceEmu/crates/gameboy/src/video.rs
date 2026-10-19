@@ -41,10 +41,10 @@ impl VideoFrame {
 
 /// Renders the current GBA bitmap display state.
 ///
-/// Mode 0 composites BG0–BG3 as tiled text backgrounds; mode 3 uses direct 15-bit
-/// color, mode 4 uses 8-bit palette indices, and mode 5 uses direct color in
-/// a centered 160×128 viewport. Modes 1, 2, and 6+ return None unless forced
-/// blank is active. Forced blank returns an opaque white frame.
+/// Modes 0–2 composite tiled text/affine backgrounds and regular OBJ sprites.
+/// Mode 3 uses direct 15-bit color, mode 4 uses 8-bit palette indices, and
+/// mode 5 uses direct color in a centered 160×128 viewport. Modes 6+ return
+/// None unless forced blank is active. Forced blank returns an opaque white frame.
 pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     let display_control = bus.read16(0x0400_0000);
     let mode = display_control & 7;
@@ -193,11 +193,8 @@ fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut 
             let map_width = size >> 3;
             let map_address = VRAM_BASE + screen_base + tile_y * map_width + tile_x;
             let tile_index = u32::from(bus.read8(map_address));
-            let tile_address = VRAM_BASE
-                + char_base
-                + tile_index * 64
-                + (source_y & 7) * 8
-                + (source_x & 7);
+            let tile_address =
+                VRAM_BASE + char_base + tile_index * 64 + (source_y & 7) * 8 + (source_x & 7);
             let palette_index = u32::from(bus.read8(tile_address));
             if palette_index != 0 {
                 frame.pixels[y * SCREEN_WIDTH + x] =
@@ -442,7 +439,50 @@ mod tests {
         MemoryBus::new(GbaCartridge::parse(&rom).expect("valid test ROM"))
     }
 
+
     #[test]
+    fn mode2_renders_affine_bg3_from_its_own_registers_and_map() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 2 | (1 << 11)); // mode 2, BG3 enabled
+        bus.write16(0x0400_000E, 0); // BG3 map at screen block 0
+        // BG3 character data starts at 0x4000; its first map entry selects tile 1.
+        bus.write16(VRAM_BASE + 0x4000, 1);
+        bus.write16(VRAM_BASE + 0x4000 + 64, 1);
+        bus.write16(PALETTE_BASE + 2, 0x03E0); // palette 1: green
+        bus.write16(0x0400_0030, 0x0100); // BG3 PA
+        bus.write16(0x0400_0036, 0x0100); // BG3 PD
+
+        let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn affine_background_without_wrap_clips_outside_map() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 2 | (1 << 10)); // mode 2, BG2 enabled
+        bus.write16(0x0400_000C, 0); // wrap disabled
+        bus.write16(VRAM_BASE, 1);
+        bus.write16(VRAM_BASE + 64, 1);
+        bus.write16(PALETTE_BASE + 2, 0x001F);
+        bus.write16(0x0400_0020, 0x0100); // PA = 1
+        bus.write16(0x0400_0026, 0x0100); // PD = 1
+        // Reference X = -1.0; pixel zero is outside the map, pixel one is inside.
+        bus.write16(0x0400_0028, 0xFF00);
+        bus.write16(0x0400_002A, 0x0FFF);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
+    }
+
+    #[test]
+    fn affine_reference_sign_extension_handles_positive_and_negative_values() {
+        assert_eq!(sign_extend_28(0x0000_1234), 0x0000_1234);
+        assert_eq!(sign_extend_28(0x0FFF_FF00), -256);
+        assert_eq!(sign_extend_28(0x0800_0000), -134_217_728);
+    }
+
     #[test]
     fn mode1_renders_affine_bg2_with_identity_transform() {
         let mut bus = bus();
@@ -472,14 +512,15 @@ mod tests {
         bus.write16(0x0400_0028, 0xFF00);
         bus.write16(0x0400_002A, 0x0FFF);
         // The wrapped coordinate is the final pixel of the first map row.
-        bus.write8(VRAM_BASE + 15, 1);
-        bus.write8(VRAM_BASE + 64 + 7, 1);
+        bus.write16(VRAM_BASE + 14, 0x0100); // only map byte 15 selects tile 1
+        bus.write16(VRAM_BASE + 64 + 6, 0x0100); // only tile pixel 7 is red
         bus.write16(PALETTE_BASE + 2, 0x001F);
 
         let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
     }
 
+    #[test]
     fn mode0_renders_4bpp_bg0_tile_and_palette_bank() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
