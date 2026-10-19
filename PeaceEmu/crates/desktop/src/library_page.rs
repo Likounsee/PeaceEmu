@@ -190,6 +190,80 @@ impl DesktopApp {
         }
     }
 
+    fn save_game_display_name(&mut self, game_path: &Path) {
+        let name = self.display_name_edit.trim().to_owned();
+        if name.chars().count() > 120 {
+            self.message = if self.language == "fr" {
+                "Le nom affiché doit contenir au maximum 120 caractères.".to_owned()
+            } else {
+                "Display names must be 120 characters or fewer.".to_owned()
+            };
+            return;
+        }
+        let Some(config_path) = self.config_path.clone() else {
+            self.message = if self.language == "fr" {
+                "Impossible d’enregistrer le nom : dossier de configuration indisponible.".to_owned()
+            } else {
+                "Could not save name: configuration directory is unavailable.".to_owned()
+            };
+            return;
+        };
+        let previous = self.game_names.get(game_path).cloned();
+        if name.is_empty() {
+            self.game_names.remove(game_path);
+        } else {
+            self.game_names.insert(game_path.to_path_buf(), name);
+        }
+        match game_names::persist(&config_path, &self.game_names) {
+            Ok(()) => {
+                self.message = if self.language == "fr" {
+                    "Nom du jeu enregistré.".to_owned()
+                } else {
+                    "Game display name saved.".to_owned()
+                };
+            }
+            Err(error) => {
+                if let Some(previous) = previous {
+                    self.game_names.insert(game_path.to_path_buf(), previous);
+                } else {
+                    self.game_names.remove(game_path);
+                }
+                self.message = if self.language == "fr" {
+                    format!("Impossible d’enregistrer le nom : {error}")
+                } else {
+                    format!("Could not save name: {error}")
+                };
+            }
+        }
+    }
+
+    fn reset_game_display_name(&mut self, game_path: &Path, original_title: &str) {
+        let Some(config_path) = self.config_path.clone() else {
+            return;
+        };
+        let previous = self.game_names.remove(game_path);
+        match game_names::persist(&config_path, &self.game_names) {
+            Ok(()) => {
+                self.display_name_edit = original_title.to_owned();
+                self.message = if self.language == "fr" {
+                    "Nom d’origine rétabli.".to_owned()
+                } else {
+                    "Original name restored.".to_owned()
+                };
+            }
+            Err(error) => {
+                if let Some(previous) = previous {
+                    self.game_names.insert(game_path.to_path_buf(), previous);
+                }
+                self.message = if self.language == "fr" {
+                    format!("Impossible de rétablir le nom : {error}")
+                } else {
+                    format!("Could not reset name: {error}")
+                };
+            }
+        }
+    }
+
     fn remove_game_cover(&mut self, game_path: &Path) {
         let Some(config_path) = self.config_path.clone() else {
             return;
@@ -299,11 +373,13 @@ impl DesktopApp {
             .library()
             .entries()
             .map(|entry| {
-                (
-                    entry.title().to_owned(),
-                    entry.path().to_path_buf(),
-                    live_path_size(entry.path()),
-                )
+                let path = entry.path().to_path_buf();
+                let title = self
+                    .game_names
+                    .get(&path)
+                    .cloned()
+                    .unwrap_or_else(|| entry.title().to_owned());
+                (title, path.clone(), live_path_size(&path))
             })
             .filter(|(title, path, _)| {
                 matches_library_query(title, path, &query) && self.library_format.matches(path)
@@ -503,6 +579,7 @@ impl DesktopApp {
                     self.selected_content = Some(path.clone());
                     self.content_path = path.display().to_string();
                     self.cover_query = title.clone();
+                    self.display_name_edit = title.clone();
                 }
                 if response.double_clicked() && file_available {
                     self.launch_content();
@@ -520,7 +597,10 @@ impl DesktopApp {
                 .map(|entry| {
                     (
                         path.clone(),
-                        entry.title().to_owned(),
+                        self.game_names
+                            .get(&path)
+                            .cloned()
+                            .unwrap_or_else(|| entry.title().to_owned()),
                         live_path_size(&path),
                     )
                 })
@@ -555,6 +635,9 @@ impl DesktopApp {
         let file_available = availability == ContentAvailability::Available;
 
         let detail_cover_texture = self.cover_texture(ui.ctx(), &path);
+        if self.display_name_edit.is_empty() {
+            self.display_name_edit = title.clone();
+        }
         if self.cover_query.is_empty() {
             self.cover_query = title.clone();
         }
@@ -589,6 +672,26 @@ impl DesktopApp {
                 );
             }
             ui.label(egui::RichText::new(&title).size(18.0).strong());
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new(if french {
+                "Nom affiché"
+            } else {
+                "Display name"
+            }).strong());
+            ui.add(
+                egui::TextEdit::singleline(&mut self.display_name_edit)
+                    .hint_text(if french { "Nom personnalisé du jeu" } else { "Custom game name" }),
+            );
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(if french { "Enregistrer le nom" } else { "Save name" }).clicked() {
+                    self.save_game_display_name(&path);
+                }
+                if self.game_names.contains_key(&path)
+                    && ui.button(if french { "Rétablir" } else { "Reset" }).clicked()
+                {
+                    self.reset_game_display_name(&path, &title);
+                }
+            });
             let extension = path
                 .extension()
                 .and_then(|value| value.to_str())
