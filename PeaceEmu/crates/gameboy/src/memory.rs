@@ -1,8 +1,8 @@
 //! Initial memory map for the Game Boy Advance.
 //!
-//! This models address decoding and backing storage, not timing, DMA, open-bus
-//! behavior, BIOS protection, or peripheral side effects. Those are added in
-//! separate hardware-focused steps.
+//! This models address decoding, backing storage, timer progression, and the initial
+//! scanline/DISPSTAT timing signals. DMA, open-bus behavior, BIOS protection, and
+//! further peripheral side effects remain in development.
 
 use crate::GbaCartridge;
 
@@ -238,12 +238,13 @@ impl MemoryBus {
         }
     }
 
-    /// Advances the four GBA timers by a number of CPU clock cycles.
+    /// Advances timers and video timing by a number of CPU clock cycles.
     ///
     /// Timer overflow reloads the configured value and raises the matching IF
     /// bit when enabled. Timers 1–3 can count overflows from the previous timer
-    /// in cascade mode. The caller must supply elapsed CPU cycles; this core
-    /// does not yet derive instruction-specific bus wait states.
+    /// in cascade mode. Video timing advances 1232 cycles per scanline and updates
+    /// DISPSTAT/VCOUNT and enabled HBlank, VBlank, and VCOUNT-match IRQs. The caller
+    /// supplies elapsed CPU cycles; instruction-specific bus wait states are not yet modeled.
     pub fn advance_cycles(&mut self, cycles: u32) {
         for _ in 0..cycles {
             self.advance_video_cycle();
