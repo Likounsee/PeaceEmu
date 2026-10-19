@@ -689,6 +689,49 @@ mod tests {
     }
 
     #[test]
+    fn timer_cascade_propagates_overflow_through_multiple_timers() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        // Each timer is one tick from overflow. Timer 0's overflow must tick
+        // timer 1, whose own overflow must then tick timer 2 in the same cycle.
+        bus.write16(0x0400_0100, 0xFFFF);
+        bus.write16(0x0400_0102, 0x0080);
+        bus.write16(0x0400_0104, 0xFFFF);
+        bus.write16(0x0400_0106, 0x0084);
+        bus.write16(0x0400_0108, 0x1234);
+        bus.write16(0x0400_010A, 0x0084);
+
+        bus.advance_cycles(1);
+
+        assert_eq!(bus.read16(0x0400_0100), 0xFFFF);
+        assert_eq!(bus.read16(0x0400_0104), 0xFFFF);
+        assert_eq!(bus.read16(0x0400_0108), 0x1235);
+    }
+
+    #[test]
+    fn timer_byte_writes_update_reload_without_changing_live_counter() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        bus.write8(0x0400_0100, 0xFE);
+        bus.write8(0x0400_0101, 0xFF);
+        bus.write8(0x0400_0102, 0x80); // Enable timer 0, divisor 1.
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0400_0100), 0xFFFF);
+
+        // Updating the reload register while enabled must not overwrite the
+        // live counter; the new reload value takes effect at the next overflow.
+        bus.write8(0x0400_0100, 0x10);
+        assert_eq!(bus.read16(0x0400_0100), 0xFFFF);
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0400_0100), 0xFF10);
+
+        // Disabling and re-enabling loads the latest reload value immediately.
+        bus.write8(0x0400_0102, 0);
+        bus.write8(0x0400_0102, 0x80);
+        assert_eq!(bus.read16(0x0400_0100), 0xFF10);
+    }
+
+    #[test]
     fn timers_apply_prescalers_and_mask_reserved_control_bits() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0400_0100, 0);
