@@ -345,14 +345,16 @@ impl MemoryBus {
                 .unwrap(),
         );
         let raw_count = u16::from_le_bytes([self.io[count_offset], self.io[count_offset + 1]]);
-        let count = if raw_count == 0 {
+        let count_mask = if channel == 3 { 0xFFFF } else { 0x3FFF };
+        let programmed_count = raw_count & count_mask;
+        let count = if programmed_count == 0 {
             if channel == 3 {
                 0x1_0000
             } else {
                 0x4000
             }
         } else {
-            u32::from(raw_count)
+            u32::from(programmed_count)
         };
         let word = control & (1 << 10) != 0;
         let step = if word { 4_u32 } else { 2_u32 };
@@ -1168,6 +1170,22 @@ mod tests {
         assert_eq!(bus.read16(0x0400_00C6) & 0x8000, 0);
     }
 
+
+
+    #[test]
+    fn dma_count_is_limited_by_channel_register_width() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0xCAFE);
+        bus.write16(0x0200_0002, 0xBABE);
+        bus.write32(0x0400_00B0, 0x0200_0000);
+        bus.write32(0x0400_00B4, 0x0300_0000);
+        bus.write16(0x0400_00B8, 0x4001); // DMA0 count is only 14 bits
+        bus.write16(0x0400_00BA, 0x8000);
+
+        assert_eq!(bus.read16(0x0300_0000), 0xCAFE);
+        assert_eq!(bus.read16(0x0300_0002), 0xBABE);
+        assert_eq!(bus.read16(0x0300_7FFE), 0); // remaining transfer reads unmapped/zero
+    }
 
     #[test]
     fn destination_reload_mode_increments_during_transfer_then_reloads() {
