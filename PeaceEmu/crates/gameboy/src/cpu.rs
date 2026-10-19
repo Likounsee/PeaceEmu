@@ -248,9 +248,13 @@ impl Cpu {
             let accumulate = instruction & (1 << 21) != 0;
             return 1 + multiplier_cycles + u32::from(accumulate);
         }
-        if instruction & 0x0C00_0000 == 0x0400_0000
-            || instruction & 0x0E00_0090 == 0x0000_0090
-        {
+        if instruction & 0x0C00_0000 == 0x0400_0000 {
+            let load = instruction & (1 << 20) != 0;
+            let destination = (instruction >> 12) & 0xF;
+            // Loading PC changes control flow and incurs a pipeline refill.
+            return if load && destination == 15 { 4 } else { 2 };
+        }
+        if instruction & 0x0E00_0090 == 0x0000_0090 {
             return 2;
         }
         1
@@ -1599,6 +1603,17 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE081_0392), 5);
         // UMLAL adds the accumulate cycle.
         assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 6);
+    }
+
+    #[test]
+    fn arm_single_load_to_pc_includes_pipeline_refill_estimate() {
+        let cpu = Cpu::new();
+        // LDR r0, [r1] remains a normal single data transfer.
+        assert_eq!(cpu.estimate_cycles(0xE591_0000), 2);
+        // LDR pc, [r1] also refills the pipeline after loading the target.
+        assert_eq!(cpu.estimate_cycles(0xE591_F000), 4);
+        // STR pc, [r1] does not redirect execution.
+        assert_eq!(cpu.estimate_cycles(0xE581_F000), 2);
     }
 
     #[test]
