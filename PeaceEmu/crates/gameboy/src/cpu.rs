@@ -911,9 +911,11 @@ impl Cpu {
         let operation = (instruction >> 5) & 3;
 
         // ARM7TDMI halfword/signed-byte loads do not permit PC as Rd.
-        // Reject this unpredictable destination rather than silently
-        // aligning/truncating the loaded value as if it were an ordinary LDR.
-        if (load && rd == 15) {
+        // Loads that write back into their own base register are also
+        // unpredictable for post-indexed or explicitly write-back forms.
+        if load
+            && (rd == 15 || (rd == rn && (!pre_index || write_back)))
+        {
             return Err(CpuError::UnsupportedInstruction {
                 address,
                 instruction,
@@ -1836,6 +1838,26 @@ mod tests {
                 "instruction 0x{instruction:08X}"
             );
         }
+    }
+
+    #[test]
+    fn arm_halfword_load_with_writeback_and_same_base_is_rejected() {
+        // LDRH r1, [r1], #2 is an unpredictable base/destination overlap.
+        let instruction = 0xE0D1_10B2;
+        let mut bus = bus_with_program(&[instruction]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 0x0200_0100);
+        bus.write16(0x0200_0100, 0xCAFE);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction,
+            })
+        );
+        assert_eq!(cpu.register(1), Some(0x0200_0100));
     }
 
     #[test]
