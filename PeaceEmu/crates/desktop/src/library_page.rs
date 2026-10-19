@@ -443,6 +443,7 @@ impl DesktopApp {
                 if response.clicked() || response.double_clicked() {
                     self.selected_content = Some(path.clone());
                     self.content_path = path.display().to_string();
+                    self.cover_query = title.clone();
                 }
                 if response.double_clicked() && file_available {
                     self.launch_content();
