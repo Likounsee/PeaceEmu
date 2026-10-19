@@ -260,7 +260,7 @@ pub(crate) fn search_online(
             continue;
         }
 
-        let mut response = agent
+        let response = agent
             .get(url)
             .call()
             .map_err(|error| format!("Could not download cover: {error}"))?;
