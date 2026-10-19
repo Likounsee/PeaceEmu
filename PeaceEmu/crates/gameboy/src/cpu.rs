@@ -264,7 +264,16 @@ impl Cpu {
                     self.registers[rd] =
                         bus.read32(effective).rotate_right((effective & 3) * 8);
                 },
-                5 => self.registers[rd] = u32::from(bus.read16(effective)),
+                5 => {
+                    // ARM7TDMI LDRH rotates the aligned halfword by one byte
+                    // when the effective address is odd.
+                    let value = bus.read16(effective);
+                    self.registers[rd] = u32::from(if effective & 1 != 0 {
+                        value.rotate_right(8)
+                    } else {
+                        value
+                    });
+                },
                 6 => self.registers[rd] = u32::from(bus.read8(effective)),
                 7 => {
                     self.registers[rd] = if effective & 1 != 0 {
@@ -962,7 +971,17 @@ impl Cpu {
 
         if load {
             let value = match operation {
-                1 => u32::from(bus.read16(effective)),
+                // ARM7TDMI rotates an unaligned unsigned halfword load
+                // by 8 bits; signed halfword loads use byte-sign-extension
+                // semantics at odd addresses (handled below).
+                1 => {
+                    let value = bus.read16(effective);
+                    u32::from(if effective & 1 != 0 {
+                        value.rotate_right(8)
+                    } else {
+                        value
+                    })
+                },
                 2 => bus.read8(effective) as i8 as i32 as u32,
                 3 => bus.read16(effective) as i16 as i32 as u32,
                 _ => unreachable!(),
@@ -1853,6 +1872,31 @@ mod tests {
                 instruction: 0xE25E_F004,
             })
         );
+    }
+
+    #[test]
+    fn arm_and_thumb_unsigned_halfword_loads_rotate_odd_addresses() {
+        // ARM LDRH r2, [r1] at an odd address rotates the aligned halfword.
+        let instruction = 0xE1D1_20B0;
+        let mut arm_bus = bus_with_program(&[instruction]);
+        arm_bus.write16(0x0200_0100, 0x1234);
+        let mut arm_cpu = Cpu::new();
+        arm_cpu.reset(0x0200_0000);
+        arm_cpu.set_register(1, 0x0200_0101);
+        arm_cpu.step(&mut arm_bus).unwrap();
+        assert_eq!(arm_cpu.register(2), Some(0x3412));
+
+        // Thumb LDRH r2, [r1, r0] (register-offset form) uses same behavior.
+        let mut thumb_bus = bus_with_program(&[]);
+        thumb_bus.write16(0x0200_0100, 0x1234);
+        thumb_bus.write16(0x0200_0000, 0x5A0A);
+        let mut thumb_cpu = Cpu::new();
+        thumb_cpu.reset(0x0200_0000);
+        thumb_cpu.thumb = true;
+        thumb_cpu.set_register(1, 0x0200_0101);
+        thumb_cpu.set_register(0, 0);
+        thumb_cpu.step(&mut thumb_bus).unwrap();
+        assert_eq!(thumb_cpu.register(2), Some(0x3412));
     }
 
     #[test]
