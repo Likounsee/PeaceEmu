@@ -189,8 +189,6 @@ impl MemoryBus {
         if (0x0400_0208..=0x0400_0209).contains(&address) {
             if address == 0x0400_0208 {
                 self.interrupt_master_enable = (value as u16) & 1;
-            } else {
-                self.interrupt_master_enable = 0;
             }
             return;
         }
