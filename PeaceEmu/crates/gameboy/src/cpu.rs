@@ -2285,7 +2285,7 @@ mod tests {
 
     #[test]
     fn arm_multiply_rejects_destination_equal_to_first_operand() {
-        // MUL r0, r1, r0 and MLA r0, r2, r1, r0 are unpredictable on ARM7TDMI.
+        // MUL r0, r0, r1 and MLA r0, r0, r1, r2 are unpredictable on ARM7TDMI.
         for instruction in [0xE000_0190_u32, 0xE020_2190] {
             let mut bus = bus_with_program(&[instruction]);
             let mut cpu = Cpu::new();
