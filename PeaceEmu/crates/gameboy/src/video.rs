@@ -439,13 +439,12 @@ mod tests {
         MemoryBus::new(GbaCartridge::parse(&rom).expect("valid test ROM"))
     }
 
-
     #[test]
     fn mode2_renders_affine_bg3_from_its_own_registers_and_map() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 2 | (1 << 11)); // mode 2, BG3 enabled
-        bus.write16(0x0400_000E, 0); // BG3 map at screen block 0
-        // BG3 character data starts at 0x4000; its first map entry selects tile 1.
+        bus.write16(0x0400_000E, (1 << 2) | (1 << 8)); // char block 1, screen block 1
+        // BG3 map at screen block 1 selects tile 1 in character block 1.
         bus.write16(VRAM_BASE + 0x4000, 1);
         bus.write16(VRAM_BASE + 0x4000 + 64, 1);
         bus.write16(PALETTE_BASE + 2, 0x03E0); // palette 1: green
