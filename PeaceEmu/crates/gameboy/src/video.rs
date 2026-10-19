@@ -155,8 +155,15 @@ fn render_text_bg0(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame
             let tile_index = u32::from(entry & 0x03FF);
             let pixel_x = if entry & (1 << 10) != 0 { 7 - in_tile_x } else { in_tile_x };
             let pixel_y = if entry & (1 << 11) != 0 { 7 - in_tile_y } else { in_tile_y };
-            let tile_bytes = if color_8bpp { 64 } else { 32 };
-            let tile_address = VRAM_BASE + char_base + tile_index * tile_bytes;
+            // Tile-map indices are expressed in 32-byte units. In 8bpp
+            // mode each tile occupies 64 bytes, so bit 0 of the tile index
+            // is ignored (the tile starts on an even 32-byte slot).
+            let tile_offset = if color_8bpp {
+                (tile_index & !1) * 32
+            } else {
+                tile_index * 32
+            };
+            let tile_address = VRAM_BASE + char_base + tile_offset;
             let (palette_index, transparent) = if color_8bpp {
                 let index = u32::from(bus.read8(tile_address + pixel_y * 8 + pixel_x));
                 (index, index == 0)
@@ -224,6 +231,9 @@ mod tests {
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
         bus.write16(BG0CNT, 1 << 7); // 8bpp tiles
         bus.write16(VRAM_BASE, 1); // map uses tile 1
+        // In 8bpp mode tile index 1 aliases tile index 0; use tile 2,
+        // which starts at byte offset 64 in character data.
+        bus.write16(VRAM_BASE, 2);
         bus.write8(VRAM_BASE + 64, 3);
         bus.write8(VRAM_BASE + 65, 4);
         bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop for transparent index zero
