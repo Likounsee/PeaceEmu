@@ -1,0 +1,903 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>PeaceEmu — One home for classic gaming</title>
+  <meta name="description" content="PeaceEmu is an open-source, modular multi-system emulation project built primarily in Rust. Explore its architecture, development and source code.">
+  <meta name="theme-color" content="#090a10">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PeaceEmu — One home for classic gaming">
+  <meta property="og:description" content="A modular, open-source emulation project. Built with Rust, designed to grow.">
+  <meta property="og:site_name" content="PeaceEmu">
+
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://likounsee.github.io/PeaceEmu/">
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090a10;
+      --panel: #10121c;
+      --panel-light: #151827;
+      --text: #f4f5ff;
+      --muted: #a0a5bc;
+      --line: rgba(255,255,255,.09);
+      --purple: #a78bfa;
+      --cyan: #67e8f9;
+      --green: #86efac;
+      --radius: 22px;
+      --max: 1160px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 90px;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(ellipse at 15% 0%, rgba(124,58,237,.15), transparent 36rem),
+        radial-gradient(ellipse at 95% 28%, rgba(34,211,238,.08), transparent 32rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 5px;
+    }
+
+    ::selection { background: #8b5cf6; color: white; }
+
+    .container {
+      width: min(var(--max), calc(100% - 48px));
+      margin-inline: auto;
+    }
+
+    .nav-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(9,10,16,.78);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(18px);
+    }
+
+    nav {
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -.7px;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(167,139,250,.4);
+      border-radius: 12px;
+      background: linear-gradient(145deg, rgba(167,139,250,.22), rgba(103,232,249,.08));
+      color: var(--cyan);
+      box-shadow: inset 0 0 20px rgba(167,139,250,.08);
+    }
+
+    .brand-mark svg { width: 24px; height: 24px; }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      color: var(--text) !important;
+      border: 1px solid rgba(255,255,255,.17);
+      padding: 9px 15px;
+      border-radius: 11px;
+      background: rgba(255,255,255,.045);
+    }
+
+    .hero {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      padding: 112px 0 92px;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      width: 540px;
+      height: 540px;
+      right: -110px;
+      top: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(139,92,246,.16), rgba(34,211,238,.06) 40%, transparent 70%);
+      filter: blur(12px);
+      pointer-events: none;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      align-items: center;
+      gap: 58px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 12px;
+      border: 1px solid rgba(167,139,250,.22);
+      border-radius: 999px;
+      color: #d4c8ff;
+      background: rgba(139,92,246,.08);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.3px;
+      text-transform: uppercase;
+    }
+
+    .eyebrow-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 12px rgba(134,239,172,.6);
+    }
+
+    h1 {
+      max-width: 720px;
+      margin: 27px 0 22px;
+      font-size: clamp(46px, 6.5vw, 78px);
+      font-weight: 850;
+      letter-spacing: -5px;
+      line-height: 1.04;
+    }
+
+    .gradient-text {
+      color: transparent;
+      background: linear-gradient(100deg, #c4b5fd 4%, #a5b4fc 48%, #67e8f9 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+
+    .hero-copy {
+      max-width: 550px;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.85;
+    }
+
+    .hero-copy strong { color: #e4e6f5; font-weight: 650; }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .button {
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 18px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      font-size: 13px;
+      font-weight: 750;
+      transition: transform .2s, border-color .2s, background .2s;
+    }
+
+    .button:hover { transform: translateY(-2px); }
+
+    .button-primary {
+      color: #090a10;
+      border-color: transparent;
+      background: linear-gradient(105deg, #c4b5fd, #67e8f9);
+      box-shadow: 0 8px 30px rgba(103,232,249,.1);
+    }
+
+    .button-secondary {
+      background: rgba(255,255,255,.035);
+      color: #e5e7f5;
+    }
+
+    .button-secondary:hover { border-color: rgba(167,139,250,.5); }
+
+    .button svg { width: 17px; height: 17px; }
+
+    .hero-note {
+      margin-top: 22px;
+      color: #777d94;
+      font-size: 12px;
+    }
+
+    .visual {
+      position: relative;
+      min-height: 390px;
+      display: grid;
+      place-items: center;
+    }
+
+    .visual-glow {
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: rgba(139,92,246,.16);
+      filter: blur(65px);
+    }
+
+    .core-window {
+      position: relative;
+      width: 100%;
+      max-width: 390px;
+      padding: 22px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 23px;
+      background: linear-gradient(145deg, rgba(25,27,43,.96), rgba(12,14,23,.96));
+      box-shadow: 0 35px 100px rgba(0,0,0,.42), 0 0 50px rgba(139,92,246,.08);
+      transform: rotate(1deg);
+    }
+
+    .window-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+      color: #c9cce0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .window-dots { display: flex; gap: 5px; }
+    .window-dots i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #5c6075;
+    }
+
+    .window-dots i:first-child { background: #a78bfa; }
+    .window-dots i:last-child { background: #67e8f9; }
+
+    .architecture {
+      display: grid;
+      gap: 13px;
+      padding: 23px 0;
+    }
+
+    .arch-node {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 13px 14px;
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 13px;
+      background: rgba(255,255,255,.025);
+    }
+
+    .arch-node.main-node {
+      border-color: rgba(167,139,250,.3);
+      background: linear-gradient(100deg, rgba(139,92,246,.13), rgba(34,211,238,.045));
+    }
+
+    .node-icon {
+      flex: 0 0 38px;
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 11px;
+      background: rgba(167,139,250,.12);
+      color: #c4b5fd;
+    }
+
+    .node-icon svg { width: 20px; height: 20px; }
+    .node-label { font-size: 12px; font-weight: 750; line-height: 1.4; }
+    .node-sub { margin-top: 3px; color: #858ba3; font-size: 10px; }
+
+    .connector {
+      width: 1px;
+      height: 11px;
+      margin: -13px auto;
+      background: linear-gradient(var(--purple), var(--cyan));
+      opacity: .7;
+    }
+
+    .window-foot {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 15px;
+      border-top: 1px solid var(--line);
+      color: #8f95ad;
+      font-size: 10px;
+    }
+
+    .window-foot span:last-child { color: var(--cyan); }
+
+    .section {
+      padding: 86px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .section-heading {
+      max-width: 680px;
+      margin-bottom: 36px;
+    }
+
+    .section-kicker {
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 10px 0 14px;
+      font-size: clamp(30px, 4vw, 43px);
+      line-height: 1.2;
+      letter-spacing: -1.8px;
+    }
+
+    .section-heading p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .feature-card {
+      position: relative;
+      min-height: 230px;
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+      transition: border-color .2s, transform .2s, background .2s;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(167,139,250,.32);
+      background: linear-gradient(145deg, rgba(139,92,246,.075), rgba(255,255,255,.015));
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(167,139,250,.2);
+      border-radius: 14px;
+      background: rgba(139,92,246,.1);
+      color: var(--purple);
+    }
+
+    .feature-icon svg { width: 22px; height: 22px; }
+    .feature-card h3 { margin: 20px 0 8px; font-size: 17px; letter-spacing: -.4px; }
+    .feature-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
+
+    .status-layout {
+      display: grid;
+      grid-template-columns: 1fr .8fr;
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .status-card, .contribute-card {
+      padding: 30px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .status-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: rgba(167,139,250,.1);
+      color: #d2c5ff;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .status-card h3, .contribute-card h3 {
+      margin: 20px 0 10px;
+      font-size: 23px;
+      letter-spacing: -.7px;
+    }
+
+    .status-card p, .contribute-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .status-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      color: #c8cbe0;
+    }
+
+    .status-line svg {
+      flex: 0 0 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--cyan);
+    }
+
+    .contribute-card {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      background:
+        radial-gradient(ellipse at 100% 0%, rgba(139,92,246,.13), transparent 55%),
+        var(--panel);
+    }
+
+    .contribute-card .button { margin-top: 24px; }
+
+    .quote-mark {
+      color: var(--purple);
+      font-size: 30px;
+      line-height: 1;
+    }
+
+    footer {
+      padding: 28px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .footer-brand { font-size: 14px; font-weight: 800; }
+    .footer-copy { color: #777d94; font-size: 11px; }
+    .footer-links { display: flex; gap: 20px; color: var(--muted); font-size: 12px; }
+    .footer-links a:hover { color: var(--text); }
+
+    @media (max-width: 850px) {
+      .hero { padding: 75px 0 65px; }
+      .hero-grid { grid-template-columns: 1fr; gap: 35px; }
+      .hero-copy { max-width: 650px; }
+      .visual { min-height: 340px; }
+      .core-window { max-width: 420px; }
+      .feature-grid { grid-template-columns: 1fr 1fr; }
+      .status-layout { grid-template-columns: 1fr; }
+      h1 { letter-spacing: -3px; }
+    }
+
+    @media (max-width: 560px) {
+      .container { width: min(100% - 32px, var(--max)); }
+      nav { min-height: 68px; }
+      .nav-links { gap: 14px; }
+      .nav-links a:not(.nav-cta) { display: none; }
+      .brand { font-size: 17px; }
+      .nav-cta { padding: 8px 11px; }
+      .hero { padding-top: 58px; }
+      h1 { font-size: clamp(43px, 13vw, 60px); letter-spacing: -2.8px; }
+      .hero-copy { font-size: 15px; }
+      .visual { min-height: 320px; }
+      .core-window { padding: 16px; }
+      .section { padding: 62px 0; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .feature-card { min-height: auto; }
+      .status-card, .contribute-card { padding: 23px; }
+      .footer-inner { align-items: flex-start; flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="nav-wrap">
+    <nav class="container" aria-label="Main navigation">
+      <a class="brand" href="#home" aria-label="PeaceEmu homepage">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z"
+              stroke="currentColor" stroke-width="1.5"/>
+            <path d="m8 9 4-2 4 2v6l-4 2-4-2V9Z"
+              stroke="currentColor" stroke-width="1.5"/>
+            <path d="m10 11 2-1 2 1v2l-2 1-2-1v-2Z"
+              fill="currentColor"/>
+          </svg>
+        </span>
+        PeaceEmu
+      </a>
+
+      <div class="nav-links">
+        <a href="#about">About</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#status">Project status</a>
+        <a class="nav-cta" href="https://github.com/Likounsee/PeaceEmu"
+          target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="home">
+      <div class="container hero-grid">
+        <div>
+          <div class="eyebrow">
+            <span class="eyebrow-dot"></span>
+            Open source · Built with Rust
+          </div>
+
+          <h1>
+            One home for<br>
+            <span class="gradient-text">classic gaming.</span>
+          </h1>
+
+          <p class="hero-copy">
+            Meet <strong>PeaceEmu</strong> — an open-source project exploring
+            modular, multi-system emulation. Built primarily in Rust, with a
+            focus on clear architecture, independent emulation cores and room
+            to grow.
+          </p>
+
+          <div class="actions">
+            <a class="button button-primary"
+              href="https://github.com/Likounsee/PeaceEmu"
+              target="_blank" rel="noopener noreferrer">
+              Explore the repository
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M7 17 17 7M7 7h10v10"
+                  stroke="currentColor" stroke-width="1.8"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>
+
+            <a class="button button-secondary" href="#architecture">
+              Discover the project
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 5v14m-7-7 7 7 7-7"
+                  stroke="currentColor" stroke-width="1.8"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>
+          </div>
+
+          <p class="hero-note">
+            An independent project in active development. Built in the open.
+          </p>
+        </div>
+
+        <div class="visual" aria-label="Illustration of a modular emulation architecture">
+          <div class="visual-glow"></div>
+
+          <div class="core-window">
+            <div class="window-top">
+              <span>PEACEEMU / SYSTEM DESIGN</span>
+              <span class="window-dots" aria-hidden="true">
+                <i></i><i></i><i></i>
+              </span>
+            </div>
+
+            <div class="architecture">
+              <div class="arch-node main-node">
+                <span class="node-icon">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="4" y="4" width="16" height="16" rx="4"
+                      stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M9 9h6v6H9zM9 2v2m6-2v2M9 20v2m6-2v2M2 9h2m-2 6h2m16-6h2m-2 6h2"
+                      stroke="currentColor" stroke-width="1.5"/>
+                  </svg>
+                </span>
+                <div>
+                  <div class="node-label">Shared application layer</div>
+                  <div class="node-sub">A common foundation</div>
+                </div>
+              </div>
+
+              <div class="connector"></div>
+
+              <div class="arch-node">
+                <span class="node-icon">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="3" y="6" width="18" height="12" rx="3"
+                      stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M7 10v4m-2-2h4m6-1h.01M17 13h.01"
+                      stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round"/>
+                  </svg>
+                </span>
+                <div>
+                  <div class="node-label">Independent emulation cores</div>
+                  <div class="node-sub">System-specific components</div>
+                </div>
+              </div>
+
+              <div class="connector"></div>
+
+              <div class="arch-node">
+                <span class="node-icon">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 5h16v14H4zM4 9h16M8 5v4"
+                      stroke="currentColor" stroke-width="1.5"
+                      stroke-linejoin="round"/>
+                    <path d="M8 13h3m-3 3h7"
+                      stroke="currentColor" stroke-width="1.5"
+                      stroke-linecap="round"/>
+                  </svg>
+                </span>
+                <div>
+                  <div class="node-label">Tools, interfaces & testing</div>
+                  <div class="node-sub">Designed for maintainability</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="window-foot">
+              <span>MODULAR BY DESIGN</span>
+              <span>RUST · OPEN SOURCE</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="about">
+      <div class="container">
+        <div class="section-heading">
+          <div class="section-kicker">The philosophy</div>
+          <h2>Built to be understood.<br>Designed to evolve.</h2>
+          <p>
+            Emulation is a complex engineering challenge. PeaceEmu aims to
+            approach it with a modular structure, maintainable code and an
+            open development process.
+          </p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="7" height="7" rx="2"
+                  stroke="currentColor" stroke-width="1.6"/>
+                <rect x="14" y="3" width="7" height="7" rx="2"
+                  stroke="currentColor" stroke-width="1.6"/>
+                <rect x="3" y="14" width="7" height="7" rx="2"
+                  stroke="currentColor" stroke-width="1.6"/>
+                <rect x="14" y="14" width="7" height="7" rx="2"
+                  stroke="currentColor" stroke-width="1.6"/>
+              </svg>
+            </div>
+            <h3>Modular by design</h3>
+            <p>
+              A project structure built around separate components and
+              emulation cores, helping keep responsibilities clear as the
+              codebase develops.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="m8 8-4 4 4 4m8-8 4 4-4 4m-3-11-2 14"
+                  stroke="currentColor" stroke-width="1.7"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3>Built primarily with Rust</h3>
+            <p>
+              Leveraging Rust's type system and memory-safety features to
+              support a codebase that can be tested, maintained and extended.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 3v4m0 10v4M3 12h4m10 0h4M5.64 5.64l2.83 2.83m7.06 7.06 2.83 2.83m0-12.72-2.83 2.83m-7.06 7.06-2.83 2.83"
+                  stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round"/>
+                <circle cx="12" cy="12" r="4"
+                  stroke="currentColor" stroke-width="1.6"/>
+              </svg>
+            </div>
+            <h3>Open development</h3>
+            <p>
+              Source code, issues and development progress are available
+              through GitHub. Follow the project and see how it evolves.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="architecture">
+      <div class="container">
+        <div class="section-heading">
+          <div class="section-kicker">Under the hood</div>
+          <h2>A foundation for multiple systems.</h2>
+          <p>
+            The goal is to give individual emulation components a place within
+            a shared project, rather than treating every system as an entirely
+            separate application.
+          </p>
+        </div>
+
+        <div class="status-layout">
+          <article class="status-card">
+            <span class="status-label">Architecture concept</span>
+            <h3>One project. Separate components.</h3>
+            <p>
+              A shared application layer can provide common functionality,
+              while individual cores handle the specific logic required by
+              each target system.
+            </p>
+
+            <div class="status-line">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m5 12 4 4L19 6"
+                  stroke="currentColor" stroke-width="1.8"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Designed around separation of responsibilities.</span>
+            </div>
+
+            <div class="status-line">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m5 12 4 4L19 6"
+                  stroke="currentColor" stroke-width="1.8"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Intended to support independent development and testing.</span>
+            </div>
+          </article>
+
+          <article class="contribute-card">
+            <div class="quote-mark" aria-hidden="true">✳</div>
+            <h3>Follow the journey.</h3>
+            <p>
+              PeaceEmu is still being developed. Explore the source code,
+              check the current implementation and follow upcoming changes
+              directly on GitHub.
+            </p>
+            <a class="button button-primary"
+              href="https://github.com/Likounsee/PeaceEmu"
+              target="_blank" rel="noopener noreferrer">
+              View source code ↗
+            </a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="status">
+      <div class="container">
+        <div class="section-heading">
+          <div class="section-kicker">Where things stand</div>
+          <h2>A work in progress. No inflated claims.</h2>
+          <p>
+            The project is evolving, and its public presentation should
+            reflect the actual state of development.
+          </p>
+        </div>
+
+        <div class="status-layout">
+          <article class="status-card">
+            <span class="status-label">Current project status</span>
+            <h3>Under active development</h3>
+            <p>
+              PeaceEmu is an ongoing software project. Features, compatibility
+              and supported systems should be checked against the latest
+              source code and project documentation.
+            </p>
+            <div class="status-line">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"
+                  stroke="currentColor" stroke-width="1.6"/>
+                <path d="M12 7v5l3 2"
+                  stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round"/>
+              </svg>
+              <span>No console is currently claimed here as fully supported.</span>
+            </div>
+          </article>
+
+          <article class="contribute-card">
+            <div class="section-kicker">Explore on GitHub</div>
+            <h3>See the code for yourself.</h3>
+            <p>
+              Browse the repository, review open issues or follow the
+              development process as new functionality is implemented.
+            </p>
+            <a class="button button-secondary"
+              href="https://github.com/Likounsee/PeaceEmu/issues"
+              target="_blank" rel="noopener noreferrer">
+              Browse issues ↗
+            </a>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>
+        <div class="footer-brand">PeaceEmu</div>
+        <div class="footer-copy">An independent open-source emulation project.</div>
+      </div>
+
+      <div class="footer-links">
+        <a href="#home">Back to top ↑</a>
+        <a href="https://github.com/Likounsee/PeaceEmu"
+          target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+      </div>
+
+      <div class="footer-copy">Built with care.</div>
+    </div>
+  </footer>
+</body>
+</html>
