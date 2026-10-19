@@ -1712,9 +1712,9 @@ mod tests {
         // Long multiply uses the same multiplier-dependent timing.
         assert_eq!(cpu.estimate_cycles(0xE081_0392), 2);
         cpu.set_register(3, 0x1234_5678);
-        assert_eq!(cpu.estimate_cycles(0xE081_0392), 5);
+        assert_eq!(cpu.estimate_cycles(0xE081_0392), 6);
         // UMLAL adds the accumulate cycle.
-        assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 6);
+        assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 7);
     }
 
     #[test]
