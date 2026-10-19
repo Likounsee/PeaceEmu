@@ -202,8 +202,6 @@ struct DesktopApp {
     settings_section: SettingsSection,
     cover_paths: HashMap<PathBuf, PathBuf>,
     cover_textures: HashMap<PathBuf, egui::TextureHandle>,
-    cover_query: String,
-    cover_url: String,
     game_names: HashMap<PathBuf, String>,
     display_name_edit: String,
 }
@@ -412,8 +410,6 @@ impl DesktopApp {
             settings_section: SettingsSection::Appearance,
             cover_paths,
             cover_textures: HashMap::new(),
-            cover_query: String::new(),
-            cover_url: String::new(),
             game_names,
             display_name_edit: String::new(),
         };
