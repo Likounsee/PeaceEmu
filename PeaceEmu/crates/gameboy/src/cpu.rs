@@ -149,7 +149,9 @@ impl Cpu {
             });
         }
 
-        if instruction & 0x0FFF_FFF0 == 0x012F_FF10 {
+        if instruction & 0x0F80_00F0 == 0x0080_0090 {
+            self.execute_long_multiply(address, instruction)?;
+        } else if instruction & 0x0FFF_FFF0 == 0x012F_FF10 {
             let target = self.read_operand_register((instruction & 0xF) as usize, address);
             self.thumb = target & 1 != 0;
             self.registers[15] = if self.thumb { target & !1 } else { target & !3 };
@@ -679,6 +681,52 @@ impl Cpu {
         }
         let displacement = (((instruction & 0x00FF_FFFF) << 8) as i32 >> 6) as u32;
         self.registers[15] = address.wrapping_add(8).wrapping_add(displacement) & !3;
+    }
+
+    fn execute_long_multiply(
+        &mut self,
+        address: u32,
+        instruction: u32,
+    ) -> Result<(), CpuError> {
+        let signed = instruction & (1 << 22) != 0;
+        let accumulate = instruction & (1 << 21) != 0;
+        let set_flags = instruction & (1 << 20) != 0;
+        let rd_hi = ((instruction >> 16) & 0xF) as usize;
+        let rd_lo = ((instruction >> 12) & 0xF) as usize;
+        let rs = ((instruction >> 8) & 0xF) as usize;
+        let rm = (instruction & 0xF) as usize;
+
+        // ARM7TDMI long multiply requires four distinct, non-PC operands
+        // except that RdHi and RdLo must simply differ from one another.
+        if rd_hi == 15 || rd_lo == 15 || rd_hi == rd_lo || rs == 15 || rm == 15 {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
+        let mut result = if signed {
+            let left = self.registers[rm] as i32 as i64;
+            let right = self.registers[rs] as i32 as i64;
+            (left.wrapping_mul(right)) as u64
+        } else {
+            u64::from(self.registers[rm]) * u64::from(self.registers[rs])
+        };
+
+        if accumulate {
+            let accumulator =
+                (u64::from(self.registers[rd_hi]) << 32) | u64::from(self.registers[rd_lo]);
+            result = result.wrapping_add(accumulator);
+        }
+
+        self.registers[rd_lo] = result as u32;
+        self.registers[rd_hi] = (result >> 32) as u32;
+        if set_flags {
+            self.flags.negative = result >> 63 != 0;
+            self.flags.zero = result == 0;
+            // Long multiply updates N and Z only; C and V are unchanged.
+        }
+        Ok(())
     }
 
     fn execute_multiply(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
@@ -1435,6 +1483,40 @@ mod tests {
         assert_eq!(cpu.register(2), Some(0xFFFF_FFFF));
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(3), Some(0xFFFF_80FF));
+    }
+
+    #[test]
+    fn long_multiply_supports_unsigned_signed_and_accumulating_forms() {
+        // UMULL r1, r0, r2, r3 => r0:r1 = 0xFFFF_FFFF * 2.
+        let mut bus = bus_with_program(&[
+            0xE081_0392, // UMULL r0, r1, r2, r3 (encoding checked below)
+        ]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(2, 0xFFFF_FFFF);
+        cpu.set_register(3, 2);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(1));
+        assert_eq!(cpu.register(1), Some(0xFFFF_FFFE));
+    }
+
+    #[test]
+    fn long_multiply_accumulate_and_signed_flags_are_correct() {
+        // SMLAL r0, r1, r2, r3: accumulator 5 + (-2 * 3) = -1.
+        let mut bus = bus_with_program(&[
+            0xE0D1_0392, // SMLAL r0, r1, r2, r3
+        ]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 5);
+        cpu.set_register(1, 0);
+        cpu.set_register(2, (-2_i32) as u32);
+        cpu.set_register(3, 3);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0xFFFF_FFFF));
+        assert_eq!(cpu.register(1), Some(0xFFFF_FFFF));
+        assert!(cpu.flags().negative);
+        assert!(!cpu.flags().zero);
     }
 
     #[test]
