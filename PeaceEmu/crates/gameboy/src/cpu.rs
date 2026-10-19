@@ -68,6 +68,7 @@ impl std::error::Error for CpuError {}
 pub struct Cpu {
     registers: [u32; 16],
     flags: ConditionFlags,
+    thumb: bool,
 }
 
 impl Default for Cpu {
@@ -84,6 +85,7 @@ impl Cpu {
         Self {
             registers: [0; 16],
             flags: ConditionFlags::default(),
+            thumb: false,
         }
     }
 
@@ -92,6 +94,7 @@ impl Cpu {
         self.registers = [0; 16];
         self.registers[15] = entry_point & !3;
         self.flags = ConditionFlags::default();
+        self.thumb = false;
     }
 
     /// Returns a general-purpose register, including r15 as the current PC.
@@ -108,6 +111,11 @@ impl Cpu {
         true
     }
 
+    /// Returns whether the CPU is currently executing Thumb instructions.
+    pub fn is_thumb(&self) -> bool {
+        self.thumb
+    }
+
     /// Returns the modeled CPSR condition flags.
     pub fn flags(&self) -> ConditionFlags {
         self.flags
@@ -119,6 +127,9 @@ impl Cpu {
     /// This first implementation is instruction-functional, not cycle-accurate,
     /// and does not implement Thumb state, exceptions, banked registers, or SPSR.
     pub fn step(&mut self, bus: &mut MemoryBus) -> Result<StepOutcome, CpuError> {
+        if self.thumb {
+            return self.step_thumb(bus);
+        }
         let address = self.registers[15] & !3;
         let instruction = bus.read32(address);
         self.registers[15] = address.wrapping_add(4);
@@ -137,7 +148,11 @@ impl Cpu {
             });
         }
 
-        if instruction & 0x0FC0_00F0 == 0x0000_0090 {
+        if instruction & 0x0FFF_FFF0 == 0x012F_FF10 {
+            let target = self.read_operand_register((instruction & 0xF) as usize, address);
+            self.thumb = target & 1 != 0;
+            self.registers[15] = if self.thumb { target & !1 } else { target & !3 };
+        } else if instruction & 0x0FC0_00F0 == 0x0000_0090 {
             self.execute_multiply(address, instruction)?;
         } else if instruction & 0x0E00_0000 == 0x0A00_0000 {
             self.execute_branch(address, instruction);
@@ -160,6 +175,166 @@ impl Cpu {
             address,
             instruction,
         })
+    }
+
+    fn step_thumb(&mut self, bus: &mut MemoryBus) -> Result<StepOutcome, CpuError> {
+        let address = self.registers[15] & !1;
+        let instruction = u32::from(bus.read16(address));
+        self.registers[15] = address.wrapping_add(2);
+        let raw = instruction as u16;
+
+        if raw & 0xF800 == 0xE000 {
+            let displacement = (((u32::from(raw & 0x07FF)) << 21) as i32 >> 20) as u32;
+            self.registers[15] = address.wrapping_add(4).wrapping_add(displacement) & !1;
+        } else if raw & 0xF000 == 0xD000 {
+            let condition = u32::from((raw >> 8) & 0xF);
+            if condition >= 0xE {
+                return Err(CpuError::UnsupportedInstruction { address, instruction });
+            }
+            if self.condition_passed(condition) {
+                let displacement = ((u32::from(raw & 0xFF) << 24) as i32 >> 23) as u32;
+                self.registers[15] = address.wrapping_add(4).wrapping_add(displacement) & !1;
+            }
+        } else if raw & 0xFC00 == 0x4400 {
+            let operation = (raw >> 8) & 3;
+            let rd = usize::from((raw & 7) | ((raw >> 4) & 8));
+            let rs = usize::from((raw >> 3) & 0xF);
+            let right = self.read_thumb_register(rs, address);
+            let left = self.read_thumb_register(rd, address);
+            match operation {
+                0 => {
+                    let result = left.wrapping_add(right);
+                    if rd == 15 {
+                        self.registers[15] = result & !1;
+                    } else {
+                        self.registers[rd] = result;
+                    }
+                }
+                1 => {
+                    let (result, carry, overflow) = Self::subtract(left, right, false);
+                    self.set_arithmetic_flags(result, carry, overflow);
+                }
+                2 => {
+                    if rd == 15 {
+                        self.registers[15] = right & !1;
+                    } else {
+                        self.registers[rd] = right;
+                    }
+                }
+                3 => {
+                    self.thumb = right & 1 != 0;
+                    self.registers[15] = if self.thumb { right & !1 } else { right & !3 };
+                }
+                _ => unreachable!(),
+            }
+        } else if raw & 0xE000 == 0x2000 {
+            let operation = (raw >> 11) & 3;
+            let rd = usize::from((raw >> 8) & 7);
+            let immediate = u32::from(raw & 0xFF);
+            let left = self.registers[rd];
+            match operation {
+                0 => {
+                    self.registers[rd] = immediate;
+                    self.set_logic_flags(immediate, None);
+                }
+                1 => {
+                    let (result, carry, overflow) = Self::subtract(left, immediate, false);
+                    self.set_arithmetic_flags(result, carry, overflow);
+                }
+                2 => {
+                    let (result, carry, overflow) = Self::add(left, immediate, false);
+                    self.registers[rd] = result;
+                    self.set_arithmetic_flags(result, carry, overflow);
+                }
+                3 => {
+                    let (result, carry, overflow) = Self::subtract(left, immediate, false);
+                    self.registers[rd] = result;
+                    self.set_arithmetic_flags(result, carry, overflow);
+                }
+                _ => unreachable!(),
+            }
+        } else if raw & 0xE000 == 0x0000 {
+            let operation = (raw >> 11) & 3;
+            if operation == 3 {
+                let immediate = u32::from((raw >> 6) & 0x1F);
+                let rs = usize::from((raw >> 3) & 7);
+                let rd = usize::from(raw & 7);
+                let value = self.registers[rs];
+                let (result, carry) = match (raw >> 11) & 3 {
+                    0 => Self::shift_immediate(value, 0, immediate, self.flags.carry),
+                    1 => Self::shift_immediate(value, if immediate == 0 { 1 } else { 1 }, immediate, self.flags.carry),
+                    2 => Self::shift_immediate(value, 2, immediate, self.flags.carry),
+                    _ => unreachable!(),
+                };
+                self.registers[rd] = result;
+                self.set_logic_flags(result, carry);
+            } else {
+                let immediate = raw & (1 << 10) != 0;
+                let sub = raw & (1 << 9) != 0;
+                let operand = if immediate {
+                    u32::from((raw >> 6) & 7)
+                } else {
+                    self.registers[usize::from((raw >> 6) & 7)]
+                };
+                let rs = usize::from((raw >> 3) & 7);
+                let rd = usize::from(raw & 7);
+                let left = self.registers[rs];
+                let (result, carry, overflow) = if sub {
+                    Self::subtract(left, operand, false)
+                } else {
+                    Self::add(left, operand, false)
+                };
+                self.registers[rd] = result;
+                self.set_arithmetic_flags(result, carry, overflow);
+            }
+        } else if raw & 0xFC00 == 0x4000 {
+            let operation = (raw >> 6) & 0xF;
+            let rd = usize::from(raw & 7);
+            let rs = usize::from((raw >> 3) & 7);
+            let left = self.registers[rd];
+            let right = self.registers[rs];
+            match operation {
+                0 => { let result = left & right; self.registers[rd] = result; self.set_logic_flags(result, None); }
+                1 => { let result = left ^ right; self.registers[rd] = result; self.set_logic_flags(result, None); }
+                5 => { let (result, carry, overflow) = Self::add(left, right, self.flags.carry); self.registers[rd] = result; self.set_arithmetic_flags(result, carry, overflow); }
+                6 => { let (result, carry, overflow) = Self::subtract(left, right, !self.flags.carry); self.registers[rd] = result; self.set_arithmetic_flags(result, carry, overflow); }
+                8 => { self.set_logic_flags(left & right, None); }
+                10 => { let (result, carry, overflow) = Self::subtract(left, right, false); self.set_arithmetic_flags(result, carry, overflow); }
+                11 => { let (result, carry, overflow) = Self::add(left, right, false); self.set_arithmetic_flags(result, carry, overflow); }
+                12 => { let result = left | right; self.registers[rd] = result; self.set_logic_flags(result, None); }
+                13 => { let result = left.wrapping_mul(right); self.registers[rd] = result; self.set_logic_flags(result, None); }
+                14 => { let result = left & !right; self.registers[rd] = result; self.set_logic_flags(result, None); }
+                15 => { let result = !right; self.registers[rd] = result; self.set_logic_flags(result, None); }
+                _ => return Err(CpuError::UnsupportedInstruction { address, instruction }),
+            }
+        } else {
+            return Err(CpuError::UnsupportedInstruction { address, instruction });
+        }
+
+        Ok(StepOutcome::Executed { address, instruction })
+    }
+
+    fn read_thumb_register(&self, index: usize, address: u32) -> u32 {
+        if index == 15 {
+            address.wrapping_add(4) & !3
+        } else {
+            self.registers[index]
+        }
+    }
+
+    fn set_logic_flags(&mut self, result: u32, carry: Option<bool>) {
+        self.flags.negative = result >> 31 != 0;
+        self.flags.zero = result == 0;
+        if let Some(carry) = carry {
+            self.flags.carry = carry;
+        }
+    }
+
+    fn set_arithmetic_flags(&mut self, result: u32, carry: bool, overflow: bool) {
+        self.flags.negative = result >> 31 != 0;
+        self.flags.zero = result == 0;
+        self.flags.carry = carry;
+        self.flags.overflow = overflow;
     }
 
     fn condition_passed(&self, condition: u32) -> bool {
@@ -681,6 +856,28 @@ mod tests {
         assert_eq!(cpu.register(0), Some(0));
         assert!(cpu.flags().zero);
         assert!(!cpu.flags().negative);
+    }
+
+    #[test]
+    fn thumb_state_executes_immediate_arithmetic_and_branches() {
+        let mut bus = bus_with_program(&[]);
+        // Thumb code is written directly to EWRAM as halfwords.
+        bus.write16(0x0200_0000, 0x2007); // MOVS r0, #7
+        bus.write16(0x0200_0002, 0x3005); // ADDS r0, #5
+        bus.write16(0x0200_0004, 0x280C); // CMP r0, #12
+        bus.write16(0x0200_0006, 0xD000); // BEQ +0 (to address +10)
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(7));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(12));
+        cpu.step(&mut bus).unwrap();
+        assert!(cpu.flags().zero);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(15), Some(0x0200_000A));
     }
 
     #[test]
