@@ -307,14 +307,19 @@ fn render_regular_objects(
                 let source_x = if hflip { width - 1 - dx } else { dx };
                 let tile_x = source_x / 8;
                 let tile_y = source_y / 8;
-                let slot = tile_index + tile_y * row_stride + tile_x * if color_8bpp { 2 } else { 1 };
-                let address = obj_vram_base + slot * 32
-                    + (source_y & 7) * if color_8bpp { 8 } else { 4 };
+                let slot =
+                    tile_index + tile_y * row_stride + tile_x * if color_8bpp { 2 } else { 1 };
+                let address =
+                    obj_vram_base + slot * 32 + (source_y & 7) * if color_8bpp { 8 } else { 4 };
                 let palette_index = if color_8bpp {
                     u32::from(bus.read8(address + (source_x & 7)))
                 } else {
                     let packed = bus.read8(address + (source_x & 7) / 2);
-                    let nibble = if source_x & 1 == 0 { packed & 0x0F } else { packed >> 4 };
+                    let nibble = if source_x & 1 == 0 {
+                        packed & 0x0F
+                    } else {
+                        packed >> 4
+                    };
                     if nibble == 0 {
                         continue;
                     }
