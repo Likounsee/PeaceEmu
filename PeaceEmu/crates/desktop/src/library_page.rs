@@ -773,76 +773,6 @@ impl DesktopApp {
                 })
                 .strong(),
             );
-            ui.add(
-                egui::TextEdit::singleline(&mut self.cover_query).hint_text(if french {
-                    "Titre à rechercher en ligne"
-                } else {
-                    "Title to search online"
-                }),
-            );
-            ui.add(
-                egui::TextEdit::singleline(&mut self.cover_url).hint_text(if french {
-                    "Colle ici l’URL directe de l’image"
-                } else {
-                    "Paste the direct image URL here"
-                }),
-            );
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .button(if french {
-                        "Télécharger l’image"
-                    } else {
-                        "Download image"
-                    })
-                    .clicked()
-                {
-                    let result = self
-                        .config_path
-                        .as_deref()
-                        .ok_or_else(|| "Configuration directory unavailable".to_owned())
-                        .and_then(|config| {
-                            game_covers::download_url(config, &self.cover_url, &title)
-                        });
-                    match result {
-                        Ok(saved) => self.set_game_cover(&path, saved, "URL"),
-                        Err(error) => {
-                            self.message = if french {
-                                format!("Téléchargement de l’image impossible : {error}")
-                            } else {
-                                format!("Image download failed: {error}")
-                            };
-                        }
-                    }
-                }
-                if ui
-                    .button(if french {
-                        "Ouvrir le navigateur"
-                    } else {
-                        "Open browser"
-                    })
-                    .clicked()
-                {
-                    let result = std::process::Command::new(if cfg!(target_os = "windows") {
-                        "cmd"
-                    } else if cfg!(target_os = "macos") {
-                        "open"
-                    } else {
-                        "xdg-open"
-                    })
-                    .args(if cfg!(target_os = "windows") {
-                        vec!["/C", "start", "", "https://images.google.com/"]
-                    } else {
-                        vec!["https://images.google.com/"]
-                    })
-                    .spawn();
-                    if let Err(error) = result {
-                        self.message = if french {
-                            format!("Impossible d’ouvrir le navigateur : {error}")
-                        } else {
-                            format!("Could not open browser: {error}")
-                        };
-                    }
-                }
                 if ui
                     .button(if french {
                         "Image locale…"
@@ -868,35 +798,6 @@ impl DesktopApp {
                                 } else {
                                     format!("Could not import cover: {error}")
                                 }
-                            }
-                        }
-                    }
-                }
-                if ui
-                    .button(if french {
-                        "Chercher en ligne"
-                    } else {
-                        "Search online"
-                    })
-                    .clicked()
-                {
-                    let query = if self.cover_query.trim().is_empty() {
-                        title.clone()
-                    } else {
-                        self.cover_query.trim().to_owned()
-                    };
-                    let result = self
-                        .config_path
-                        .as_deref()
-                        .ok_or_else(|| "Configuration directory unavailable".to_owned())
-                        .and_then(|config| game_covers::search_online(config, &query));
-                    match result {
-                        Ok((saved, source)) => self.set_game_cover(&path, saved, &source),
-                        Err(error) => {
-                            self.message = if french {
-                                format!("Recherche de jaquette impossible : {error}")
-                            } else {
-                                format!("Cover search failed: {error}")
                             }
                         }
                     }
