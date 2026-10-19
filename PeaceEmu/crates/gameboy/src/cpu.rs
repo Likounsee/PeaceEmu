@@ -696,9 +696,16 @@ impl Cpu {
         let rs = ((instruction >> 8) & 0xF) as usize;
         let rm = (instruction & 0xF) as usize;
 
-        // ARM7TDMI long multiply requires four distinct, non-PC operands
-        // except that RdHi and RdLo must simply differ from one another.
-        if rd_hi == 15 || rd_lo == 15 || rd_hi == rd_lo || rs == 15 || rm == 15 {
+        // ARM7TDMI forbids PC operands, identical high/low destinations,
+        // and using Rm as either destination. Rs may alias a destination.
+        if rd_hi == 15
+            || rd_lo == 15
+            || rd_hi == rd_lo
+            || rs == 15
+            || rm == 15
+            || rd_hi == rm
+            || rd_lo == rm
+        {
             return Err(CpuError::UnsupportedInstruction {
                 address,
                 instruction,
@@ -1517,6 +1524,54 @@ mod tests {
         assert_eq!(cpu.register(1), Some(0xFFFF_FFFF));
         assert!(cpu.flags().negative);
         assert!(!cpu.flags().zero);
+    }
+
+    #[test]
+    fn long_multiply_signed_and_unsigned_accumulate_forms_are_correct() {
+        let mut bus = bus_with_program(&[
+            0xE0C1_0392, // SMULL r0, r1, r2, r3
+            0xE0A1_0392, // UMLAL r0, r1, r2, r3
+        ]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(2, 0xFFFF_FFFE); // -2 signed, large unsigned.
+        cpu.set_register(3, 3);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0xFFFF_FFFA));
+        assert_eq!(cpu.register(1), Some(0xFFFF_FFFF));
+
+        // UMLAL adds unsigned (0xFFFF_FFFE * 3) to the previous 64-bit result.
+        cpu.set_register(0, 0xFFFF_FFFA);
+        cpu.set_register(1, 0xFFFF_FFFF);
+        cpu.step(&mut bus).unwrap();
+        let expected = (u64::from(0xFFFF_FFFF_u32) << 32)
+            | u64::from(0xFFFF_FFFA_u32);
+        let expected = expected.wrapping_add(u64::from(0xFFFF_FFFE_u32) * 3);
+        assert_eq!(cpu.register(0), Some(expected as u32));
+        assert_eq!(cpu.register(1), Some((expected >> 32) as u32));
+    }
+
+    #[test]
+    fn long_multiply_rejects_r_m_aliasing_a_destination() {
+        // UMULL r0, r1, r0, r3 is unpredictable on ARM7TDMI because Rm
+        // aliases one of the destination registers.
+        let instruction = 0xE081_0390;
+        let mut bus = bus_with_program(&[instruction]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 7);
+        cpu.set_register(3, 9);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction,
+            })
+        );
+        assert_eq!(cpu.register(0), Some(7));
+        assert_eq!(cpu.register(1), Some(0));
     }
 
     #[test]
