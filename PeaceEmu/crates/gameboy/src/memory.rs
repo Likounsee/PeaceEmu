@@ -1196,7 +1196,7 @@ mod tests {
         bus.write32(0x0400_00B0, 0x0200_0004);
         bus.write32(0x0400_00B4, 0x0300_0004);
         bus.write16(0x0400_00B8, 3);
-        bus.write16(0x0400_00BA, 0x80C0); // decrement source and destination
+        bus.write16(0x0400_00BA, 0x80A0); // decrement source and destination
 
         assert_eq!(bus.read16(0x0300_0004), 0x3333);
         assert_eq!(bus.read16(0x0300_0002), 0x2222);
