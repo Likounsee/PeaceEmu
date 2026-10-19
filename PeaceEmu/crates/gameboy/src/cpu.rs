@@ -295,6 +295,21 @@ impl Cpu {
                 + u32::from(accumulate)
                 + u32::from(long_multiply);
         }
+        // Data-processing instructions that write PC redirect execution
+        // and refill the ARM pipeline. Exclude status-register operations,
+        // multiply and SWP encodings, which share parts of this broad class
+        // but have their own timing/decoding paths above.
+        if instruction & 0x0C00_0000 == 0
+            && (instruction >> 12) & 0xF == 15
+            && instruction & 0x0FBF_0FFF != 0x010F_0000
+            && instruction & 0x0FB0_FFF0 != 0x0120_F000
+            && instruction & 0x0FB0_F000 != 0x0320_F000
+            && instruction & 0x0FC0_00F0 != 0x0000_0090
+            && instruction & 0x0F80_00F0 != 0x0080_0090
+            && instruction & 0x0FB0_0FF0 != 0x0100_0090
+        {
+            return 3;
+        }
         if instruction & 0x0C00_0000 == 0x0400_0000 {
             let load = instruction & (1 << 20) != 0;
             let destination = (instruction >> 12) & 0xF;
@@ -1718,6 +1733,14 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE591_F000), 4);
         // STR pc, [r1] does not redirect execution.
         assert_eq!(cpu.estimate_cycles(0xE581_F000), 2);
+    }
+
+    #[test]
+    fn arm_data_processing_pc_writes_include_pipeline_refill() {
+        let cpu = Cpu::new();
+        assert_eq!(cpu.estimate_cycles(0xE1A0_F000), 3); // MOV pc, r0
+        assert_eq!(cpu.estimate_cycles(0xE080_F001), 3); // ADD pc, r0, r1
+        assert_eq!(cpu.estimate_cycles(0xE1A0_0001), 1); // MOV r0, r1
     }
 
     #[test]
