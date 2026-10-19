@@ -35,6 +35,9 @@ pub struct MemoryBus {
     /// Active-low KEYINPUT state is stored internally as a pressed-key bitmask.
     keys_pressed: u16,
     key_control: u16,
+    interrupt_enable: u16,
+    interrupt_flags: u16,
+    interrupt_master_enable: u16,
 }
 
 impl MemoryBus {
@@ -51,6 +54,9 @@ impl MemoryBus {
             sram: vec![0xFF; SRAM_SIZE],
             keys_pressed: 0,
             key_control: 0,
+            interrupt_enable: 0,
+            interrupt_flags: 0,
+            interrupt_master_enable: 0,
         }
     }
 
@@ -58,6 +64,17 @@ impl MemoryBus {
     ///
     /// Unmapped and BIOS addresses return zero in this early bus model.
     pub fn read8(&self, address: u32) -> u8 {
+        // Interrupt controller: IE, IF and IME. Reserved bits read as zero.
+        for (base, value) in [
+            (0x0400_0200, self.interrupt_enable),
+            (0x0400_0202, self.interrupt_flags),
+            (0x0400_0208, self.interrupt_master_enable),
+        ] {
+            if (base..=base + 1).contains(&address) {
+                return ((value >> ((address - base) * 8)) & 0xFF) as u8;
+            }
+        }
+
         // KEYINPUT (0x04000130) is active-low and read-only. Bits 0..9 map
         // to A, B, Select, Start, Right, Left, Up, Down, R and L.
         if (0x0400_0130..=0x0400_0131).contains(&address) {
@@ -99,13 +116,12 @@ impl MemoryBus {
     /// The hardware exposes these bits active-low through KEYINPUT; callers
     /// pass 1 for a pressed key and 0 for a released key.
     pub fn set_keys_pressed(&mut self, pressed: u16) {
+        let was_requested = self.keypad_irq_requested();
         self.keys_pressed = pressed & 0x03FF;
+        self.latch_keypad_irq_on_rising_edge(was_requested);
     }
 
     /// Returns whether KEYCNT's configured keypad interrupt condition is met.
-    ///
-    /// This reports the keypad condition only; it does not yet raise the GBA's
-    /// interrupt request flag because the interrupt controller is not integrated.
     pub fn keypad_irq_requested(&self) -> bool {
         if self.key_control & (1 << 14) == 0 {
             return false;
@@ -118,6 +134,20 @@ impl MemoryBus {
             self.keys_pressed & selected != 0
         } else {
             self.keys_pressed & selected == selected
+        }
+    }
+
+    /// Returns true when IME is enabled and an enabled interrupt is pending.
+    pub fn interrupt_pending(&self) -> bool {
+        self.interrupt_master_enable & 1 != 0
+            && self.interrupt_enable & self.interrupt_flags & 0x3FFF != 0
+    }
+
+    /// Latches the keypad IRQ (interrupt bit 12) when its condition changes
+    /// from inactive to active. IF remains latched until software writes one to clear it.
+    fn latch_keypad_irq_on_rising_edge(&mut self, was_requested: bool) {
+        if !was_requested && self.keypad_irq_requested() {
+            self.interrupt_flags |= 1 << 12;
         }
     }
 
@@ -140,17 +170,45 @@ impl MemoryBus {
 
     /// Writes one byte to writable memory. Cartridge ROM and BIOS writes are ignored.
     pub fn write8(&mut self, address: u32, value: u8) {
+        // IE: only IRQ sources 0..13 are implemented by the GBA interrupt controller.
+        if (0x0400_0200..=0x0400_0201).contains(&address) {
+            let shift = (address - 0x0400_0200) * 8;
+            let byte_mask = 0xFF_u16 << shift;
+            self.interrupt_enable = ((self.interrupt_enable & !byte_mask)
+                | ((value as u16) << shift))
+                & 0x3FFF;
+            return;
+        }
+        // IF is write-one-to-clear; writing zero leaves pending flags unchanged.
+        if (0x0400_0202..=0x0400_0203).contains(&address) {
+            let shift = (address - 0x0400_0202) * 8;
+            self.interrupt_flags &= !(((value as u16) << shift) & 0x3FFF);
+            return;
+        }
+        // IME exposes only bit 0.
+        if (0x0400_0208..=0x0400_0209).contains(&address) {
+            if address == 0x0400_0208 {
+                self.interrupt_master_enable = (value as u16) & 1;
+            } else {
+                self.interrupt_master_enable = 0;
+            }
+            return;
+        }
+
         // KEYINPUT is read-only; KEYCNT accepts only key-select, IRQ-enable and
         // condition-mode bits (0..9, 14 and 15).
         if (0x0400_0130..=0x0400_0131).contains(&address) {
             return;
         }
         if (0x0400_0132..=0x0400_0133).contains(&address) {
+            let was_requested = self.keypad_irq_requested();
             let shift = (address - 0x0400_0132) * 8;
             let mask = 0xC3FF_u16;
             let byte_mask = 0xFF_u16 << shift;
             let incoming = (value as u16) << shift;
-            self.key_control = (self.key_control & !(byte_mask & mask)) | (incoming & byte_mask & mask);
+            self.key_control =
+                (self.key_control & !(byte_mask & mask)) | (incoming & byte_mask & mask);
+            self.latch_keypad_irq_on_rising_edge(was_requested);
             return;
         }
 
@@ -285,6 +343,43 @@ mod tests {
         bus.write16(0x0400_0132, 0x3C00);
         assert_eq!(bus.read16(0x0400_0132), 0);
         assert!(!bus.keypad_irq_requested());
+    }
+
+    #[test]
+    fn interrupt_registers_latch_keypad_irq_and_obey_masks_and_acknowledgement() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        // Select A, enable keypad IRQ, then press A: IF bit 12 must latch.
+        bus.write16(0x0400_0132, 0x4001);
+        bus.set_keys_pressed(1);
+        assert_eq!(bus.read16(0x0400_0202), 1 << 12);
+        assert!(!bus.interrupt_pending());
+
+        // IE and IME jointly gate the CPU-visible pending interrupt.
+        bus.write16(0x0400_0200, 1 << 12);
+        assert!(!bus.interrupt_pending());
+        bus.write16(0x0400_0208, 0xFFFF);
+        assert_eq!(bus.read16(0x0400_0208), 1);
+        assert!(bus.interrupt_pending());
+
+        // IF is write-one-to-clear, including byte writes; zero doesn't clear.
+        bus.write8(0x0400_0202, 0);
+        assert_eq!(bus.read16(0x0400_0202), 1 << 12);
+        bus.write8(0x0400_0203, 1);
+        assert_eq!(bus.read16(0x0400_0202), 0);
+        assert!(!bus.interrupt_pending());
+
+        // A still-held key does not immediately relatch after IF is cleared;
+        // release and press again creates a new keypad condition edge.
+        bus.set_keys_pressed(0);
+        bus.set_keys_pressed(1);
+        assert_eq!(bus.read16(0x0400_0202), 1 << 12);
+
+        // IE reserved bits and IME high bits are masked.
+        bus.write16(0x0400_0200, 0xFFFF);
+        assert_eq!(bus.read16(0x0400_0200), 0x3FFF);
+        bus.write16(0x0400_0208, 0x0100);
+        assert_eq!(bus.read16(0x0400_0208), 0);
     }
 
     #[test]
