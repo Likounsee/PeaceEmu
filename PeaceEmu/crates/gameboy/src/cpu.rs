@@ -1537,6 +1537,22 @@ mod tests {
     }
 
     #[test]
+    fn cycle_estimates_scale_with_arm_and_thumb_block_transfers() {
+        let mut cpu = Cpu::new();
+
+        // ARM STMIA r0!, {r1-r3}: fetch plus three word transfers.
+        assert_eq!(cpu.estimate_cycles(0xE8A0_000E), 4);
+        // ARM LDMIA r0!, {r1-r3,pc}: transfers plus pipeline refill.
+        assert_eq!(cpu.estimate_cycles(0xE8B0_800E), 7);
+
+        cpu.thumb = true;
+        // Thumb STMIA r0!, {r1-r3}: fetch plus three transfers.
+        assert_eq!(cpu.estimate_cycles(0xC00E), 4);
+        // Thumb POP {r0-r2,pc}: fetch, four transfers and pipeline refill.
+        assert_eq!(cpu.estimate_cycles(0xBD07), 7);
+    }
+
+    #[test]
     fn timed_step_advances_memory_timers_after_instruction_execution() {
         let mut bus = bus_with_program(&[0xE3A0_002A]); // MOV r0, #42
         bus.write16(0x0400_0100, 0xFFFE);
