@@ -1262,6 +1262,28 @@ mod tests {
         assert_eq!(bus.read16(0x0300_0000), 0xCAFE);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
         assert_eq!(bus.read16(0x0400_0202) & (1 << 8), 0);
+
+        // A repeated VBlank transfer reuses the count and continues the source
+        // address on the following frame.
+        bus.advance_cycles(1232 * 228);
+        assert_eq!(bus.read16(0x0300_0002), 0xCAFE);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
+    }
+
+    #[test]
+    fn hblank_dma_fires_at_the_hblank_boundary() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0xBEEF);
+        bus.write32(0x0400_00B0, 0x0200_0000);
+        bus.write32(0x0400_00B4, 0x0300_0000);
+        bus.write16(0x0400_00B8, 1);
+        bus.write16(0x0400_00BA, 0xA000); // enable, HBlank timing
+
+        bus.advance_cycles(959);
+        assert_eq!(bus.read16(0x0300_0000), 0);
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0300_0000), 0xBEEF);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0);
     }
 
     #[test]
