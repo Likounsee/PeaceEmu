@@ -442,8 +442,8 @@ mod tests {
     #[test]
     fn mode2_renders_affine_bg3_from_its_own_registers_and_map() {
         let mut bus = bus();
-        bus.write16(0x0400_0000, 2 | (1 << 11)); // mode 2, BG3 enabled
-        // Keep the affine map in screen block 9, separate from character block 1.
+        // Mode 2 with BG3 enabled. Keep its affine map separate from character data.
+        bus.write16(0x0400_0000, 2 | (1 << 11));
         bus.write16(0x0400_000E, (1 << 2) | (9 << 8));
         bus.write16(VRAM_BASE + 0x4800, 1);
         bus.write16(VRAM_BASE + 0x4000, 1);
@@ -461,13 +461,13 @@ mod tests {
     fn affine_background_without_wrap_clips_outside_map() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 2 | (1 << 10)); // mode 2, BG2 enabled
-        bus.write16(0x0400_000C, 0); // wrap disabled
+        bus.write16(0x0400_000C, 0);
         bus.write16(VRAM_BASE, 1);
         bus.write16(VRAM_BASE + 64, 1);
         bus.write16(PALETTE_BASE + 2, 0x001F);
-        bus.write16(0x0400_0020, 0x0100); // PA = 1
-        bus.write16(0x0400_0026, 0x0100); // PD = 1
-        // Reference X = -1.0; pixel zero is outside the map, pixel one is inside.
+        // Identity transform; reference X = -1.0 clips pixel zero but not pixel one.
+        bus.write16(0x0400_0020, 0x0100);
+        bus.write16(0x0400_0026, 0x0100);
         bus.write16(0x0400_0028, 0xFF00);
         bus.write16(0x0400_002A, 0x0FFF);
 
@@ -766,10 +766,10 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // index 1 red
-        bus.write16(PALETTE_BASE + 0x204, 0x03E0); // index 2 green
-        bus.write16(0x0601_0000, 0x0001); // tile 0: red pixel
-        bus.write16(0x0601_0020, 0x0002); // tile 1: green pixel
-        // Entry 0 has the lower OAM index and must win.
+        // Entry 0 has the lower OAM index and must win the equal-priority tie.
+        bus.write16(PALETTE_BASE + 0x204, 0x03E0);
+        bus.write16(0x0601_0000, 0x0001);
+        bus.write16(0x0601_0020, 0x0002);
         bus.write16(0x0700_0000, 0);
         bus.write16(0x0700_0002, 0);
         bus.write16(0x0700_0004, 0);
