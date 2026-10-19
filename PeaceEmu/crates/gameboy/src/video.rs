@@ -144,14 +144,28 @@ fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut Vi
     };
     let scroll_x = u32::from(bus.read16(hofs_address) & 0x01FF);
     let scroll_y = u32::from(bus.read16(vofs_address) & 0x01FF);
+    let mosaic_enabled = control & (1 << 6) != 0;
+    let mosaic = bus.read16(0x0400_004C);
+    let mosaic_width = u32::from((mosaic & 0xF) + 1);
+    let mosaic_height = u32::from(((mosaic >> 4) & 0xF) + 1);
     let map_blocks_per_row = map_width / 256;
 
     for y in 0..SCREEN_HEIGHT {
-        let world_y = (y as u32 + scroll_y) % map_height;
+        let screen_y = if mosaic_enabled {
+            (y as u32 / mosaic_height) * mosaic_height
+        } else {
+            y as u32
+        };
+        let world_y = (screen_y + scroll_y) % map_height;
         let tile_y = world_y / 8;
         let in_tile_y = world_y & 7;
         for x in 0..SCREEN_WIDTH {
-            let world_x = (x as u32 + scroll_x) % map_width;
+            let screen_x = if mosaic_enabled {
+                (x as u32 / mosaic_width) * mosaic_width
+            } else {
+                x as u32
+            };
+            let world_x = (screen_x + scroll_x) % map_width;
             let tile_x = world_x / 8;
             let in_tile_x = world_x & 7;
             let block_x = tile_x / 32;
@@ -307,6 +321,28 @@ mod tests {
 
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+    }
+
+    #[test]
+    fn mode0_bg_mosaic_repeats_pixels_and_rows() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 8); // BG0 enabled
+        bus.write16(BG0CNT, 1 << 6); // BG0 mosaic enabled
+        bus.write16(0x0400_004C, 1 | (1 << 4)); // 2x2 mosaic
+        // Map tile 1, whose first row starts with indices 1, 2, 3, 4.
+        bus.write16(VRAM_BASE, 1);
+        bus.write16(VRAM_BASE + 32, 0x4321);
+        bus.write16(PALETTE_BASE + 2, 0x001F);
+        bus.write16(PALETTE_BASE + 4, 0x03E0);
+        bus.write16(PALETTE_BASE + 6, 0x7C00);
+        bus.write16(PALETTE_BASE + 8, 0x7FFF);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(2, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(0, 1), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 1), Some(0xFFFF_0000));
     }
 
     #[test]
