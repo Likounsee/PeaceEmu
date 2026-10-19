@@ -169,6 +169,21 @@ impl Cpu {
         Ok((outcome, cycles))
     }
 
+    /// Returns ARM7TDMI's approximate internal multiply cycles (1–4),
+    /// based on whether the multiplier is sign/zero-extended from 8, 16,
+    /// 24, or 32 bits.
+    fn multiply_internal_cycles(value: u32) -> u32 {
+        if value & 0xFFFF_FF00 == 0 || value & 0xFFFF_FF00 == 0xFFFF_FF00 {
+            1
+        } else if value & 0xFFFF_0000 == 0 || value & 0xFFFF_0000 == 0xFFFF_0000 {
+            2
+        } else if value & 0xFF00_0000 == 0 || value & 0xFF00_0000 == 0xFF00_0000 {
+            3
+        } else {
+            4
+        }
+    }
+
     fn estimate_cycles(&self, instruction: u32) -> u32 {
         if self.thumb {
             let raw = instruction as u16;
@@ -226,12 +241,17 @@ impl Cpu {
         {
             return 2;
         }
-        // Multiply latency depends on operand magnitude; use a conservative
-        // fixed estimate until the ARM7TDMI pipeline is modeled.
+        // ARM7TDMI multiply timing depends on how many significant bytes
+        // the multiplier operand needs. The multiplier is Rs (bits 11:8);
+        // MLA and long multiply-accumulate add one internal cycle.
         if instruction & 0x0FC0_00F0 == 0x0000_0090
             || instruction & 0x0F80_00F0 == 0x0080_0090
         {
-            return 2;
+            let rs = ((instruction >> 8) & 0xF) as usize;
+            let multiplier = self.registers[rs];
+            let multiplier_cycles = Self::multiply_internal_cycles(multiplier);
+            let accumulate = instruction & (1 << 21) != 0;
+            return 1 + multiplier_cycles + u32::from(accumulate);
         }
         1
     }
@@ -1548,6 +1568,37 @@ mod tests {
             bus.write32(0x0200_0000 + index as u32 * 4, *instruction);
         }
         bus
+    }
+
+    #[test]
+    fn arm_multiply_cycle_estimates_follow_multiplier_sign_extension() {
+        let mut cpu = Cpu::new();
+        // MUL r0, r1, r2; Rs is r2. Include one fetch cycle plus
+        // the ARM7TDMI internal multiply cycles.
+        let mul_r2 = 0xE000_0291;
+        for (operand, expected) in [
+            (0x0000_007F, 2),
+            (0x0000_7FFF, 3),
+            (0x007F_FFFF, 4),
+            (0x1234_5678, 5),
+            (0xFFFF_FF80, 2),
+            (0xFFFF_8000, 3),
+            (0xFF80_0000, 4),
+            (0x8000_0000, 5),
+        ] {
+            cpu.set_register(2, operand);
+            assert_eq!(cpu.estimate_cycles(mul_r2), expected, "Rs={operand:#010X}");
+        }
+
+        // MLA adds one internal accumulate cycle.
+        cpu.set_register(2, 7);
+        assert_eq!(cpu.estimate_cycles(0xE020_0291), 3);
+        // Long multiply uses the same multiplier-dependent timing.
+        assert_eq!(cpu.estimate_cycles(0xE081_0392), 2);
+        cpu.set_register(3, 0x1234_5678);
+        assert_eq!(cpu.estimate_cycles(0xE081_0392), 5);
+        // UMLAL adds the accumulate cycle.
+        assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 6);
     }
 
     #[test]
