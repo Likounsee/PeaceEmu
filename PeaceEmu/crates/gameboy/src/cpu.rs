@@ -300,6 +300,17 @@ impl Cpu {
             } else {
                 bus.write16(effective, self.registers[rd] as u16);
             }
+        } else if raw & 0xF000 == 0xA000 {
+            // ADD Rd, PC/SP, #imm: the PC base is word-aligned address+4.
+            let rd = usize::from((raw >> 8) & 7);
+            let use_sp = raw & (1 << 11) != 0;
+            let offset = u32::from(raw & 0xFF) * 4;
+            let base = if use_sp {
+                self.registers[13]
+            } else {
+                address.wrapping_add(4) & !3
+            };
+            self.registers[rd] = base.wrapping_add(offset);
         } else if raw & 0xF000 == 0x9000 {
             let load = raw & (1 << 11) != 0;
             let rd = usize::from((raw >> 8) & 7);
@@ -1109,6 +1120,22 @@ mod tests {
 
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(0), Some(7));
+    }
+
+    #[test]
+    fn thumb_add_pc_and_sp_relative_address_calculations() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0xA001); // ADD r0, PC, #4
+        bus.write16(0x0200_0002, 0xA902); // ADD r1, SP, #8
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(13, 0x0200_0100);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0x0200_0008));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(1), Some(0x0200_0108));
     }
 
     #[test]
