@@ -1740,7 +1740,7 @@ mod tests {
             (0x1234_5678, 5),
             (0xFFFF_FF80, 2),
             (0xFFFF_8000, 3),
-            (0xFF80_0000, 3),
+            (0xFF80_0000, 4),
             (0x8000_0000, 5),
         ] {
             cpu.set_register(2, operand);
@@ -1873,7 +1873,7 @@ mod tests {
         // The timer is one tick from overflow. A condition-failed instruction
         // is skipped, but the CPU still spends one sequential fetch cycle.
         bus.write16(0x0400_0100, 0xFFFF);
-        bus.write16(0x0400_0102, 0x0080);
+        bus.write16(0x0400_0102, 0x00C0);
         let (outcome, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
 
         assert!(matches!(outcome, StepOutcome::ConditionFailed { .. }));
