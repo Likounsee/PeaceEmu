@@ -221,6 +221,13 @@ impl Cpu {
                 }
                 return 1 + registers;
             }
+            // Thumb MUL has operand-dependent internal timing on ARM7TDMI.
+            // The multiplier is Rs (bits 3..5); include the instruction cycle
+            // in addition to the value-dependent multiply cycles.
+            if raw & 0xFC00 == 0x4000 && (raw >> 6) & 0xF == 13 {
+                let rs = usize::from((raw >> 3) & 7);
+                return 1 + Self::multiply_internal_cycles(self.registers[rs]);
+            }
             // Ordinary single transfers include register-offset, immediate,
             // halfword, SP-relative, and literal loads.
             if raw & 0xF000 == 0x5000
@@ -2801,6 +2808,29 @@ mod tests {
         store_cpu.step(&mut store_bus).unwrap();
         assert_eq!(store_bus.read32(0x0200_0100), 0x0200_0004);
         assert_eq!(store_cpu.register(0), Some(0x0200_0140));
+    }
+
+    #[test]
+    fn thumb_multiply_cycle_estimates_follow_multiplier_width() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x4348); // MUL r0, r1
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(0, 7);
+        cpu.set_register(1, 3);
+        let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+        assert_eq!(cycles, 2); // one-cycle multiplier plus instruction cycle
+
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x4348); // MUL r0, r1
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(0, 7);
+        cpu.set_register(1, 0x1234_5678);
+        let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+        assert_eq!(cycles, 5);
     }
 
     #[test]
