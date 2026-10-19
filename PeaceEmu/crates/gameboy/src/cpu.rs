@@ -538,7 +538,7 @@ impl Cpu {
                     } else {
                         value
                     });
-                },
+                }
                 6 => self.registers[rd] = u32::from(bus.read8(effective)),
                 7 => {
                     self.registers[rd] = if effective & 1 != 0 {
@@ -993,7 +993,10 @@ impl Cpu {
         } else {
             let rm = (instruction & 0xF) as usize;
             if rm == 15 {
-                return Err(CpuError::UnsupportedInstruction { address, instruction });
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
             }
             self.registers[rm]
         };
@@ -1328,7 +1331,11 @@ impl Cpu {
         // address/write-back as though all 16 registers had been listed.
         let empty_list = register_list == 0;
         let effective_list = if empty_list { 1 << 15 } else { register_list };
-        let count = if empty_list { 16 } else { register_list.count_ones() };
+        let count = if empty_list {
+            16
+        } else {
+            register_list.count_ones()
+        };
         let base = self.read_operand_register(rn, address);
         let bytes = count * 4;
         let first_address = match (increment, pre_index) {
@@ -2047,7 +2054,10 @@ mod tests {
         assert_eq!(cpu.register(2), Some(0));
         assert_eq!(cpu.flags().zero, true);
 
-        assert!(matches!(cpu.step(&mut bus), Err(CpuError::UnsupportedInstruction { .. })));
+        assert!(matches!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction { .. })
+        ));
         assert_eq!(cpu.flags().negative, false);
         assert_eq!(cpu.flags().zero, true);
         assert_eq!(cpu.flags().carry, false);
