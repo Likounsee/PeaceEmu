@@ -252,7 +252,11 @@ fn render_regular_objects(
         // Affine sprites need matrix transforms and are deliberately skipped
         // until that part of the PPU is implemented. Disabled regular sprites
         // and prohibited shape 3 are likewise not drawable.
-        if attr0 & (1 << 8) != 0 || attr0 & (1 << 9) != 0 || (attr0 >> 14) & 3 == 3 {
+        if attr0 & (1 << 8) != 0
+            || attr0 & (1 << 9) != 0
+            || attr0 & (3 << 10) != 0
+            || (attr0 >> 14) & 3 == 3
+        {
             continue;
         }
         if u16::from((attr2 >> 10) & 3) != priority {
@@ -455,6 +459,7 @@ mod tests {
         bus.write16(0x0400_0000, 1 << 8); // BG0 enabled
         bus.write16(BG0CNT, 1 << 6); // BG0 mosaic enabled
         bus.write16(0x0400_004C, 1 | (1 << 4)); // 2x2 mosaic
+
         // Map tile 1, whose first row starts with indices 1, 2, 3, 4.
         bus.write16(VRAM_BASE, 1);
         bus.write16(VRAM_BASE + 32, 0x4321);
@@ -506,6 +511,7 @@ mod tests {
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
         bus.write16(VRAM_BASE, 1);
         bus.write8(VRAM_BASE + 32, 1); // BG tile 1: green
+
         // OBJ tile 0 at 0x06010000; low nibble is first pixel, index 1.
         bus.write16(0x0601_0000, 0x0001);
         // OAM entry 0: regular 8x8 sprite at (0,0), tile 0, priority 0.
@@ -524,6 +530,7 @@ mod tests {
         bus.write16(0x0400_0000, (1 << 8) | (1 << 12));
         bus.write16(PALETTE_BASE, 0x7C00); // backdrop blue
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1 red
+
         // Sprite tile starts with index 0: transparent.
         bus.write16(0x0700_0000, 0);
         bus.write16(0x0700_0002, 0);
@@ -537,6 +544,7 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 3 | (1 << 12)); // mode 3 and OBJ enabled
         bus.write16(VRAM_BASE, 0x03E0); // framebuffer pixel (0,0): green
+
         // OBJ tile 0 starts at 0x06014000 in bitmap modes.
         bus.write16(0x0601_4000, 0x0001);
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
@@ -550,11 +558,71 @@ mod tests {
     }
 
     #[test]
+    fn bitmap_mode4_uses_selected_frame_page_and_palette() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 4 | (1 << 4)); // mode 4, page 1
+        bus.write8(VRAM_BASE + 0xA000, 3);
+        bus.write16(PALETTE_BASE + 6, 0x001F); // palette index 3: red
+
+        let frame = render_bitmap_frame(&bus).expect("mode 4 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn bitmap_mode5_is_centered_and_uses_selected_page() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 5 | (1 << 4)); // mode 5, page 1
+        bus.write16(VRAM_BASE + 0xA000, 0x001F); // first visible pixel: red
+
+        let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
+        assert_eq!(frame.pixel(39, 16), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(40, 16), Some(0xFF00_0000));
+        assert_eq!(frame.pixel(200, 16), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn lower_oam_index_wins_obj_priority_ties() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // index 1 red
+        bus.write16(PALETTE_BASE + 0x204, 0x03E0); // index 2 green
+        bus.write16(0x0601_0000, 0x0001); // tile 0: red pixel
+        bus.write16(0x0601_0020, 0x0002); // tile 1: green pixel
+        // Entry 0 has the lower OAM index and must win.
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+        bus.write16(0x0700_0008, 0);
+        bus.write16(0x0700_000A, 0);
+        bus.write16(0x0700_000C, 1);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+    }
+
+    #[test]
+    fn non_normal_obj_modes_are_not_drawn_as_opaque_sprites() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1 red
+        bus.write16(0x0601_0000, 0x0001);
+        bus.write16(0x0700_0000, 1 << 10); // semi-transparent OBJ mode
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_00FF));
+    }
+
+    #[test]
     fn mode0_obj_vflip_reverses_4bpp_rows() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // index 1 red
         bus.write16(PALETTE_BASE + 0x204, 0x03E0); // index 2 green
+
         // The first pixel of row 0 is red; the first pixel of row 7 is green.
         bus.write16(0x0601_0000, 0x0001);
         bus.write16(0x0601_001C, 0x0002);
@@ -573,6 +641,7 @@ mod tests {
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // index 1 red
         bus.write16(PALETTE_BASE + 0x204, 0x03E0); // index 2 green
+
         // First two tile pixels are index 1, then index 2.
         bus.write16(0x0601_0000, 0x0021);
         bus.write16(0x0601_0002, 0x0000);
