@@ -191,8 +191,14 @@ impl Cpu {
             if raw & 0xF000 == 0xD000 && ((raw >> 8) & 0xF) < 0xE {
                 return 3;
             }
-            if raw & 0xF800 == 0xE000 || raw & 0xF800 == 0xF000 || raw & 0xF800 == 0xF800 {
+            if raw & 0xF800 == 0xE000 || raw & 0xF800 == 0xF800 {
                 return 3;
+            }
+            // The first half of Thumb BL only builds the high displacement
+            // in LR; it does not redirect the PC or refill the pipeline.
+            // The second half performs the branch and pays the refill cost.
+            if raw & 0xF800 == 0xF000 {
+                return 1;
             }
             // High-register ADD/MOV to PC and BX redirect execution and
             // refill the Thumb pipeline; do not estimate them as one-cycle ALU ops.
@@ -2808,6 +2814,24 @@ mod tests {
         store_cpu.step(&mut store_bus).unwrap();
         assert_eq!(store_bus.read32(0x0200_0100), 0x0200_0004);
         assert_eq!(store_cpu.register(0), Some(0x0200_0140));
+    }
+
+    #[test]
+    fn thumb_bl_first_half_does_not_pay_branch_refill_cycles() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0xF000); // BL high displacement half
+        bus.write16(0x0200_0002, 0xF800); // BL low displacement half
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+
+        let (_, first_cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+        assert_eq!(first_cycles, 1);
+        assert_eq!(cpu.register(15), Some(0x0200_0002));
+
+        let (_, second_cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+        assert_eq!(second_cycles, 3);
+        assert_eq!(cpu.register(15), Some(0x0200_0004));
     }
 
     #[test]
