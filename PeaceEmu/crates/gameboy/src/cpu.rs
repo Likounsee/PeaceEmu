@@ -479,6 +479,14 @@ impl Cpu {
             let operation = (raw >> 8) & 3;
             let rd = usize::from((raw & 7) | ((raw >> 4) & 8));
             let rs = usize::from((raw >> 3) & 0xF);
+            // BX with PC as Rm is architecturally unpredictable on ARM7TDMI.
+            // Other high-register operations may legitimately read PC.
+            if operation == 3 && rs == 15 {
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
+            }
             let right = self.read_thumb_register(rs, address);
             let left = self.read_thumb_register(rd, address);
             match operation {
@@ -1861,6 +1869,28 @@ mod tests {
         assert_eq!(cpu.register(0), Some(0));
         assert_eq!(cpu.register(15), Some(0x0800_0004));
         assert_eq!(bus.read16(0x0400_0100), 0);
+    }
+
+    #[test]
+    fn thumb_bx_pc_is_rejected_as_unpredictable() {
+        let mut bus = bus_with_program(&[]);
+        let mut cpu = Cpu::new();
+        cpu.thumb = true;
+        cpu.set_register(15, 0x0200_0000);
+        // BX PC has Rm=15, which ARM7TDMI does not define predictably.
+        bus.write16(0x0200_0000, 0x4778);
+
+        let result = cpu.step(&mut bus);
+
+        assert_eq!(
+            result,
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction: 0x4778,
+            })
+        );
+        assert!(cpu.is_thumb());
+        assert_eq!(cpu.register(15), Some(0x0200_0002));
     }
 
     #[test]
