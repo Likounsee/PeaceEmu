@@ -789,8 +789,8 @@ mod tests {
         bus.advance_cycles(32);
         assert_eq!(bus.read16(0x0400_0100), 0);
 
-        bus.write8(0x0400_0103, 0x00);
-        bus.write8(0x0400_0103, 0x80);
+        bus.write8(0x0400_0102, 0x01); // Disable, retain divisor 64.
+        bus.write8(0x0400_0102, 0x81); // Re-enable with divisor 64.
         bus.advance_cycles(63);
         assert_eq!(bus.read16(0x0400_0100), 0);
         bus.advance_cycles(1);
