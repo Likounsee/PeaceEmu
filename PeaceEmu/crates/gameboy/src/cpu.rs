@@ -1221,6 +1221,16 @@ impl Cpu {
             });
         }
 
+        // PC-relative literal transfers are valid only without write-back.
+        // Updating r15 as the address base has unpredictable control-flow
+        // effects on ARM7TDMI, including for post-indexed encodings.
+        if rn == 15 && (!pre_index || write_back) {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
         if register_offset && instruction & (1 << 4) != 0 {
             return Err(CpuError::UnsupportedInstruction {
                 address,
@@ -2476,6 +2486,23 @@ mod tests {
             })
         );
         assert_eq!(cpu.register(1), Some(0x0200_0100));
+    }
+
+    #[test]
+    fn arm_post_indexed_pc_base_transfer_is_rejected() {
+        let mut bus = bus_with_program(&[0xE49F_0004]); // LDR r0, [pc], #4
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction: 0xE49F_0004,
+            })
+        );
+        // The invalid write-back must not redirect execution through r15.
+        assert_eq!(cpu.register(15), Some(0x0200_0004));
     }
 
     #[test]
