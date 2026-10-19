@@ -991,10 +991,19 @@ impl Cpu {
                 bus.read32(effective).rotate_right((effective & 3) * 8)
             };
             self.registers[rd] = if rd == 15 { value & !3 } else { value };
-        } else if byte_transfer {
-            bus.write8(effective, self.registers[rd] as u8);
         } else {
-            bus.write32(effective, self.registers[rd]);
+            // ARM7TDMI exposes PC as instruction address + 12 when it is
+            // used as the source of an ARM-state single data transfer.
+            let value = if rd == 15 {
+                address.wrapping_add(12)
+            } else {
+                self.registers[rd]
+            };
+            if byte_transfer {
+                bus.write8(effective, value as u8);
+            } else {
+                bus.write32(effective, value);
+            }
         }
 
         if !pre_index || write_back {
@@ -1689,6 +1698,26 @@ mod tests {
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(6), Some(0x8000_0001));
         assert!(cpu.flags().carry); // ROR by a nonzero multiple of 32 preserves bit 31.
+    }
+
+    #[test]
+    fn arm_store_pc_uses_pipeline_visible_address_plus_twelve() {
+        // STR pc, [r0] stores the ARM7TDMI pipeline-visible PC (instruction
+        // address + 12), not the already-advanced internal PC (address + 4).
+        let mut bus = bus_with_program(&[0xE580_F000]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0x0200_0100);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read32(0x0200_0100), 0x0200_000C);
+
+        // STRB pc, [r0] uses the low byte of the same architectural value.
+        let mut bus = bus_with_program(&[0xE5C0_F000]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0x0200_0100);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read8(0x0200_0100), 0x0C);
     }
 
     #[test]
