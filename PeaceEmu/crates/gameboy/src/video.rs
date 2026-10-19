@@ -293,7 +293,7 @@ mod tests {
         // Enable BG0 and BG1. BG0 has priority 0; BG1 has priority 1.
         bus.write16(0x0400_0000, (1 << 8) | (1 << 9));
         bus.write16(BG0CNT, 0);
-        bus.write16(BG0CNT + 2, 1);
+        bus.write16(BG0CNT + 2, 1 | (1 << 8));
         // BG0 tile 1: first pixel is palette index 1 (red).
         bus.write16(VRAM_BASE, 1);
         bus.write8(VRAM_BASE + 32, 1);
