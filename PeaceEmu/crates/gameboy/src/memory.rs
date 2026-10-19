@@ -376,7 +376,7 @@ impl MemoryBus {
             };
             dst = match destination_mode {
                 1 => dst.wrapping_sub(step),
-                2 | 3 => dst,
+                2 => dst,
                 _ => dst.wrapping_add(step),
             };
         }
@@ -1163,9 +1163,25 @@ mod tests {
         bus.write32(0x0400_00BC, 0x0200_0000);
         bus.write32(0x0400_00C0, 0x0300_0000);
         bus.write16(0x0400_00C4, 2);
-        bus.write16(0x0400_00C6, 0x8460);
+        bus.write16(0x0400_00C6, 0x8440);
         assert_eq!(bus.read32(0x0300_0000), 0xAABB_CCDD);
         assert_eq!(bus.read16(0x0400_00C6) & 0x8000, 0);
+    }
+
+
+    #[test]
+    fn destination_reload_mode_increments_during_transfer_then_reloads() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write32(0x0200_0000, 0x1111_2222);
+        bus.write32(0x0200_0004, 0x3333_4444);
+        bus.write32(0x0400_00B0, 0x0200_0000);
+        bus.write32(0x0400_00B4, 0x0300_0000);
+        bus.write16(0x0400_00B8, 2);
+        bus.write16(0x0400_00BA, 0x8460); // immediate, 32-bit, increment/reload destination
+
+        assert_eq!(bus.read32(0x0300_0000), 0x1111_2222);
+        assert_eq!(bus.read32(0x0300_0004), 0x3333_4444);
+        assert_eq!(bus.read32(0x0400_00B4), 0x0300_0000);
     }
 
     #[test]
@@ -1179,7 +1195,6 @@ mod tests {
         assert_eq!(bus.read16(0x0300_0000), 0);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
     }
-
     #[test]
     fn vblank_dma_transfers_only_when_vblank_begins_and_repeats_when_configured() {
         let mut bus = MemoryBus::new(cartridge());
