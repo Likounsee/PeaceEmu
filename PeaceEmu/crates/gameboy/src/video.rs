@@ -111,13 +111,14 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     Some(frame)
 }
 
-
 /// Composites regular text backgrounds from back to front (priority 3 to 0).
 /// Sprites and affine backgrounds are not implemented yet.
 fn render_text_bg0(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame) {
     frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
     for priority in (0..=3).rev() {
-        for bg in 0..4 {
+        // On equal priorities BG0 wins over BG1, then BG2, then BG3.
+        // Draw the lower-numbered background last so it remains in front.
+        for bg in (0..4).rev() {
             let control_address = BG0CNT + bg * 2;
             let control = bus.read16(control_address);
             if display_control & (1 << (8 + bg)) == 0 || control & 3 != priority as u16 {
@@ -229,7 +230,7 @@ mod tests {
     fn mode0_renders_4bpp_bg0_tile_and_palette_bank() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
-        // Tile 1: pixels 0 and 1 are 1 and 2.
+                                          // Tile 1: pixels 0 and 1 are 1 and 2.
         bus.write8(VRAM_BASE + 32, 0x21);
         // Select tile 1 by changing the map entry.
         bus.write16(VRAM_BASE, (1 << 12) | 1);
@@ -245,8 +246,8 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
         bus.write16(BG0CNT, 1 << 7); // 8bpp tiles
-        // In 8bpp mode tile index 1 aliases tile index 0; tile 2
-        // starts at byte offset 64 in character data.
+                                     // In 8bpp mode tile index 1 aliases tile index 0; tile 2
+                                     // starts at byte offset 64 in character data.
         bus.write16(VRAM_BASE, 2);
         bus.write8(VRAM_BASE + 64, 3);
         bus.write8(VRAM_BASE + 65, 4);
@@ -278,7 +279,7 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
         bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop
-        // Tile 1 begins with zero (transparent); next pixel uses palette entry 17.
+                                           // Tile 1 begins with zero (transparent); next pixel uses palette entry 17.
         bus.write16(VRAM_BASE, (1 << 12) | 1);
         bus.write8(VRAM_BASE + 32, 0x10);
         bus.write16(PALETTE_BASE + 34, 0x001F); // palette 17: red
@@ -302,6 +303,23 @@ mod tests {
         bus.write16(VRAM_BASE + 0x800, 2);
         bus.write8(VRAM_BASE + 64, 2);
         bus.write16(PALETTE_BASE + 4, 0x03E0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+    }
+
+    #[test]
+    fn mode0_bg0_wins_ties_against_bg1() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, (1 << 8) | (1 << 9));
+        bus.write16(BG0CNT, 0); // BG0 priority 0
+        bus.write16(BG0CNT + 2, 0 | (1 << 8)); // BG1 priority 0, screen block 1
+        bus.write16(VRAM_BASE, 1);
+        bus.write8(VRAM_BASE + 32, 1);
+        bus.write16(VRAM_BASE + 0x800, 2);
+        bus.write8(VRAM_BASE + 64, 2);
+        bus.write16(PALETTE_BASE + 2, 0x001F); // BG0 red
+        bus.write16(PALETTE_BASE + 4, 0x03E0); // BG1 green
 
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
