@@ -45,7 +45,8 @@ impl VideoFrame {
 pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     let display_control = bus.read16(0x0400_0000);
     let mode = display_control & 7;
-    if mode > 5 || (mode < 3 && display_control & (1 << 7) == 0) {
+    let forced_blank = display_control & (1 << 7) != 0;
+    if !forced_blank && (mode > 5 || mode < 3) {
         return None;
     }
 
@@ -55,7 +56,7 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
         pixels: vec![0xFF00_0000; SCREEN_WIDTH * SCREEN_HEIGHT],
     };
 
-    if display_control & (1 << 7) != 0 {
+    if forced_blank {
         frame.pixels.fill(0xFFFF_FFFF);
         return Some(frame);
     }
