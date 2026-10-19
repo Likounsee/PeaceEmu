@@ -174,9 +174,8 @@ impl MemoryBus {
         if (0x0400_0200..=0x0400_0201).contains(&address) {
             let shift = (address - 0x0400_0200) * 8;
             let byte_mask = 0xFF_u16 << shift;
-            self.interrupt_enable = ((self.interrupt_enable & !byte_mask)
-                | ((value as u16) << shift))
-                & 0x3FFF;
+            self.interrupt_enable =
+                ((self.interrupt_enable & !byte_mask) | ((value as u16) << shift)) & 0x3FFF;
             return;
         }
         // IF is write-one-to-clear; writing zero leaves pending flags unchanged.
