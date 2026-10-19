@@ -1251,6 +1251,7 @@ mod tests {
     fn vblank_dma_transfers_only_when_vblank_begins_and_repeats_when_configured() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0200_0000, 0xCAFE);
+        bus.write16(0x0200_0002, 0xFACE);
         bus.write32(0x0400_00B0, 0x0200_0000);
         bus.write32(0x0400_00B4, 0x0300_0000);
         bus.write16(0x0400_00B8, 1);
