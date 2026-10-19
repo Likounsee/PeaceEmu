@@ -348,6 +348,34 @@ impl Cpu {
             } else {
                 self.registers[13].wrapping_add(offset)
             };
+        } else if raw & 0xF000 == 0xC000 {
+            let load = raw & (1 << 11) != 0;
+            let rb = usize::from((raw >> 8) & 7);
+            let register_list = u32::from(raw & 0xFF);
+            let count = register_list.count_ones();
+            if count == 0 || (!load && register_list & (1 << rb) != 0) {
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
+            }
+
+            let base = self.registers[rb];
+            let mut transfer_address = base;
+            for register in 0..8 {
+                if register_list & (1 << register) == 0 {
+                    continue;
+                }
+                if load {
+                    self.registers[register] = bus.read32(transfer_address);
+                } else {
+                    bus.write32(transfer_address, self.registers[register]);
+                }
+                transfer_address = transfer_address.wrapping_add(4);
+            }
+            if !load || register_list & (1 << rb) == 0 {
+                self.registers[rb] = base.wrapping_add(count * 4);
+            }
         } else if raw & 0xE000 == 0x2000 {
             let operation = (raw >> 11) & 3;
             let rd = usize::from((raw >> 8) & 7);
@@ -1099,6 +1127,50 @@ mod tests {
         assert_eq!(cpu.register(2), Some(0x1122_3344));
         assert_eq!(cpu.register(3), Some(0xAABB_CCDD));
         assert_eq!(cpu.register(13), Some(0x0200_0120));
+    }
+
+    #[test]
+    fn thumb_multiple_transfers_store_load_and_write_back() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0xC006); // STMIA r0!, {r1, r2}
+        bus.write16(0x0200_0002, 0xC818); // LDMIA r0!, {r3, r4}
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(0, 0x0200_0100);
+        cpu.set_register(1, 0x1122_3344);
+        cpu.set_register(2, 0xAABB_CCDD);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read32(0x0200_0100), 0x1122_3344);
+        assert_eq!(bus.read32(0x0200_0104), 0xAABB_CCDD);
+        assert_eq!(cpu.register(0), Some(0x0200_0108));
+
+        cpu.set_register(0, 0x0200_0100);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(3), Some(0x1122_3344));
+        assert_eq!(cpu.register(4), Some(0xAABB_CCDD));
+        assert_eq!(cpu.register(0), Some(0x0200_0108));
+    }
+
+    #[test]
+    fn bx_switches_between_arm_and_thumb_instruction_sets() {
+        let mut bus = bus_with_program(&[0xE12F_FF11]); // BX r1
+        bus.write16(0x0200_0008, 0x2201); // MOVS r2, #1
+        bus.write16(0x0200_000A, 0x4700); // BX r0
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0x0200_0010);
+        cpu.set_register(1, 0x0200_0009);
+
+        cpu.step(&mut bus).unwrap();
+        assert!(cpu.is_thumb());
+        assert_eq!(cpu.register(15), Some(0x0200_0008));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(1));
+        cpu.step(&mut bus).unwrap();
+        assert!(!cpu.is_thumb());
+        assert_eq!(cpu.register(15), Some(0x0200_0010));
     }
 
     #[test]
