@@ -313,8 +313,8 @@ impl Cpu {
                     self.set_arithmetic_flags(result, carry, overflow);
                 }
                 6 => {
-                    let (result, carry, overflow) =
-                        Self::subtract(left, right, !self.flags.carry);
+                    let borrow_in = !self.flags.carry;
+                    let (result, carry, overflow) = Self::subtract(left, right, borrow_in);
                     self.registers[rd] = result;
                     self.set_arithmetic_flags(result, carry, overflow);
                 }
@@ -357,7 +357,10 @@ impl Cpu {
                 }
             }
         } else {
-            return Err(CpuError::UnsupportedInstruction { address, instruction });
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
         }
 
         Ok(StepOutcome::Executed {
