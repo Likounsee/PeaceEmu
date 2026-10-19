@@ -1175,14 +1175,38 @@ mod tests {
 
     #[test]
     fn arm_register_controlled_shifts_cover_boundaries_and_carry() {
-        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 1, false), (0x0000_0002, Some(true)));
-        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 32, false), (0, Some(true)));
-        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 33, false), (0, Some(false)));
-        assert_eq!(Cpu::shift_register(0x8000_0001, 1, 32, false), (0, Some(true)));
-        assert_eq!(Cpu::shift_register(0x8000_0001, 2, 32, false), (u32::MAX, Some(true)));
-        assert_eq!(Cpu::shift_register(0x8000_0001, 2, 40, false), (u32::MAX, Some(true)));
-        assert_eq!(Cpu::shift_register(0x8000_0001, 3, 32, false), (0x8000_0001, Some(true)));
-        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 0, true), (0x8000_0001, None));
+        assert_eq!(
+            Cpu::shift_register(0x8000_0001, 0, 1, false),
+            (0x0000_0002, Some(true))
+        );
+        assert_eq!(
+            Cpu::shift_register(0x8000_0001, 0, 32, false),
+            (0, Some(true))
+        );
+        assert_eq!(
+            Cpu::shift_register(0x8000_0001, 0, 33, false),
+            (0, Some(false))
+        );
+        assert_eq!(
+            Cpu::shift_register(0x8000_0001, 1, 32, false),
+            (0, Some(true))
+        );
+        assert_eq!(
+            Cpu::shift_register(0x8000_0001, 2, 32, false),
+            (u32::MAX, Some(true))
+        );
+        assert_eq!(
+            Cpu::shift_register(0x8000_0001, 2, 40, false),
+            (u32::MAX, Some(true))
+        );
+        assert_eq!(
+            Cpu::shift_register(0x8000_0001, 3, 32, false),
+            (0x8000_0001, Some(true))
+        );
+        assert_eq!(
+            Cpu::shift_register(0x8000_0001, 0, 0, true),
+            (0x8000_0001, None)
+        );
     }
 
     #[test]
