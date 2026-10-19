@@ -102,12 +102,17 @@ impl Cpu {
         self.registers.get(index).copied()
     }
 
-    /// Sets a general-purpose register. Writes to r15 are word-aligned.
+    /// Sets a general-purpose register. Writes to r15 follow the current
+    /// instruction state: halfword alignment in Thumb state, word alignment in ARM.
     pub fn set_register(&mut self, index: usize, value: u32) -> bool {
         if index >= self.registers.len() {
             return false;
         }
-        self.registers[index] = if index == 15 { value & !3 } else { value };
+        self.registers[index] = if index == 15 {
+            if self.thumb { value & !1 } else { value & !3 }
+        } else {
+            value
+        };
         true
     }
 
@@ -2186,6 +2191,22 @@ mod tests {
         assert!(cpu.flags().negative);
         assert!(!cpu.flags().zero);
         assert!(!cpu.flags().carry);
+    }
+
+    #[test]
+    fn setting_pc_in_thumb_state_preserves_halfword_alignment() {
+        let mut bus = bus_with_program(&[]);
+        // A Thumb MOV r0, #7 placed at an address ending in 2.
+        bus.write16(0x0200_0002, 0x2007);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+
+        assert!(cpu.set_register(15, 0x0200_0003));
+        assert_eq!(cpu.register(15), Some(0x0200_0002));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(7));
+        assert_eq!(cpu.register(15), Some(0x0200_0004));
     }
 
     #[test]
