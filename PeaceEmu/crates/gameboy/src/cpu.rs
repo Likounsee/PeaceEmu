@@ -1406,7 +1406,6 @@ mod tests {
     #[test]
     fn thumb_immediate_lsr_and_asr_zero_encode_shift_by_32() {
         let mut bus = bus_with_program(&[]);
-        bus.write16(0x0200_0000, 0x0848); // LSRS r0, r1, #1? replaced below
         bus.write16(0x0200_0000, 0x0808); // LSRS r0, r1, #0 (shift by 32)
         bus.write16(0x0200_0002, 0x100A); // ASRS r2, r1, #0 (shift by 32)
         let mut cpu = Cpu::new();
@@ -1416,7 +1415,7 @@ mod tests {
 
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(0), Some(0));
-        assert!(cpu.flags().negative == false);
+        assert!(!cpu.flags().negative);
         assert!(cpu.flags().carry);
 
         cpu.step(&mut bus).unwrap();
