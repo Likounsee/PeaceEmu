@@ -859,7 +859,14 @@ impl Cpu {
         let rm = (instruction & 0xF) as usize;
 
         // ARM7TDMI multiply operands and destination must not use r15.
-        if rd == 15 || rs == 15 || rm == 15 || (accumulate && rn == 15) {
+        // Rd must also differ from Rm; that overlap is architecturally
+        // unpredictable on this core, for both MUL and MLA.
+        if rd == 15
+            || rs == 15
+            || rm == 15
+            || rd == rm
+            || (accumulate && rn == 15)
+        {
             return Err(CpuError::UnsupportedInstruction {
                 address,
                 instruction,
@@ -2274,6 +2281,29 @@ mod tests {
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(6), Some(0x8000_0001));
         assert!(cpu.flags().carry); // ROR by a nonzero multiple of 32 preserves bit 31.
+    }
+
+    #[test]
+    fn arm_multiply_rejects_destination_equal_to_first_operand() {
+        // MUL r0, r1, r0 and MLA r0, r1, r0, r2 are unpredictable on ARM7TDMI.
+        for instruction in [0xE000_0090_u32, 0xE020_3290] {
+            let mut bus = bus_with_program(&[instruction]);
+            let mut cpu = Cpu::new();
+            cpu.reset(0x0200_0000);
+            cpu.set_register(0, 3);
+            cpu.set_register(1, 7);
+            cpu.set_register(2, 11);
+
+            assert_eq!(
+                cpu.step(&mut bus),
+                Err(CpuError::UnsupportedInstruction {
+                    address: 0x0200_0000,
+                    instruction,
+                }),
+                "instruction 0x{instruction:08X}"
+            );
+            assert_eq!(cpu.register(0), Some(3));
+        }
     }
 
     #[test]
