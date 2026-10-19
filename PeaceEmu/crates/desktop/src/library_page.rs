@@ -237,14 +237,21 @@ impl DesktopApp {
         }
     }
 
-    fn reset_game_display_name(&mut self, game_path: &Path, original_title: &str) {
+    fn reset_game_display_name(&mut self, game_path: &Path) {
         let Some(config_path) = self.config_path.clone() else {
             return;
         };
+        let original_title = self
+            .controller
+            .library()
+            .entries()
+            .find(|entry| entry.path() == game_path)
+            .map(|entry| entry.title().to_owned())
+            .unwrap_or_default();
         let previous = self.game_names.remove(game_path);
         match game_names::persist(&config_path, &self.game_names) {
             Ok(()) => {
-                self.display_name_edit = original_title.to_owned();
+                self.display_name_edit = original_title;
                 self.message = if self.language == "fr" {
                     "Nom d’origine rétabli.".to_owned()
                 } else {
@@ -689,7 +696,7 @@ impl DesktopApp {
                 if self.game_names.contains_key(&path)
                     && ui.button(if french { "Rétablir" } else { "Reset" }).clicked()
                 {
-                    self.reset_game_display_name(&path, &title);
+                    self.reset_game_display_name(&path);
                 }
             });
             let extension = path
