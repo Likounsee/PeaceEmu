@@ -137,7 +137,8 @@ impl Cpu {
         bus: &mut MemoryBus,
     ) -> Result<(StepOutcome, u32), CpuError> {
         let address = self.registers[15];
-        let instruction = if self.thumb {
+        let was_thumb = self.thumb;
+        let instruction = if was_thumb {
             u32::from(bus.read16(address & !1))
         } else {
             bus.read32(address & !3)
@@ -146,7 +147,17 @@ impl Cpu {
         let outcome = self.step(bus)?;
         // A condition-failed ARM instruction is skipped without a branch or
         // data access, so it consumes only the sequential instruction cycle.
+        // Thumb conditional branches are reported as executed regardless of
+        // whether the condition matched; use the resulting PC to distinguish
+        // the taken (pipeline refill) and not-taken paths.
+        let thumb_conditional_branch = was_thumb
+            && instruction & 0xF000 == 0xD000
+            && ((instruction >> 8) & 0xF) < 0xE;
         let cycles = if matches!(outcome, StepOutcome::ConditionFailed { .. }) {
+            1
+        } else if thumb_conditional_branch
+            && self.registers[15] == address.wrapping_add(2)
+        {
             1
         } else {
             estimated_cycles
@@ -1550,6 +1561,27 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xC00E), 4);
         // Thumb POP {r0-r2,pc}: fetch, four transfers and pipeline refill.
         assert_eq!(cpu.estimate_cycles(0xBD07), 7);
+    }
+
+    #[test]
+    fn timed_thumb_conditional_branch_uses_taken_or_sequential_cycle_count() {
+        let mut bus = bus_with_program(&[]);
+        let mut cpu = Cpu::new();
+        cpu.thumb = true;
+        cpu.set_register(15, 0x0200_0000);
+
+        // EQ is false with reset flags: continue sequentially in one cycle.
+        bus.write16(0x0200_0000, 0xD001);
+        let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+        assert_eq!(cycles, 1);
+        assert_eq!(cpu.register(15), Some(0x0200_0002));
+
+        // Reset PC and execute BNE +2; Z is still clear, so it is taken.
+        cpu.set_register(15, 0x0200_0000);
+        bus.write16(0x0200_0000, 0xD101);
+        let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+        assert_eq!(cycles, 3);
+        assert_eq!(cpu.register(15), Some(0x0200_0006));
     }
 
     #[test]
