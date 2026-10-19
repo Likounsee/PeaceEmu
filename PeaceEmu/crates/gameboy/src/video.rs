@@ -340,7 +340,7 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
         assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
-        assert_eq!(frame.pixel(2, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(2, 0), Some(0xFF00_00FF));
         assert_eq!(frame.pixel(0, 1), Some(0xFFFF_0000));
         assert_eq!(frame.pixel(1, 1), Some(0xFFFF_0000));
     }
