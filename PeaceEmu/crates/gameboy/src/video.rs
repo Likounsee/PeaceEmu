@@ -202,13 +202,11 @@ mod tests {
     fn mode0_renders_4bpp_bg0_tile_and_palette_bank() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
-        bus.write16(BG0CNT, 1 << 12); // palette bank 1
-        bus.write16(VRAM_BASE, 1 << 12); // map entry: tile 0, palette bank 1
         bus.write8(VRAM_BASE + 32, 0x21); // tile 1: pixels 0 and 1 are 1 and 2
         // Select tile 1 by changing the map entry.
         bus.write16(VRAM_BASE, (1 << 12) | 1);
-        bus.write16(PALETTE_BASE + 2, 0x001F); // red
-        bus.write16(PALETTE_BASE + 4, 0x03E0); // green
+        bus.write16(PALETTE_BASE + 34, 0x001F); // palette 17: red
+        bus.write16(PALETTE_BASE + 36, 0x03E0); // palette 18: green
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
         assert_eq!(frame.pixel(1, 0), Some(0xFF00_FF00));
