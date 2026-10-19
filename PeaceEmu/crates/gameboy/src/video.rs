@@ -561,7 +561,7 @@ mod tests {
     fn bitmap_mode4_uses_selected_frame_page_and_palette() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 4 | (1 << 4)); // mode 4, page 1
-        bus.write8(VRAM_BASE + 0xA000, 3);
+        bus.write16(VRAM_BASE + 0xA000, 3);
         bus.write16(PALETTE_BASE + 6, 0x001F); // palette index 3: red
 
         let frame = render_bitmap_frame(&bus).expect("mode 4 should render");
