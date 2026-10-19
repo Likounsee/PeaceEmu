@@ -698,6 +698,16 @@ impl Cpu {
         let rn = ((instruction >> 16) & 0xF) as usize;
         let rd = ((instruction >> 12) & 0xF) as usize;
 
+        // TST, TEQ, CMP and CMN are defined only with S=1. Treat their
+        // reserved S=0 encodings as unsupported instead of silently changing
+        // CPSR flags for an instruction that is not architecturally valid.
+        if (0x8..=0xB).contains(&opcode) && !set_flags {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
         // Data-processing instructions with S=1 and Rd=PC perform an
         // exception return: the CPSR is restored from the current SPSR.
         // Since this core does not model SPSRs or exception modes yet, reject
@@ -1797,6 +1807,34 @@ mod tests {
         register_cpu.set_register(3, 3);
         register_cpu.step(&mut register_bus).unwrap();
         assert_eq!(register_cpu.register(2), Some(0x3456_7812));
+    }
+
+    #[test]
+    fn arm_test_and_compare_encodings_without_s_bit_are_rejected() {
+        // TST, TEQ, CMP and CMN require S=1 on ARM7TDMI.
+        for instruction in [
+            0xE101_0002_u32,
+            0xE121_0002,
+            0xE141_0002,
+            0xE161_0002,
+        ] {
+            let mut bus = bus_with_program(&[instruction]);
+            let mut cpu = Cpu::new();
+            cpu.reset(0x0200_0000);
+            cpu.set_register(1, 0xF0F0_F0F0);
+            cpu.set_register(2, 0x0F0F_0F0F);
+            let flags_before = cpu.flags;
+
+            assert_eq!(
+                cpu.step(&mut bus),
+                Err(CpuError::UnsupportedInstruction {
+                    address: 0x0200_0000,
+                    instruction,
+                }),
+                "instruction 0x{instruction:08X}"
+            );
+            assert_eq!(cpu.flags, flags_before);
+        }
     }
 
     #[test]
