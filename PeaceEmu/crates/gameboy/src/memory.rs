@@ -382,8 +382,8 @@ impl MemoryBus {
         if (0x0400_0204..=0x0400_0205).contains(&address) {
             let shift = (address - 0x0400_0204) * 8;
             let byte_mask = 0xFF_u16 << shift;
-            self.wait_control = ((self.wait_control & !byte_mask)
-                | ((value as u16) << shift & byte_mask)) & 0x7FFB;
+            self.wait_control =
+                ((self.wait_control & !byte_mask) | ((value as u16) << shift & byte_mask)) & 0x7FFB;
             return;
         }
         // IME exposes only bit 0.
@@ -511,7 +511,11 @@ impl MemoryBus {
             }
             0x0600_0000..=0x06FF_FFFF => {
                 let offset = (address as usize - 0x0600_0000) % 0x2_0000;
-                let offset = if offset >= 0x1_8000 { offset - 0x8_000 } else { offset };
+                let offset = if offset >= 0x1_8000 {
+                    offset - 0x8_000
+                } else {
+                    offset
+                };
                 let offset = (offset % VRAM_SIZE) & !1;
                 self.vram[offset] = bytes[0];
                 self.vram[offset + 1] = bytes[1];
@@ -540,7 +544,10 @@ impl MemoryBus {
         let address = address & !3;
         let bytes = value.to_le_bytes();
         self.write16(address, u16::from_le_bytes([bytes[0], bytes[1]]));
-        self.write16(address.wrapping_add(2), u16::from_le_bytes([bytes[2], bytes[3]]));
+        self.write16(
+            address.wrapping_add(2),
+            u16::from_le_bytes([bytes[2], bytes[3]]),
+        );
     }
 }
 
@@ -600,7 +607,12 @@ mod tests {
 
         for address in [0x0800_0000, 0x0A00_0000, 0x0C00_0000] {
             assert_eq!(bus.read8(address), 0xEA, "ROM base at {address:#010X}");
-            assert_eq!(bus.read8(address + 1), 0x12, "ROM byte at {:#010X}", address + 1);
+            assert_eq!(
+                bus.read8(address + 1),
+                0x12,
+                "ROM byte at {:#010X}",
+                address + 1
+            );
         }
     }
 
