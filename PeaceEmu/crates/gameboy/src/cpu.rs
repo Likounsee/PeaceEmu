@@ -236,13 +236,19 @@ impl Cpu {
             }
             // Ordinary single transfers include register-offset, immediate,
             // halfword, SP-relative, and literal loads.
-            if raw & 0xF000 == 0x5000
-                || raw & 0xE000 == 0x6000
+            if raw & 0xF000 == 0x5000 {
+                // Register-offset operations 0..2 store; 3..7 load.
+                return if (raw >> 9) & 7 >= 3 { 3 } else { 2 };
+            }
+            if raw & 0xE000 == 0x6000
                 || raw & 0xF000 == 0x8000
                 || raw & 0xF000 == 0x9000
-                || raw & 0xF800 == 0x4800
             {
-                return 2;
+                let load = raw & (1 << 11) != 0;
+                return if load { 3 } else { 2 };
+            }
+            if raw & 0xF800 == 0x4800 {
+                return 3;
             }
             return 1;
         }
@@ -292,11 +298,28 @@ impl Cpu {
         if instruction & 0x0C00_0000 == 0x0400_0000 {
             let load = instruction & (1 << 20) != 0;
             let destination = (instruction >> 12) & 0xF;
-            // Loading PC changes control flow and incurs a pipeline refill.
-            return if load && destination == 15 { 4 } else { 2 };
+            // Loads require a data read cycle in addition to the instruction
+            // cycle; a load to PC also flushes/refills the pipeline.
+            return if load && destination == 15 {
+                5
+            } else if load {
+                3
+            } else {
+                2
+            };
         }
         if instruction & 0x0E00_0090 == 0x0000_0090 {
-            return 2;
+            let load = instruction & (1 << 20) != 0;
+            let destination = (instruction >> 12) & 0xF;
+            // Halfword/signed transfers use the same basic load/store timing
+            // distinction as word and byte transfers.
+            return if load && destination == 15 {
+                5
+            } else if load {
+                3
+            } else {
+                2
+            };
         }
         1
     }
@@ -2814,6 +2837,36 @@ mod tests {
         store_cpu.step(&mut store_bus).unwrap();
         assert_eq!(store_bus.read32(0x0200_0100), 0x0200_0004);
         assert_eq!(store_cpu.register(0), Some(0x0200_0140));
+    }
+
+    #[test]
+    fn ordinary_loads_cost_more_cycles_than_stores() {
+        // ARM LDR/STR (immediate), with r1 pointing at writable EWRAM.
+        for (instruction, expected) in [
+            (0xE591_2000_u32, 3), // LDR r2, [r1]
+            (0xE581_2000_u32, 2), // STR r2, [r1]
+            (0xE1D1_20B0_u32, 3), // LDRH r2, [r1]
+            (0xE1C1_20B0_u32, 2), // STRH r2, [r1]
+        ] {
+            let mut bus = bus_with_program(&[instruction]);
+            let mut cpu = Cpu::new();
+            cpu.reset(0x0200_0000);
+            cpu.set_register(1, 0x0200_0100);
+            let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+            assert_eq!(cycles, expected, "instruction 0x{instruction:08X}");
+        }
+
+        // Thumb LDR and STR immediate forms.
+        for (instruction, expected) in [(0x680A_u16, 3), (0x600A_u16, 2)] {
+            let mut bus = bus_with_program(&[]);
+            bus.write16(0x0200_0000, instruction);
+            let mut cpu = Cpu::new();
+            cpu.reset(0x0200_0000);
+            cpu.thumb = true;
+            cpu.set_register(1, 0x0200_0100);
+            let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+            assert_eq!(cycles, expected, "instruction 0x{instruction:04X}");
+        }
     }
 
     #[test]
