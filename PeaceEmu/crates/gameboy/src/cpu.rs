@@ -1504,7 +1504,7 @@ mod tests {
     fn long_multiply_accumulate_and_signed_flags_are_correct() {
         // SMLAL r0, r1, r2, r3: accumulator 5 + (-2 * 3) = -1.
         let mut bus = bus_with_program(&[
-            0xE0D1_0392, // SMLAL r0, r1, r2, r3
+            0xE0F1_0392, // SMLALS r0, r1, r2, r3
         ]);
         let mut cpu = Cpu::new();
         cpu.reset(0x0200_0000);
