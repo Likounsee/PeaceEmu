@@ -124,6 +124,12 @@ impl Cpu {
         self.registers[15] = address.wrapping_add(4);
 
         let condition = instruction >> 28;
+        if condition == 0xF {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
         if !self.condition_passed(condition) {
             return Ok(StepOutcome::ConditionFailed {
                 address,
