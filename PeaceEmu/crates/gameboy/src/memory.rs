@@ -38,6 +38,14 @@ pub struct MemoryBus {
     interrupt_enable: u16,
     interrupt_flags: u16,
     interrupt_master_enable: u16,
+    /// Timer reload values (TM0CNT_L through TM3CNT_L).
+    timer_reload: [u16; 4],
+    /// Current timer counters, advanced by `advance_cycles`.
+    timer_counter: [u16; 4],
+    /// Timer control bits (prescaler, cascade, IRQ and enable).
+    timer_control: [u16; 4],
+    /// Input cycles accumulated toward each timer's selected prescaler.
+    timer_prescaler_phase: [u16; 4],
 }
 
 /// Error returned when loading save data whose size does not match the SRAM backing store.
@@ -78,6 +86,10 @@ impl MemoryBus {
             interrupt_enable: 0,
             interrupt_flags: 0,
             interrupt_master_enable: 0,
+            timer_reload: [0; 4],
+            timer_counter: [0; 4],
+            timer_control: [0; 4],
+            timer_prescaler_phase: [0; 4],
         }
     }
 
@@ -109,6 +121,19 @@ impl MemoryBus {
     ///
     /// Unmapped and BIOS addresses return zero in this early bus model.
     pub fn read8(&self, address: u32) -> u8 {
+        // Timer counters are live hardware state; control registers expose only
+        // the documented low three bits plus IRQ and enable.
+        if (0x0400_0100..=0x0400_010F).contains(&address) {
+            let offset = address - 0x0400_0100;
+            let timer = (offset / 4) as usize;
+            let register_offset = offset % 4;
+            let value = if register_offset < 2 {
+                self.timer_counter[timer]
+            } else {
+                self.timer_control[timer]
+            };
+            return ((value >> ((register_offset & 1) * 8)) & 0xFF) as u8;
+        }
         // Interrupt controller: IE, IF and IME. Reserved bits read as zero.
         for (base, value) in [
             (0x0400_0200, self.interrupt_enable),
@@ -193,6 +218,58 @@ impl MemoryBus {
         }
     }
 
+    /// Advances the four GBA timers by a number of CPU clock cycles.
+    ///
+    /// Timer overflow reloads the configured value and raises the matching IF
+    /// bit when enabled. Timers 1–3 can count overflows from the previous timer
+    /// in cascade mode. The caller must supply elapsed CPU cycles; this core
+    /// does not yet derive instruction-specific bus wait states.
+    pub fn advance_cycles(&mut self, cycles: u32) {
+        for _ in 0..cycles {
+            let mut previous_overflow = false;
+            for timer in 0..4 {
+                let control = self.timer_control[timer];
+                if control & 0x0080 == 0 {
+                    previous_overflow = false;
+                    continue;
+                }
+
+                let cascade = timer != 0 && control & 0x0004 != 0;
+                let tick = if cascade {
+                    previous_overflow
+                } else {
+                    let divisor = match control & 3 {
+                        0 => 1,
+                        1 => 64,
+                        2 => 256,
+                        _ => 1024,
+                    };
+                    self.timer_prescaler_phase[timer] += 1;
+                    if self.timer_prescaler_phase[timer] >= divisor {
+                        self.timer_prescaler_phase[timer] = 0;
+                        true
+                    } else {
+                        false
+                    }
+                };
+
+                previous_overflow = false;
+                if tick {
+                    let (next, overflow) = self.timer_counter[timer].overflowing_add(1);
+                    if overflow {
+                        self.timer_counter[timer] = self.timer_reload[timer];
+                        if control & 0x0040 != 0 {
+                            self.interrupt_flags |= 1 << (3 + timer);
+                        }
+                        previous_overflow = true;
+                    } else {
+                        self.timer_counter[timer] = next;
+                    }
+                }
+            }
+        }
+    }
+
     /// Returns true when IME is enabled and an enabled interrupt is pending.
     pub fn interrupt_pending(&self) -> bool {
         self.interrupt_master_enable & 1 != 0
@@ -237,6 +314,32 @@ impl MemoryBus {
 
     /// Writes one byte to writable memory. Cartridge ROM and BIOS writes are ignored.
     pub fn write8(&mut self, address: u32, value: u8) {
+        // Timer registers are 16-bit. Byte writes update the corresponding
+        // half of the reload/control register without bypassing timer state.
+        if (0x0400_0100..=0x0400_010F).contains(&address) {
+            let offset = address - 0x0400_0100;
+            let timer = (offset / 4) as usize;
+            let shift = (offset & 1) * 8;
+            if offset % 4 < 2 {
+                let mask = 0xFF_u16 << shift;
+                self.timer_reload[timer] =
+                    (self.timer_reload[timer] & !mask) | ((value as u16) << shift);
+                let io_offset = (address - 0x0400_0000) as usize;
+                self.io[io_offset] = value;
+            } else {
+                let old_control = self.timer_control[timer];
+                let mask = 0x00C7_u16 & (0xFF_u16 << shift);
+                self.timer_control[timer] =
+                    (old_control & !mask) | (((value as u16) << shift) & mask);
+                if old_control & 0x0080 == 0 && self.timer_control[timer] & 0x0080 != 0 {
+                    self.timer_counter[timer] = self.timer_reload[timer];
+                    self.timer_prescaler_phase[timer] = 0;
+                }
+                let io_offset = (address - 0x0400_0000) as usize;
+                self.io[io_offset] = ((self.timer_control[timer] >> shift) & 0xFF) as u8;
+            }
+            return;
+        }
         // IE: only IRQ sources 0..13 are implemented by the GBA interrupt controller.
         if (0x0400_0200..=0x0400_0201).contains(&address) {
             let shift = (address - 0x0400_0200) * 8;
@@ -317,6 +420,32 @@ impl MemoryBus {
 
     /// Writes a little-endian halfword, aligned down to a two-byte boundary.
     pub fn write16(&mut self, address: u32, value: u16) {
+        if (0x0400_0100..=0x0400_010F).contains(&address) {
+            let address = address & !1;
+            let offset = address - 0x0400_0100;
+            let timer = (offset / 4) as usize;
+            if offset % 4 == 0 {
+                self.timer_reload[timer] = value;
+                let io_offset = (address - 0x0400_0000) as usize;
+                let bytes = value.to_le_bytes();
+                self.io[io_offset] = bytes[0];
+                self.io[io_offset + 1] = bytes[1];
+            } else {
+                let old_control = self.timer_control[timer];
+                self.timer_control[timer] = value & 0x00C7;
+                if old_control & 0x0080 == 0 && self.timer_control[timer] & 0x0080 != 0 {
+                    self.timer_counter[timer] = self.timer_reload[timer];
+                    self.timer_prescaler_phase[timer] = 0;
+                } else if self.timer_control[timer] & 0x0080 == 0 {
+                    self.timer_prescaler_phase[timer] = 0;
+                }
+                let io_offset = (address - 0x0400_0000) as usize;
+                let bytes = self.timer_control[timer].to_le_bytes();
+                self.io[io_offset] = bytes[0];
+                self.io[io_offset + 1] = bytes[1];
+            }
+            return;
+        }
         // SRAM is byte-wide. The bus selects the addressed byte lane, so an
         // odd-address halfword store presents the source's high byte.
         if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
@@ -532,6 +661,42 @@ mod tests {
         assert_eq!(bus.read16(0x0400_0200), 0x3FFF);
         bus.write16(0x0400_0208, 0x0100);
         assert_eq!(bus.read16(0x0400_0208), 0);
+    }
+
+    #[test]
+    fn timers_reload_raise_irq_and_cascade() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        // Timer 0 overflows after two ticks and raises IRQ 3.
+        bus.write16(0x0400_0100, 0xFFFE);
+        bus.write16(0x0400_0102, 0x00C0); // enable + IRQ, divisor 1
+        assert_eq!(bus.read16(0x0400_0100), 0xFFFE);
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0400_0100), 0xFFFF);
+        assert_eq!(bus.read16(0x0400_0102), 0x00C0);
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0400_0100), 0xFFFE);
+        assert_eq!(bus.read16(0x0400_0202) & (1 << 3), 1 << 3);
+
+        // Timer 1 in cascade mode ticks once for timer 0's overflow.
+        bus.write16(0x0400_0100, 0xFFFF);
+        bus.write16(0x0400_0102, 0x0080);
+        bus.write16(0x0400_0104, 0x1234);
+        bus.write16(0x0400_0106, 0x0084); // enable + cascade
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0400_0104), 0x1235);
+    }
+
+    #[test]
+    fn timers_apply_prescalers_and_mask_reserved_control_bits() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0100, 0);
+        bus.write16(0x0400_0102, 0xFFFF); // divisor 1024; reserved bits ignored
+        assert_eq!(bus.read16(0x0400_0102), 0x00C7);
+        bus.advance_cycles(1023);
+        assert_eq!(bus.read16(0x0400_0100), 0);
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0400_0100), 1);
     }
 
     #[test]
