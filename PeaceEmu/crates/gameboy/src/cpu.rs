@@ -149,7 +149,16 @@ impl Cpu {
             });
         }
 
-        if instruction & 0x0FB0_0FF0 == 0x0100_0090 {
+        if instruction & 0x0FBF_0FFF == 0x010F_0000 {
+            self.execute_mrs(address, instruction)?;
+        } else if instruction & 0x0FB0_FFF0 == 0x0120_F000
+            || instruction & 0x0FB0_F000 == 0x0320_F000
+        {
+            // MSR needs a complete CPSR/SPSR model (mode, interrupt masks,
+            // and banked exception state). Reject it rather than decoding it
+            // as an ordinary data-processing instruction.
+            return Err(CpuError::UnsupportedInstruction { address, instruction });
+        } else if instruction & 0x0FB0_0FF0 == 0x0100_0090 {
             self.execute_swap(address, instruction, bus)?;
         } else if instruction & 0x0F80_00F0 == 0x0080_0090 {
             self.execute_long_multiply(address, instruction)?;
@@ -687,6 +696,25 @@ impl Cpu {
 
     /// Executes ARM7TDMI SWP/SWPB. The read and write are performed as
     /// one instruction-level operation; bus-cycle atomicity is not modeled.
+    /// Reads the modeled CPSR fields with ARM-state MRS.
+    /// Mode, interrupt masks and other unmodeled CPSR bits read as zero.
+    fn execute_mrs(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
+        let rd = ((instruction >> 12) & 0xF) as usize;
+        let saved_status = instruction & (1 << 22) != 0;
+        if saved_status || rd == 15 {
+            return Err(CpuError::UnsupportedInstruction { address, instruction });
+        }
+
+        let mut cpsr = 0_u32;
+        cpsr |= u32::from(self.flags.negative) << 31;
+        cpsr |= u32::from(self.flags.zero) << 30;
+        cpsr |= u32::from(self.flags.carry) << 29;
+        cpsr |= u32::from(self.flags.overflow) << 28;
+        cpsr |= u32::from(self.thumb) << 5;
+        self.registers[rd] = cpsr;
+        Ok(())
+    }
+
     fn execute_swap(
         &mut self,
         address: u32,
@@ -1339,6 +1367,54 @@ mod tests {
         assert_eq!(cpu.register(1), Some(50));
         assert!(cpu.flags().zero);
         assert!(cpu.flags().carry);
+    }
+
+    #[test]
+    fn arm_mrs_reads_modeled_cpsr_flags_and_thumb_state() {
+        let mut bus = bus_with_program(&[0xE10F_2000]); // MRS r2, CPSR
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.flags = ConditionFlags {
+            negative: true,
+            zero: false,
+            carry: true,
+            overflow: true,
+        };
+        cpu.thumb = true;
+
+        cpu.step(&mut bus).unwrap();
+
+        assert_eq!(cpu.register(2), Some(0xB000_0020));
+        assert!(cpu.is_thumb());
+        assert_eq!(cpu.flags().negative, true);
+        assert_eq!(cpu.flags().carry, true);
+    }
+
+    #[test]
+    fn arm_mrs_rejects_spsr_and_msr_is_not_misdecoded_as_data_processing() {
+        let mut bus = bus_with_program(&[
+            0xE14F_2000, // MRS r2, SPSR (no SPSR model)
+            0xE129_F000, // MSR CPSR_f, r0
+        ]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0xF000_0000);
+        cpu.flags = ConditionFlags {
+            negative: false,
+            zero: true,
+            carry: false,
+            overflow: false,
+        };
+
+        assert!(matches!(cpu.step(&mut bus), Err(CpuError::UnsupportedInstruction { .. })));
+        assert_eq!(cpu.register(2), Some(0));
+        assert_eq!(cpu.flags().zero, true);
+
+        assert!(matches!(cpu.step(&mut bus), Err(CpuError::UnsupportedInstruction { .. })));
+        assert_eq!(cpu.flags().negative, false);
+        assert_eq!(cpu.flags().zero, true);
+        assert_eq!(cpu.flags().carry, false);
+        assert_eq!(cpu.flags().overflow, false);
     }
 
     #[test]
