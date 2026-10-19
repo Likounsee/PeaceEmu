@@ -1448,8 +1448,8 @@ mod tests {
     #[test]
     fn arm_msr_updates_cpsr_condition_flags_from_register_and_immediate() {
         let mut bus = bus_with_program(&[
-            0xE129_F000, // MSR CPSR_f, r0
-            0xE328_FF00, // MSR CPSR_f, #0xF0000000 (rotated immediate)
+            0xE128_F000, // MSR CPSR_f, r0
+            0xE328_F4F0, // MSR CPSR_f, #0xF0000000 (rotated immediate)
         ]);
         let mut cpu = Cpu::new();
         cpu.reset(0x0200_0000);
