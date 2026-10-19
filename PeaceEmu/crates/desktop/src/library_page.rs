@@ -546,11 +546,18 @@ impl DesktopApp {
                     egui::vec2(rect.width(), cover_height),
                 );
                 if let Some(texture) = &cover_texture {
-                    painter.image(
-                        texture.id(),
+                    painter
+                        .with_clip_rect(cover.intersect(rect))
+                        .image(
+                            texture.id(),
+                            cover,
+                            cover_uv(texture, cover_aspect),
+                            egui::Color32::WHITE,
+                        );
+                    painter.rect_stroke(
                         cover,
-                        cover_uv(texture, cover_aspect),
-                        egui::Color32::WHITE,
+                        egui::Rounding { nw: 12.0, ne: 12.0, sw: 0.0, se: 0.0 },
+                        egui::Stroke::new(1.0, palette.sidebar),
                     );
                 } else {
                     painter.rect_filled(
@@ -705,11 +712,18 @@ impl DesktopApp {
             });
             let cover = cover_rect;
             if let Some(texture) = &detail_cover_texture {
-                ui.painter().image(
-                    texture.id(),
+                ui.painter()
+                    .with_clip_rect(cover)
+                    .image(
+                        texture.id(),
+                        cover,
+                        cover_uv(texture, cover_aspect),
+                        egui::Color32::WHITE,
+                    );
+                ui.painter().rect_stroke(
                     cover,
-                    cover_uv(texture, cover_aspect),
-                    egui::Color32::WHITE,
+                    egui::Rounding::same(10.0),
+                    egui::Stroke::new(1.0, palette.sidebar),
                 );
             } else {
                 ui.painter().rect_filled(
