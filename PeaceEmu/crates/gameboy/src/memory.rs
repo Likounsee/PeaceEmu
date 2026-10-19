@@ -48,6 +48,12 @@ pub struct MemoryBus {
     timer_control: [u16; 4],
     /// Input cycles accumulated toward each timer's selected prescaler.
     timer_prescaler_phase: [u16; 4],
+    /// CPU cycles elapsed in the current 1232-cycle video scanline.
+    video_cycles_in_line: u16,
+    /// Current visible/blanking scanline counter (0..227).
+    vcount: u16,
+    /// DISPSTAT writable controls plus live VBlank/HBlank/VCOUNT-match status.
+    dispstat: u16,
 }
 
 /// Error returned when loading save data whose size does not match the SRAM backing store.
@@ -93,6 +99,9 @@ impl MemoryBus {
             timer_counter: [0; 4],
             timer_control: [0; 4],
             timer_prescaler_phase: [0; 4],
+            video_cycles_in_line: 0,
+            vcount: 0,
+            dispstat: 0,
         }
     }
 
@@ -136,6 +145,13 @@ impl MemoryBus {
                 self.timer_control[timer]
             };
             return ((value >> ((register_offset & 1) * 8)) & 0xFF) as u8;
+        }
+        // Video timing registers expose live status rather than the raw I/O bytes.
+        if (0x0400_0004..=0x0400_0005).contains(&address) {
+            return ((self.dispstat >> ((address - 0x0400_0004) * 8)) & 0xFF) as u8;
+        }
+        if (0x0400_0006..=0x0400_0007).contains(&address) {
+            return ((self.vcount >> ((address - 0x0400_0006) * 8)) & 0xFF) as u8;
         }
         // Interrupt controller: IE, IF and IME. Reserved bits read as zero.
         for (base, value) in [
@@ -230,6 +246,7 @@ impl MemoryBus {
     /// does not yet derive instruction-specific bus wait states.
     pub fn advance_cycles(&mut self, cycles: u32) {
         for _ in 0..cycles {
+            self.advance_video_cycle();
             let mut previous_overflow = false;
             for timer in 0..4 {
                 let control = self.timer_control[timer];
@@ -271,6 +288,50 @@ impl MemoryBus {
                     }
                 }
             }
+        }
+    }
+
+    /// Advances the PPU timing state by one CPU cycle.
+    ///
+    /// A scanline lasts 1232 cycles: HBlank begins at cycle 960, and VBlank
+    /// begins at scanline 160. DISPSTAT status bits and IRQ flags are updated
+    /// on their hardware transition edges.
+    fn advance_video_cycle(&mut self) {
+        self.video_cycles_in_line += 1;
+        if self.video_cycles_in_line == 960 {
+            self.dispstat |= 1 << 1;
+            if self.dispstat & (1 << 4) != 0 {
+                self.request_interrupt(1 << 1);
+            }
+        }
+        if self.video_cycles_in_line < 1232 {
+            return;
+        }
+
+        self.video_cycles_in_line = 0;
+        self.vcount += 1;
+        if self.vcount == 228 {
+            self.vcount = 0;
+        }
+        self.dispstat &= !(1 << 1);
+        if self.vcount == 160 {
+            self.dispstat |= 1;
+            if self.dispstat & (1 << 3) != 0 {
+                self.request_interrupt(1);
+            }
+        } else if self.vcount == 0 {
+            self.dispstat &= !1;
+        }
+
+        let was_match = self.dispstat & (1 << 2) != 0;
+        let matches = self.vcount == (self.dispstat >> 8);
+        if matches {
+            self.dispstat |= 1 << 2;
+            if !was_match && self.dispstat & (1 << 5) != 0 {
+                self.request_interrupt(1 << 2);
+            }
+        } else {
+            self.dispstat &= !(1 << 2);
         }
     }
 
@@ -363,6 +424,28 @@ impl MemoryBus {
             }
             return;
         }
+        // DISPSTAT: status bits 0..2 are read-only; IRQ enables and compare
+        // scanline are writable. VCOUNT itself is read-only.
+        if (0x0400_0004..=0x0400_0005).contains(&address) {
+            let old_match = self.dispstat & (1 << 2) != 0;
+            let shift = (address - 0x0400_0004) * 8;
+            let writable_mask = 0xFF_u16 << shift & 0xFF38;
+            self.dispstat = (self.dispstat & !writable_mask)
+                | ((u16::from(value) << shift) & writable_mask);
+            let matches = self.vcount == (self.dispstat >> 8);
+            if matches {
+                self.dispstat |= 1 << 2;
+                if !old_match && self.dispstat & (1 << 5) != 0 {
+                    self.request_interrupt(1 << 2);
+                }
+            } else {
+                self.dispstat &= !(1 << 2);
+            }
+            return;
+        }
+        if (0x0400_0006..=0x0400_0007).contains(&address) {
+            return;
+        }
         // IE: only IRQ sources 0..13 are implemented by the GBA interrupt controller.
         if (0x0400_0200..=0x0400_0201).contains(&address) {
             let shift = (address - 0x0400_0200) * 8;
@@ -452,6 +535,23 @@ impl MemoryBus {
 
     /// Writes a little-endian halfword, aligned down to a two-byte boundary.
     pub fn write16(&mut self, address: u32, value: u16) {
+        if (0x0400_0004..=0x0400_0005).contains(&address) {
+            let old_match = self.dispstat & (1 << 2) != 0;
+            self.dispstat = (self.dispstat & 0x0007) | (value & 0xFF38);
+            let matches = self.vcount == (self.dispstat >> 8);
+            if matches {
+                self.dispstat |= 1 << 2;
+                if !old_match && self.dispstat & (1 << 5) != 0 {
+                    self.request_interrupt(1 << 2);
+                }
+            } else {
+                self.dispstat &= !(1 << 2);
+            }
+            return;
+        }
+        if (0x0400_0006..=0x0400_0007).contains(&address) {
+            return;
+        }
         if (0x0400_0100..=0x0400_010F).contains(&address) {
             let address = address & !1;
             let offset = address - 0x0400_0100;
@@ -865,6 +965,52 @@ mod tests {
         assert_eq!(bus.read16(0x0700_0000), 0xFFFF);
         bus.write32(0x0700_0000, 0x1234_5678);
         assert_eq!(bus.read32(0x0700_0000), 0x1234_5678);
+    }
+
+
+    #[test]
+    fn video_timing_updates_hblank_vblank_and_vcount_irq_flags() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0004, (1 << 3) | (1 << 4) | (160 << 8));
+
+        bus.advance_cycles(959);
+        assert_eq!(bus.read16(0x0400_0004) & 0x0003, 0);
+        bus.advance_cycles(1);
+        assert_eq!(bus.read16(0x0400_0004) & 0x0002, 0x0002);
+        assert_eq!(bus.read16(0x0400_0202) & (1 << 1), 1 << 1);
+
+        bus.advance_cycles(272); // finish line 0
+        assert_eq!(bus.read16(0x0400_0006), 1);
+        assert_eq!(bus.read16(0x0400_0004) & 0x0002, 0);
+
+        bus.advance_cycles(1232 * 159);
+        assert_eq!(bus.read16(0x0400_0006), 160);
+        assert_eq!(bus.read16(0x0400_0004) & 0x0001, 1);
+        assert_eq!(bus.read16(0x0400_0202) & 1, 1);
+        assert_eq!(bus.read16(0x0400_0004) & 0x0004, 0x0004);
+    }
+
+    #[test]
+    fn vcount_register_is_read_only_and_dispstat_status_bits_are_read_only() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0006, 123);
+        bus.write16(0x0400_0004, 0xFFFF);
+        assert_eq!(bus.read16(0x0400_0006), 0);
+        assert_eq!(bus.read16(0x0400_0004) & 0x0007, 0x0004);
+        assert_eq!(bus.read16(0x0400_0004) & 0xFF38, 0xFF38);
+    }
+
+    #[test]
+    fn vcount_compare_irq_fires_on_scanline_transition() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0004, (1 << 5) | (2 << 8));
+        bus.advance_cycles(1232);
+        assert_eq!(bus.read16(0x0400_0006), 1);
+        assert_eq!(bus.read16(0x0400_0202) & (1 << 2), 0);
+        bus.advance_cycles(1232);
+        assert_eq!(bus.read16(0x0400_0006), 2);
+        assert_eq!(bus.read16(0x0400_0004) & (1 << 2), 1 << 2);
+        assert_eq!(bus.read16(0x0400_0202) & (1 << 2), 1 << 2);
     }
 
     #[test]
