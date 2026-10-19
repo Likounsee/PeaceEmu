@@ -374,12 +374,12 @@ impl MemoryBus {
             return;
         }
         // WAITCNT exposes SRAM/Game Pak wait-state, PHI, and prefetch controls;
-        // reserved bits 13 and 15 read as zero.
+        // reserved bits 2 and 15 read as zero; bits 12–14 are valid controls.
         if (0x0400_0204..=0x0400_0205).contains(&address) {
             let shift = (address - 0x0400_0204) * 8;
             let byte_mask = 0xFF_u16 << shift;
             self.wait_control = ((self.wait_control & !byte_mask)
-                | ((value as u16) << shift & byte_mask)) & 0x5FFF;
+                | ((value as u16) << shift & byte_mask)) & 0x7FFB;
             return;
         }
         // IME exposes only bit 0.
@@ -475,7 +475,7 @@ impl MemoryBus {
             return;
         }
         if (0x0400_0204..=0x0400_0205).contains(&address) {
-            self.wait_control = value & 0x5FFF;
+            self.wait_control = value & 0x7FFB;
             return;
         }
         // SRAM is byte-wide. The bus selects the addressed byte lane, so an
@@ -624,14 +624,14 @@ mod tests {
         // WAITCNT has writable timing/PHI/prefetch fields, but bits 13 and 15
         // are reserved and must not be retained by the register model.
         bus.write16(0x0400_0204, 0xFFFF);
-        assert_eq!(bus.read16(0x0400_0204), 0x5FFF);
+        assert_eq!(bus.read16(0x0400_0204), 0x7FFB);
 
         bus.write16(0x0400_0204, 0);
         bus.write8(0x0400_0204, 0xA5);
         bus.write8(0x0400_0205, 0x7F);
-        assert_eq!(bus.read16(0x0400_0204), 0x5FA5);
+        assert_eq!(bus.read16(0x0400_0204), 0x7FA1);
         assert_eq!(bus.read8(0x0400_0204), 0xA5);
-        assert_eq!(bus.read8(0x0400_0205), 0x5F);
+        assert_eq!(bus.read8(0x0400_0205), 0x7F);
     }
 
     #[test]
