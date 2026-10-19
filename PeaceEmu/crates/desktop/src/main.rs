@@ -212,16 +212,14 @@ struct DesktopApp {
 enum LibraryFormat {
     All,
     GameBoy,
-    GameBoyColor,
 }
 
 impl LibraryFormat {
     fn label(self, french: bool) -> &'static str {
         match (self, french) {
-            (Self::All, true) => "Tous les formats",
-            (Self::All, false) => "All formats",
-            (Self::GameBoy, _) => "Game Boy (.gb)",
-            (Self::GameBoyColor, _) => "Game Boy Color (.gbc)",
+            (Self::All, true) => "Tous les jeux",
+            (Self::All, false) => "All games",
+            (Self::GameBoy, _) => "Game Boy (GB / GBC / GBA)",
         }
     }
 
@@ -232,15 +230,15 @@ impl LibraryFormat {
             .unwrap_or("");
         match self {
             Self::All => true,
-            Self::GameBoy => extension.eq_ignore_ascii_case("gb"),
-            Self::GameBoyColor => extension.eq_ignore_ascii_case("gbc"),
+            Self::GameBoy => ["gb", "gbc", "gba"]
+                .iter()
+                .any(|supported| extension.eq_ignore_ascii_case(supported)),
         }
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LibrarySort {
-    Name,
     Largest,
     Path,
 }
@@ -248,8 +246,6 @@ enum LibrarySort {
 impl LibrarySort {
     fn label(self, french: bool) -> &'static str {
         match (self, french) {
-            (Self::Name, true) => "Titre (A–Z)",
-            (Self::Name, false) => "Title (A–Z)",
             (Self::Largest, true) => "Taille décroissante",
             (Self::Largest, false) => "Largest first",
             (Self::Path, true) => "Chemin du fichier",
@@ -402,7 +398,7 @@ impl DesktopApp {
                 .unwrap_or_default(),
             library_filter: String::new(),
             library_format: LibraryFormat::All,
-            library_sort: LibrarySort::Name,
+            library_sort: LibrarySort::Largest,
             selected_content,
             message,
             import_warning: None,
@@ -2230,8 +2226,9 @@ mod preference_tests {
     #[test]
     fn library_format_filter_is_case_insensitive() {
         assert!(LibraryFormat::GameBoy.matches(Path::new("Pokemon.GB")));
-        assert!(LibraryFormat::GameBoyColor.matches(Path::new("Pokemon.GbC")));
-        assert!(!LibraryFormat::GameBoy.matches(Path::new("Pokemon.gbc")));
+        assert!(LibraryFormat::GameBoy.matches(Path::new("Pokemon.GbC")));
+        assert!(LibraryFormat::GameBoy.matches(Path::new("Pokemon.GBA")));
+        assert!(!LibraryFormat::GameBoy.matches(Path::new("Pokemon.zip")));
         assert!(LibraryFormat::All.matches(Path::new("archive.zip")));
     }
 
