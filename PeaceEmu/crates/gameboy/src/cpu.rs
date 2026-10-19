@@ -189,7 +189,10 @@ impl Cpu {
         } else if raw & 0xF000 == 0xD000 {
             let condition = u32::from((raw >> 8) & 0xF);
             if condition >= 0xE {
-                return Err(CpuError::UnsupportedInstruction { address, instruction });
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
             }
             if self.condition_passed(condition) {
                 let displacement = ((u32::from(raw & 0xFF) << 24) as i32 >> 23) as u32;
@@ -255,23 +258,23 @@ impl Cpu {
             }
         } else if raw & 0xE000 == 0x0000 {
             let operation = (raw >> 11) & 3;
-            if operation == 3 {
+            if operation != 3 {
                 let immediate = u32::from((raw >> 6) & 0x1F);
                 let rs = usize::from((raw >> 3) & 7);
                 let rd = usize::from(raw & 7);
                 let value = self.registers[rs];
-                let (result, carry) = match (raw >> 11) & 3 {
-                    0 => Self::shift_immediate(value, 0, immediate, self.flags.carry),
-                    1 => Self::shift_immediate(value, if immediate == 0 { 1 } else { 1 }, immediate, self.flags.carry),
-                    2 => Self::shift_immediate(value, 2, immediate, self.flags.carry),
-                    _ => unreachable!(),
-                };
+                let (result, carry) = Self::shift_immediate(
+                    value,
+                    u32::from(operation),
+                    immediate,
+                    self.flags.carry,
+                );
                 self.registers[rd] = result;
                 self.set_logic_flags(result, carry);
             } else {
-                let immediate = raw & (1 << 10) != 0;
-                let sub = raw & (1 << 9) != 0;
-                let operand = if immediate {
+                let immediate_operand = raw & (1 << 10) != 0;
+                let subtract = raw & (1 << 9) != 0;
+                let operand = if immediate_operand {
                     u32::from((raw >> 6) & 7)
                 } else {
                     self.registers[usize::from((raw >> 6) & 7)]
@@ -279,7 +282,7 @@ impl Cpu {
                 let rs = usize::from((raw >> 3) & 7);
                 let rd = usize::from(raw & 7);
                 let left = self.registers[rs];
-                let (result, carry, overflow) = if sub {
+                let (result, carry, overflow) = if subtract {
                     Self::subtract(left, operand, false)
                 } else {
                     Self::add(left, operand, false)
@@ -294,24 +297,73 @@ impl Cpu {
             let left = self.registers[rd];
             let right = self.registers[rs];
             match operation {
-                0 => { let result = left & right; self.registers[rd] = result; self.set_logic_flags(result, None); }
-                1 => { let result = left ^ right; self.registers[rd] = result; self.set_logic_flags(result, None); }
-                5 => { let (result, carry, overflow) = Self::add(left, right, self.flags.carry); self.registers[rd] = result; self.set_arithmetic_flags(result, carry, overflow); }
-                6 => { let (result, carry, overflow) = Self::subtract(left, right, !self.flags.carry); self.registers[rd] = result; self.set_arithmetic_flags(result, carry, overflow); }
-                8 => { self.set_logic_flags(left & right, None); }
-                10 => { let (result, carry, overflow) = Self::subtract(left, right, false); self.set_arithmetic_flags(result, carry, overflow); }
-                11 => { let (result, carry, overflow) = Self::add(left, right, false); self.set_arithmetic_flags(result, carry, overflow); }
-                12 => { let result = left | right; self.registers[rd] = result; self.set_logic_flags(result, None); }
-                13 => { let result = left.wrapping_mul(right); self.registers[rd] = result; self.set_logic_flags(result, None); }
-                14 => { let result = left & !right; self.registers[rd] = result; self.set_logic_flags(result, None); }
-                15 => { let result = !right; self.registers[rd] = result; self.set_logic_flags(result, None); }
-                _ => return Err(CpuError::UnsupportedInstruction { address, instruction }),
+                0 => {
+                    let result = left & right;
+                    self.registers[rd] = result;
+                    self.set_logic_flags(result, None);
+                }
+                1 => {
+                    let result = left ^ right;
+                    self.registers[rd] = result;
+                    self.set_logic_flags(result, None);
+                }
+                5 => {
+                    let (result, carry, overflow) = Self::add(left, right, self.flags.carry);
+                    self.registers[rd] = result;
+                    self.set_arithmetic_flags(result, carry, overflow);
+                }
+                6 => {
+                    let (result, carry, overflow) =
+                        Self::subtract(left, right, !self.flags.carry);
+                    self.registers[rd] = result;
+                    self.set_arithmetic_flags(result, carry, overflow);
+                }
+                8 => {
+                    self.set_logic_flags(left & right, None);
+                }
+                10 => {
+                    let (result, carry, overflow) = Self::subtract(left, right, false);
+                    self.set_arithmetic_flags(result, carry, overflow);
+                }
+                11 => {
+                    let (result, carry, overflow) = Self::add(left, right, false);
+                    self.set_arithmetic_flags(result, carry, overflow);
+                }
+                12 => {
+                    let result = left | right;
+                    self.registers[rd] = result;
+                    self.set_logic_flags(result, None);
+                }
+                13 => {
+                    let result = left.wrapping_mul(right);
+                    self.registers[rd] = result;
+                    self.set_logic_flags(result, None);
+                }
+                14 => {
+                    let result = left & !right;
+                    self.registers[rd] = result;
+                    self.set_logic_flags(result, None);
+                }
+                15 => {
+                    let result = !right;
+                    self.registers[rd] = result;
+                    self.set_logic_flags(result, None);
+                }
+                _ => {
+                    return Err(CpuError::UnsupportedInstruction {
+                        address,
+                        instruction,
+                    });
+                }
             }
         } else {
             return Err(CpuError::UnsupportedInstruction { address, instruction });
         }
 
-        Ok(StepOutcome::Executed { address, instruction })
+        Ok(StepOutcome::Executed {
+            address,
+            instruction,
+        })
     }
 
     fn read_thumb_register(&self, index: usize, address: u32) -> u32 {
