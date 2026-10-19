@@ -383,18 +383,14 @@ impl DesktopApp {
             egui::ComboBox::from_id_source("library_format_filter")
                 .selected_text(self.library_format.label(french))
                 .show_ui(ui, |ui| {
-                    for format in [
-                        LibraryFormat::All,
-                        LibraryFormat::GameBoy,
-                        LibraryFormat::GameBoyColor,
-                    ] {
+                    for format in [LibraryFormat::All, LibraryFormat::GameBoy] {
                         ui.selectable_value(&mut self.library_format, format, format.label(french));
                     }
                 });
             egui::ComboBox::from_id_source("library_sort")
                 .selected_text(self.library_sort.label(french))
                 .show_ui(ui, |ui| {
-                    for sort in [LibrarySort::Name, LibrarySort::Largest, LibrarySort::Path] {
+                    for sort in [LibrarySort::Largest, LibrarySort::Path] {
                         ui.selectable_value(&mut self.library_sort, sort, sort.label(french));
                     }
                 });
@@ -426,11 +422,6 @@ impl DesktopApp {
             })
             .collect();
         match self.library_sort {
-            LibrarySort::Name => entries.sort_by(|a, b| {
-                a.0.to_lowercase()
-                    .cmp(&b.0.to_lowercase())
-                    .then_with(|| a.1.cmp(&b.1))
-            }),
             LibrarySort::Largest => entries.sort_by(|a, b| {
                 b.2.cmp(&a.2)
                     .then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase()))
@@ -478,11 +469,11 @@ impl DesktopApp {
             let (heading, hint) = match (total == 0, french) {
                 (true, true) => (
                     "Votre bibliothèque est vide",
-                    "Importez un ou plusieurs fichiers .gb ou .gbc pour constituer votre collection.",
+                    "Importez des jeux Game Boy (.gb), Game Boy Color (.gbc) ou Game Boy Advance (.gba) pour constituer votre collection.",
                 ),
                 (true, false) => (
                     "Your library is empty",
-                    "Import one or more .gb or .gbc files to build your collection.",
+                    "Import Game Boy (.gb), Game Boy Color (.gbc), or Game Boy Advance (.gba) games to build your collection.",
                 ),
                 (false, true) => (
                     "Aucun jeu ne correspond",
