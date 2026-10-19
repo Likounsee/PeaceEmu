@@ -900,7 +900,9 @@ impl Cpu {
 
     fn read_thumb_register(&self, index: usize, address: u32) -> u32 {
         if index == 15 {
-            address.wrapping_add(4) & !3
+            // High-register ALU operations and BX observe PC+4, including bit 1.
+            // Literal loads align their own PC-relative base separately.
+            address.wrapping_add(4)
         } else {
             self.registers[index]
         }
@@ -1859,6 +1861,21 @@ mod tests {
         assert_eq!(cpu.register(0), Some(0));
         assert_eq!(cpu.register(15), Some(0x0800_0004));
         assert_eq!(bus.read16(0x0400_0100), 0);
+    }
+
+    #[test]
+    fn thumb_high_register_add_reads_unaligned_pipeline_pc() {
+        let mut bus = bus_with_program(&[]);
+        let mut cpu = Cpu::new();
+        cpu.thumb = true;
+        cpu.set_register(15, 0x0200_0002);
+        // ADD r8, pc. High-register ALU operations read PC+4 without word alignment.
+        bus.write16(0x0200_0002, 0x44F8);
+
+        cpu.step(&mut bus).unwrap();
+
+        assert_eq!(cpu.register(8), Some(0x0200_0006));
+        assert_eq!(cpu.register(15), Some(0x0200_0004));
     }
 
     #[test]
