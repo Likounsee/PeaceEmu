@@ -448,8 +448,8 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 | (1 << 10)); // mode 1, BG2 enabled
         bus.write16(0x0400_000C, 0); // affine map at screen block 0
-        bus.write8(VRAM_BASE, 1); // map entry selects tile 1
-        bus.write8(VRAM_BASE + 64, 1); // tile 1 first pixel
+        bus.write16(VRAM_BASE, 1); // map entry selects tile 1
+        bus.write16(VRAM_BASE + 64, 1); // pixel 0 red; pixel 1 remains transparent
         bus.write16(PALETTE_BASE + 2, 0x001F); // palette 1: red
         bus.write16(0x0400_0020, 0x0100); // PA = 1.0
         bus.write16(0x0400_0022, 0); // PB = 0
