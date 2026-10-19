@@ -1,4 +1,4 @@
-//! GBA renderer for text background mode 0 and bitmap modes 3, 4, and 5.
+//! GBA renderer for text/affine background modes 0–2 and bitmap modes 3–5.
 //!
 //! This module renders the current video-memory snapshot, including tiled text
 //! backgrounds, regular OBJ sprites, and bitmap modes. It does not yet advance
@@ -49,7 +49,7 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     let display_control = bus.read16(0x0400_0000);
     let mode = display_control & 7;
     let forced_blank = display_control & (1 << 7) != 0;
-    if !forced_blank && (mode == 1 || mode == 2 || mode > 5) {
+    if !forced_blank && mode > 5 {
         return None;
     }
 
@@ -65,7 +65,7 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     }
 
     match mode {
-        0 => render_text_backgrounds(bus, display_control, &mut frame),
+        0..=2 => render_text_backgrounds(bus, display_control, &mut frame),
         3 => {
             for y in 0..SCREEN_HEIGHT {
                 for x in 0..SCREEN_WIDTH {
@@ -132,11 +132,78 @@ fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut Vi
             if display_control & (1 << (8 + bg)) == 0 || control & 3 != priority as u16 {
                 continue;
             }
-            render_text_background(bus, bg, control, frame);
+            let mode = display_control & 7;\n            if mode == 0 || bg < 2 {\n                render_text_background(bus, bg, control, frame);\n            } else if bg >= 2 && (mode == 2 || bg == 2) {\n                render_affine_background(bus, bg, control, frame);\n            }
         }
         // OBJ pixels have precedence over BG pixels at the same priority.
         render_regular_objects(bus, display_control, priority, frame);
     }
+}
+
+/// Renders an affine 8bpp tiled background (BG2/BG3 in modes 1 and 2).
+/// Reference coordinates are signed 28-bit 8.8 fixed-point values; PA/PB/PC/PD
+/// are signed 8.8 coefficients. The overflow bit controls wraparound outside
+/// the affine background's square map.
+fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut VideoFrame) {
+    let register_base = 0x0400_0020 + (bg - 2) * 0x10;
+    let pa = i32::from(bus.read16(register_base) as i16);
+    let pb = i32::from(bus.read16(register_base + 2) as i16);
+    let pc = i32::from(bus.read16(register_base + 4) as i16);
+    let pd = i32::from(bus.read16(register_base + 6) as i16);
+    let reference_x = sign_extend_28(
+        u32::from(bus.read16(register_base + 8))
+            | (u32::from(bus.read16(register_base + 10) & 0x0FFF) << 16),
+    );
+    let reference_y = sign_extend_28(
+        u32::from(bus.read16(register_base + 12))
+            | (u32::from(bus.read16(register_base + 14) & 0x0FFF) << 16),
+    );
+    let char_base = u32::from((control >> 2) & 3) * 0x4000;
+    let screen_base = u32::from((control >> 8) & 0x1F) * 0x800;
+    let size = 128_u32 << ((control >> 14) & 3);
+    let wrap = control & (1 << 13) != 0;
+
+    for y in 0..SCREEN_HEIGHT {
+        let source_x_base = reference_x + pb * y as i32;
+        let source_y_base = reference_y + pd * y as i32;
+        for x in 0..SCREEN_WIDTH {
+            let source_x = (source_x_base + pa * x as i32) >> 8;
+            let source_y = (source_y_base + pc * x as i32) >> 8;
+            let (source_x, source_y) = if wrap {
+                (
+                    source_x.rem_euclid(size as i32) as u32,
+                    source_y.rem_euclid(size as i32) as u32,
+                )
+            } else if source_x < 0
+                || source_y < 0
+                || source_x >= size as i32
+                || source_y >= size as i32
+            {
+                continue;
+            } else {
+                (source_x as u32, source_y as u32)
+            };
+
+            let tile_x = source_x >> 3;
+            let tile_y = source_y >> 3;
+            let map_width = size >> 3;
+            let map_address = VRAM_BASE + screen_base + tile_y * map_width + tile_x;
+            let tile_index = u32::from(bus.read8(map_address));
+            let tile_address = VRAM_BASE
+                + char_base
+                + tile_index * 64
+                + (source_y & 7) * 8
+                + (source_x & 7);
+            let palette_index = u32::from(bus.read8(tile_address));
+            if palette_index != 0 {
+                frame.pixels[y * SCREEN_WIDTH + x] =
+                    rgb555(bus.read16(PALETTE_BASE + palette_index * 2));
+            }
+        }
+    }
+}
+
+fn sign_extend_28(value: u32) -> i32 {
+    ((value << 4) as i32) >> 4
 }
 
 fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut VideoFrame) {
@@ -371,6 +438,43 @@ mod tests {
     }
 
     #[test]
+    #[test]
+    fn mode1_renders_affine_bg2_with_identity_transform() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 | (1 << 10)); // mode 1, BG2 enabled
+        bus.write16(0x0400_000C, 0); // affine map at screen block 0
+        bus.write8(VRAM_BASE, 1); // map entry selects tile 1
+        bus.write8(VRAM_BASE + 64, 1); // tile 1 first pixel
+        bus.write16(PALETTE_BASE + 2, 0x001F); // palette 1: red
+        bus.write16(0x0400_0020, 0x0100); // PA = 1.0
+        bus.write16(0x0400_0022, 0); // PB = 0
+        bus.write16(0x0400_0024, 0); // PC = 0
+        bus.write16(0x0400_0026, 0x0100); // PD = 1.0
+
+        let frame = render_bitmap_frame(&bus).expect("mode 1 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn affine_background_wraps_coordinates_when_overflow_enabled() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 2 | (1 << 10)); // mode 2, BG2 enabled
+        bus.write16(0x0400_000C, 1 << 13); // wrap enabled, 128x128 map
+        bus.write16(0x0400_0020, 0x0100);
+        bus.write16(0x0400_0026, 0x0100);
+        // Start at x=-1 pixel (signed 28-bit 8.8 fixed point).
+        bus.write16(0x0400_0028, 0xFF00);
+        bus.write16(0x0400_002A, 0x0FFF);
+        // The wrapped coordinate is the final pixel of the first map row.
+        bus.write8(VRAM_BASE + 15, 1);
+        bus.write8(VRAM_BASE + 64 + 7, 1);
+        bus.write16(PALETTE_BASE + 2, 0x001F);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+    }
+
     fn mode0_renders_4bpp_bg0_tile_and_palette_bank() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
