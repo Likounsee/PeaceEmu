@@ -137,7 +137,9 @@ impl Cpu {
             });
         }
 
-        if instruction & 0x0E00_0000 == 0x0A00_0000 {
+        if instruction & 0x0FC0_00F0 == 0x0000_0090 {
+            self.execute_multiply(address, instruction)?;
+        } else if instruction & 0x0E00_0000 == 0x0A00_0000 {
             self.execute_branch(address, instruction);
         } else if instruction & 0x0E00_0000 == 0x0800_0000 {
             self.execute_block_transfer(address, instruction, bus)?;
@@ -198,15 +200,37 @@ impl Cpu {
         self.registers[15] = address.wrapping_add(8).wrapping_add(displacement) & !3;
     }
 
-    fn execute_data_processing(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
-        // Multiply and miscellaneous encodings also occupy this major opcode.
-        if instruction & 0x0FC0_00F0 == 0x0000_0090 {
+    fn execute_multiply(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
+        let accumulate = instruction & (1 << 21) != 0;
+        let set_flags = instruction & (1 << 20) != 0;
+        let rd = ((instruction >> 16) & 0xF) as usize;
+        let rn = ((instruction >> 12) & 0xF) as usize;
+        let rs = ((instruction >> 8) & 0xF) as usize;
+        let rm = (instruction & 0xF) as usize;
+
+        // ARM7TDMI multiply operands and destination must not use r15.
+        if rd == 15 || rs == 15 || rm == 15 || (accumulate && rn == 15) {
             return Err(CpuError::UnsupportedInstruction {
                 address,
                 instruction,
             });
         }
 
+        let mut result = self.registers[rm].wrapping_mul(self.registers[rs]);
+        if accumulate {
+            result = result.wrapping_add(self.registers[rn]);
+        }
+        self.registers[rd] = result;
+
+        if set_flags {
+            self.flags.negative = result >> 31 != 0;
+            self.flags.zero = result == 0;
+            // MUL/MLA update N and Z only; C and V are unchanged.
+        }
+        Ok(())
+    }
+
+    fn execute_data_processing(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
         let immediate = instruction & (1 << 25) != 0;
         let opcode = (instruction >> 21) & 0xF;
         let set_flags = instruction & (1 << 20) != 0;
@@ -632,6 +656,31 @@ mod tests {
         assert_eq!(cpu.register(2), Some(0xFFFF_FFFF));
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(3), Some(0xFFFF_80FF));
+    }
+
+    #[test]
+    fn multiply_and_multiply_accumulate_update_results_and_flags() {
+        let mut bus = bus_with_program(&[
+            0xE000_0291, // MUL r0, r1, r2
+            0xE023_5491, // MLA r3, r1, r4, r5
+            0xE010_0291, // MULS r0, r1, r2
+        ]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 6);
+        cpu.set_register(2, 7);
+        cpu.set_register(4, 8);
+        cpu.set_register(5, 9);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(42));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(3), Some(57));
+        cpu.set_register(1, 0);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0));
+        assert!(cpu.flags().zero);
+        assert!(!cpu.flags().negative);
     }
 
     #[test]
