@@ -108,7 +108,6 @@ impl DesktopApp {
     /// Measure the active sidebar's content so labels and counters never rely on
     /// a fixed width. Keep the animation proportional to this measured width.
     fn context_sidebar_width(&self, context: &egui::Context) -> f32 {
-        let french = self.language == "fr";
         let labels: Vec<(&str, f32)> = match self.active_page {
             DesktopPage::Library => vec![
                 (self.language_pack.text("ui.shell.003"), 18.0),
@@ -157,7 +156,6 @@ impl DesktopApp {
                 .fold(0.0_f32, f32::max)
         });
         let navigation_width = nav_label_width + 42.0 + 44.0;
-        let _ = french;
         (text_width.max(navigation_width) + 2.0 * SIDEBAR_PADDING + 4.0).max(SIDEBAR_WIDTH)
     }
 
