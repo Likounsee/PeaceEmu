@@ -331,11 +331,12 @@ impl Cpu {
         if instruction & 0x0C00_0090 == 0x0000_0010 && (instruction >> 12) & 0xF != 15 {
             return 2;
         }
-        if instruction & 0x0C00_0000 == 0x0400_0000 {
+        // Halfword/signed transfers share the single-transfer major opcode
+        // but must be classified first: otherwise LDRH/LDRSH are counted as
+        // ordinary word/byte accesses by the broader mask below.
+        if instruction & 0x0E00_0090 == 0x0000_0090 {
             let load = instruction & (1 << 20) != 0;
             let destination = (instruction >> 12) & 0xF;
-            // Loads require a data read cycle in addition to the instruction
-            // cycle; a load to PC also flushes/refills the pipeline.
             return if load && destination == 15 {
                 5
             } else if load {
@@ -344,11 +345,11 @@ impl Cpu {
                 2
             };
         }
-        if instruction & 0x0E00_0090 == 0x0000_0090 {
+        if instruction & 0x0C00_0000 == 0x0400_0000 {
             let load = instruction & (1 << 20) != 0;
             let destination = (instruction >> 12) & 0xF;
-            // Halfword/signed transfers use the same basic load/store timing
-            // distinction as word and byte transfers.
+            // Loads require a data read cycle in addition to the instruction
+            // cycle; a load to PC also flushes/refills the pipeline.
             return if load && destination == 15 {
                 5
             } else if load {
@@ -1735,7 +1736,7 @@ mod tests {
         for (operand, expected) in [
             (0x0000_007F, 2),
             (0x0000_7FFF, 3),
-            (0x007F_FFFF, 3),
+            (0x007F_FFFF, 4),
             (0x1234_5678, 5),
             (0xFFFF_FF80, 2),
             (0xFFFF_8000, 3),
@@ -2286,7 +2287,7 @@ mod tests {
         cpu.reset(0x0200_0000);
         cpu.set_register(0, 0x0200_0100);
         cpu.step(&mut bus).unwrap();
-        assert_eq!(bus.read32(0x0200_013C), 0x0200_0008);
+        assert_eq!(bus.read32(0x0200_013C), 0x0200_000C);
         assert_eq!(cpu.register(0), Some(0x0200_0140));
 
         // LDMDB r1!, {} loads PC from base - 4 while decrementing by 0x40.
@@ -2380,8 +2381,8 @@ mod tests {
         cpu.set_register(2, 0xFFFF_FFFF);
         cpu.set_register(3, 2);
         cpu.step(&mut bus).unwrap();
-        assert_eq!(cpu.register(0), Some(1));
-        assert_eq!(cpu.register(1), Some(0xFFFF_FFFE));
+        assert_eq!(cpu.register(0), Some(0xFFFF_FFFE));
+        assert_eq!(cpu.register(1), Some(1));
     }
 
     #[test]
@@ -2884,7 +2885,7 @@ mod tests {
     #[test]
     fn arm_mul_rejects_nonzero_reserved_accumulator_register() {
         // MUL encodings require the Rn field to be zero (unlike MLA).
-        let instruction = 0xE001_0090;
+        let instruction = 0xE001_1090;
         let mut bus = bus_with_program(&[instruction]);
         let mut cpu = Cpu::new();
         cpu.reset(0x0200_0000);
