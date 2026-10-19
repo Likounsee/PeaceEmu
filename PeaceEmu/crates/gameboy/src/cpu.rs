@@ -1408,14 +1408,14 @@ mod tests {
             carry: true,
             overflow: true,
         };
-        cpu.thumb = true;
 
         cpu.step(&mut bus).unwrap();
 
-        assert_eq!(cpu.register(2), Some(0xB000_0020));
-        assert!(cpu.is_thumb());
-        assert_eq!(cpu.flags().negative, true);
-        assert_eq!(cpu.flags().carry, true);
+        // MRS executes in ARM state, so the modeled T bit is clear.
+        assert_eq!(cpu.register(2), Some(0xB000_0000));
+        assert!(!cpu.is_thumb());
+        assert!(cpu.flags().negative);
+        assert!(cpu.flags().carry);
     }
 
     #[test]
