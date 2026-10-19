@@ -764,9 +764,9 @@ mod tests {
     #[test]
     fn lower_oam_index_wins_obj_priority_ties() {
         let mut bus = bus();
+        // Entry 0 has the lower OAM index and must win the equal-priority tie.
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // index 1 red
-        // Entry 0 has the lower OAM index and must win the equal-priority tie.
         bus.write16(PALETTE_BASE + 0x204, 0x03E0);
         bus.write16(0x0601_0000, 0x0001);
         bus.write16(0x0601_0020, 0x0002);
