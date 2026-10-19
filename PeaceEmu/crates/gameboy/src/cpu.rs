@@ -236,14 +236,9 @@ impl Cpu {
                 1 + registers + if loads_pc { 2 } else { 0 }
             };
         }
-        if instruction & 0x0C00_0000 == 0x0400_0000
-            || instruction & 0x0E00_0090 == 0x0000_0090
-        {
-            return 2;
-        }
-        // ARM7TDMI multiply timing depends on how many significant bytes
-        // the multiplier operand needs. The multiplier is Rs (bits 11:8);
-        // MLA and long multiply-accumulate add one internal cycle.
+        // Match multiply encodings before the broad halfword-transfer
+        // pattern below: that pattern also matches the low opcode bits of
+        // MUL/MLA and long multiply, making operand-dependent timing unreachable.
         if instruction & 0x0FC0_00F0 == 0x0000_0090
             || instruction & 0x0F80_00F0 == 0x0080_0090
         {
@@ -252,6 +247,11 @@ impl Cpu {
             let multiplier_cycles = Self::multiply_internal_cycles(multiplier);
             let accumulate = instruction & (1 << 21) != 0;
             return 1 + multiplier_cycles + u32::from(accumulate);
+        }
+        if instruction & 0x0C00_0000 == 0x0400_0000
+            || instruction & 0x0E00_0090 == 0x0000_0090
+        {
+            return 2;
         }
         1
     }
