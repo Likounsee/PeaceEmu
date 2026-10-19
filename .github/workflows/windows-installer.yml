@@ -1,17 +1,11 @@
 name: Windows installer
 
 on:
+  # Building the Windows installer is intentionally opt-in: core development
+  # commits should run the regular CI, not rebuild the distributable.
+  # Version tags still build installers for releases.
   push:
-    branches: [PeaceEmu]
     tags: ["v*"]
-    paths:
-      - "PeaceEmu/crates/**"
-      - "PeaceEmu/Cargo.toml"
-      - "PeaceEmu/Cargo.lock"
-      - "PeaceEmu/packaging/windows/**"
-      - "PeaceEmu/update/**"
-      - "PeaceEmu/crates/desktop/assets/**"
-      - ".github/workflows/windows-installer.yml"
   workflow_dispatch:
 
 permissions:
