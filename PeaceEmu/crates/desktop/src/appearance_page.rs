@@ -159,6 +159,9 @@ impl DesktopApp {
                     ui.selectable_value(&mut self.language, "en".to_owned(), "English");
                 });
             if previous_language != self.language {
+                // Reload translations immediately so the language selector actually
+                // changes the visible UI in this session instead of only after restart.
+                self.language_pack = language_pack::LanguagePack::load(&self.language);
                 self.message = if self.language == "fr" {
                     "Langue modifiée.".to_owned()
                 } else {
