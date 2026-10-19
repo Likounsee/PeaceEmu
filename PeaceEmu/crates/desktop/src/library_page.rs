@@ -693,7 +693,7 @@ impl DesktopApp {
                 ui.painter().rect_stroke(
                     cover,
                     egui::Rounding::same(10.0),
-                    egui::Stroke::new(1.0, palette.sidebar),
+                    egui::Stroke::new(1.0_f32, palette.sidebar),
                 );
             } else {
                 ui.painter()
