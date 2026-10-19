@@ -110,11 +110,22 @@ fn header_string(field: &[u8]) -> String {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CartridgeError {
     /// The image is too short to contain the full cartridge header.
-    TooSmall { actual: usize },
+    TooSmall {
+        /// Actual image length in bytes.
+        actual: usize,
+    },
     /// The image exceeds the supported 32 MiB raw-ROM limit.
-    TooLarge { actual: usize },
+    TooLarge {
+        /// Actual image length in bytes.
+        actual: usize,
+    },
     /// The header's stored complement checksum differs from the calculated value.
-    InvalidHeaderChecksum { expected: u8, calculated: u8 },
+    InvalidHeaderChecksum {
+        /// Checksum byte stored in the ROM header.
+        expected: u8,
+        /// Checksum calculated from the header fields.
+        calculated: u8,
+    },
 }
 
 impl fmt::Display for CartridgeError {
