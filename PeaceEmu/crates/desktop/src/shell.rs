@@ -41,8 +41,11 @@ impl DesktopApp {
                     .inner_margin(egui::Margin::symmetric(14.0, 16.0)),
             )
             .show(context, |ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(0.0, 8.0);
-                // Logo box at the top of the rail.
+                // Center every rail item horizontally in the full sidebar,
+                // including the top navigation group and the bottom controls.
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 8.0);
+                    // Logo box at the top of the rail.
                 if let Some(texture) = theme::logo_texture(context) {
                     let (rect, _) =
                         ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
@@ -100,6 +103,7 @@ impl DesktopApp {
                     {
                         self.sidebar_open = !self.sidebar_open;
                     }
+                    });
                 });
             });
     }
