@@ -491,7 +491,10 @@ impl Cpu {
                                 if amount >= 32 {
                                     (if sign { u32::MAX } else { 0 }, Some(sign))
                                 } else {
-                                    (((left as i32) >> amount) as u32, Some((left >> (amount - 1)) & 1 != 0))
+                                    (
+                                        ((left as i32) >> amount) as u32,
+                                        Some((left >> (amount - 1)) & 1 != 0),
+                                    )
                                 }
                             }
                             7 => {
@@ -1384,7 +1387,10 @@ mod tests {
             0x412C,     // ASR r4, r5
             0x41FE,     // ROR r6, r7
             0x4248,     // NEG r0, r1
-        ].into_iter().enumerate() {
+        ]
+        .into_iter()
+        .enumerate()
+        {
             bus.write16(0x0200_0000 + index as u32 * 2, instruction);
         }
 
