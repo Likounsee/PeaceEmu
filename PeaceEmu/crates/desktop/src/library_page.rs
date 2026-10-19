@@ -387,13 +387,6 @@ impl DesktopApp {
                         ui.selectable_value(&mut self.library_format, format, format.label(french));
                     }
                 });
-            egui::ComboBox::from_id_source("library_sort")
-                .selected_text(self.library_sort.label(french))
-                .show_ui(ui, |ui| {
-                    for sort in [LibrarySort::Largest, LibrarySort::Path] {
-                        ui.selectable_value(&mut self.library_sort, sort, sort.label(french));
-                    }
-                });
             if ui
                 .button(self.language_pack.text("ui.library_page.004"))
                 .clicked()
@@ -421,14 +414,6 @@ impl DesktopApp {
                 matches_library_query(title, path, &query) && self.library_format.matches(path)
             })
             .collect();
-        match self.library_sort {
-            LibrarySort::Largest => entries.sort_by(|a, b| {
-                b.2.cmp(&a.2)
-                    .then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase()))
-            }),
-            LibrarySort::Path => entries.sort_by(|a, b| a.1.cmp(&b.1)),
-        }
-
         ui.add_space(10.0);
         let show_detail = !entries.is_empty();
         let wide = show_detail && ui.available_width() >= 760.0;
