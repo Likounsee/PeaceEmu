@@ -112,7 +112,11 @@ impl MemoryBus {
             }
             0x0600_0000..=0x06FF_FFFF => {
                 let offset = (address as usize - 0x0600_0000) % 0x2_0000;
-                let offset = if offset >= 0x1_8000 { offset - 0x8_000 } else { offset };
+                let offset = if offset >= 0x1_8000 {
+                    offset - 0x8_000
+                } else {
+                    offset
+                };
                 self.vram[offset % VRAM_SIZE] = value;
             }
             0x0700_0000..=0x07FF_FFFF => {
