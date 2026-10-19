@@ -97,8 +97,7 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             };
             for y in 0..MODE_5_HEIGHT {
                 for x in 0..MODE_5_WIDTH {
-                    let address =
-                        VRAM_BASE + page_offset + ((y * MODE_5_WIDTH + x) * 2) as u32;
+                    let address = VRAM_BASE + page_offset + ((y * MODE_5_WIDTH + x) * 2) as u32;
                     let target = (y + (SCREEN_HEIGHT - MODE_5_HEIGHT) / 2) * SCREEN_WIDTH
                         + x
                         + (SCREEN_WIDTH - MODE_5_WIDTH) / 2;
@@ -148,13 +147,19 @@ fn render_text_bg0(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame
             let block_x = tile_x / 32;
             let block_y = tile_y / 32;
             let block = block_y * map_blocks_per_row + block_x;
-            let map_offset = screen_base
-                + block * 0x800
-                + ((tile_y % 32) * 32 + tile_x % 32) * 2;
+            let map_offset = screen_base + block * 0x800 + ((tile_y % 32) * 32 + tile_x % 32) * 2;
             let entry = bus.read16(VRAM_BASE + map_offset);
             let tile_index = u32::from(entry & 0x03FF);
-            let pixel_x = if entry & (1 << 10) != 0 { 7 - in_tile_x } else { in_tile_x };
-            let pixel_y = if entry & (1 << 11) != 0 { 7 - in_tile_y } else { in_tile_y };
+            let pixel_x = if entry & (1 << 10) != 0 {
+                7 - in_tile_x
+            } else {
+                in_tile_x
+            };
+            let pixel_y = if entry & (1 << 11) != 0 {
+                7 - in_tile_y
+            } else {
+                in_tile_y
+            };
             // Tile-map indices are expressed in 32-byte units. In 8bpp
             // mode each tile occupies 64 bytes, so bit 0 of the tile index
             // is ignored (the tile starts on an even 32-byte slot).
@@ -169,12 +174,13 @@ fn render_text_bg0(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame
                 (index, index == 0)
             } else {
                 let packed = bus.read8(tile_address + pixel_y * 4 + pixel_x / 2);
-                let nibble = if pixel_x & 1 == 0 { packed & 0x0F } else { packed >> 4 };
+                let nibble = if pixel_x & 1 == 0 {
+                    packed & 0x0F
+                } else {
+                    packed >> 4
+                };
                 let index = u32::from(nibble);
-                (
-                    index + u32::from((entry >> 12) & 0xF) * 16,
-                    index == 0,
-                )
+                (index + u32::from((entry >> 12) & 0xF) * 16, index == 0)
             };
             // Color index zero is transparent even when a 4bpp palette bank
             // makes its absolute palette index nonzero.
@@ -214,7 +220,8 @@ mod tests {
     fn mode0_renders_4bpp_bg0_tile_and_palette_bank() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
-        bus.write8(VRAM_BASE + 32, 0x21); // tile 1: pixels 0 and 1 are 1 and 2
+        // Tile 1: pixels 0 and 1 are 1 and 2.
+        bus.write8(VRAM_BASE + 32, 0x21);
         // Select tile 1 by changing the map entry.
         bus.write16(VRAM_BASE, (1 << 12) | 1);
         bus.write16(PALETTE_BASE + 34, 0x001F); // palette 17: red
@@ -224,15 +231,13 @@ mod tests {
         assert_eq!(frame.pixel(1, 0), Some(0xFF00_FF00));
     }
 
-
     #[test]
     fn mode0_renders_8bpp_tile_pixels_and_zero_transparency() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
         bus.write16(BG0CNT, 1 << 7); // 8bpp tiles
-        bus.write16(VRAM_BASE, 1); // map uses tile 1
-        // In 8bpp mode tile index 1 aliases tile index 0; use tile 2,
-        // which starts at byte offset 64 in character data.
+        // In 8bpp mode tile index 1 aliases tile index 0; tile 2
+        // starts at byte offset 64 in character data.
         bus.write16(VRAM_BASE, 2);
         bus.write8(VRAM_BASE + 64, 3);
         bus.write8(VRAM_BASE + 65, 4);
@@ -264,8 +269,8 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
         bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop
-        bus.write16(VRAM_BASE, (1 << 12) | 1); // tile 1, palette bank 1
         // Tile 1 begins with zero (transparent); next pixel uses palette entry 17.
+        bus.write16(VRAM_BASE, (1 << 12) | 1);
         bus.write8(VRAM_BASE + 32, 0x10);
         bus.write16(PALETTE_BASE + 34, 0x001F); // palette 17: red
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
