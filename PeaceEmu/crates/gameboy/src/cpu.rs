@@ -173,11 +173,22 @@ impl Cpu {
     /// based on whether the multiplier is sign/zero-extended from 8, 16,
     /// 24, or 32 bits.
     fn multiply_internal_cycles(value: u32) -> u32 {
-        if value & 0xFFFF_FF00 == 0 || value & 0xFFFF_FF00 == 0xFFFF_FF00 {
+        Self::multiply_internal_cycles_for_extension(value, true)
+    }
+
+    /// Returns the multiplier cycles for long multiply instructions.
+    /// Signed forms may terminate when the operand is sign-extended from a
+    /// shorter width; unsigned forms may terminate only when it is zero-extended.
+    fn multiply_internal_cycles_for_extension(value: u32, signed: bool) -> u32 {
+        if value & 0xFFFF_FF00 == 0 || (signed && value & 0xFFFF_FF00 == 0xFFFF_FF00) {
             1
-        } else if value & 0xFFFF_0000 == 0 || value & 0xFFFF_0000 == 0xFFFF_0000 {
+        } else if value & 0xFFFF_0000 == 0
+            || (signed && value & 0xFFFF_0000 == 0xFFFF_0000)
+        {
             2
-        } else if value & 0xFF00_0000 == 0 || value & 0xFF00_0000 == 0xFF00_0000 {
+        } else if value & 0xFF00_0000 == 0
+            || (signed && value & 0xFF00_0000 == 0xFF00_0000)
+        {
             3
         } else {
             4
@@ -286,7 +297,11 @@ impl Cpu {
         if instruction & 0x0FC0_00F0 == 0x0000_0090 || long_multiply {
             let rs = ((instruction >> 8) & 0xF) as usize;
             let multiplier = self.registers[rs];
-            let multiplier_cycles = Self::multiply_internal_cycles(multiplier);
+            // In long multiply encodings, bit 22 selects signed (SMULL/SMLAL)
+            // versus unsigned (UMULL/UMLAL) early termination rules.
+            let signed_long_multiply = instruction & (1 << 22) != 0;
+            let multiplier_cycles =
+                Self::multiply_internal_cycles_for_extension(multiplier, signed_long_multiply);
             let accumulate = instruction & (1 << 21) != 0;
             // Long multiply writes a 64-bit result and needs one additional
             // internal cycle beyond MUL/MLA for the high result word.
@@ -1726,6 +1741,12 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 4); // UMLAL r0,r1,r2,r3
         assert_eq!(cpu.estimate_cycles(0xE0C1_0392), 3); // SMULL r0,r1,r2,r3
         assert_eq!(cpu.estimate_cycles(0xE0E1_0392), 4); // SMLAL r0,r1,r2,r3
+
+        // Negative-looking values terminate early for signed long multiply,
+        // but unsigned long multiply must consume all four multiplier cycles.
+        cpu.set_register(3, 0xFFFF_FF80);
+        assert_eq!(cpu.estimate_cycles(0xE081_0392), 6); // UMULL
+        assert_eq!(cpu.estimate_cycles(0xE0C1_0392), 3); // SMULL
     }
 
     #[test]
