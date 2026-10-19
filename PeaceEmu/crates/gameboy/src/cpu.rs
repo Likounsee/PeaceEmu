@@ -165,13 +165,27 @@ impl Cpu {
             if raw & 0xF800 == 0xE000 || raw & 0xF800 == 0xF000 || raw & 0xF800 == 0xF800 {
                 return 3;
             }
-            // Thumb loads/stores, including register-offset and stack transfers.
+            // PUSH/POP and Thumb multiple transfers take one transfer
+            // cycle per register, plus the instruction-fetch cycle. POP {pc}
+            // also refills the pipeline.
+            if raw & 0xF600 == 0xB400 {
+                let registers = (raw & 0x00FF).count_ones()
+                    + u32::from(raw & 0x0100 != 0);
+                let loads_pc = raw & 0xFE00 == 0xBC00 && raw & 0x0100 != 0;
+                return 1 + registers + if loads_pc { 2 } else { 0 };
+            }
+            if raw & 0xF000 == 0xC000 {
+                let registers = (raw & 0x00FF).count_ones();
+                // An empty Thumb LDM/STM list has special PC/16-register
+                // behavior on ARM7TDMI; account for its long transfer.
+                return if registers == 0 { 17 } else { 1 + registers };
+            }
+            // Ordinary single transfers include register-offset, immediate,
+            // halfword, SP-relative, and literal loads.
             if raw & 0xF000 == 0x5000
                 || raw & 0xE000 == 0x6000
                 || raw & 0xF000 == 0x8000
                 || raw & 0xF000 == 0x9000
-                || raw & 0xF600 == 0xB400
-                || raw & 0xF000 == 0xC000
                 || raw & 0xF800 == 0x4800
             {
                 return 2;
@@ -184,9 +198,17 @@ impl Cpu {
             return 3;
         }
         // Single and halfword transfers use at least one data access cycle.
+        if instruction & 0x0E00_0000 == 0x0800_0000 {
+            let registers = (instruction & 0x0000_FFFF).count_ones();
+            let loads_pc = instruction & (1 << 20) != 0 && instruction & (1 << 15) != 0;
+            return if registers == 0 {
+                17
+            } else {
+                1 + registers + if loads_pc { 2 } else { 0 }
+            };
+        }
         if instruction & 0x0C00_0000 == 0x0400_0000
             || instruction & 0x0E00_0090 == 0x0000_0090
-            || instruction & 0x0E00_0000 == 0x0800_0000
         {
             return 2;
         }
