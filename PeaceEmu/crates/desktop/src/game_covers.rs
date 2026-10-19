@@ -199,6 +199,45 @@ pub(crate) fn import_local(config_path: &Path, source: &Path) -> Result<PathBuf,
     )
 }
 
+
+/// Download a user-selected direct image URL into the per-game covers directory.
+/// Only HTTP(S) URLs are accepted; downloaded bytes are validated as PNG, JPEG or WebP.
+pub(crate) fn download_url(
+    config_path: &Path,
+    url: &str,
+    title: &str,
+) -> Result<PathBuf, String> {
+    let url = url.trim();
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Enter a direct HTTP or HTTPS image URL.".to_owned());
+    }
+    let agent = ureq::AgentBuilder::new()
+        .timeout(Duration::from_secs(20))
+        .user_agent("PeaceEmu/0.2 (https://github.com/Likounsee/PeaceEmu; game cover import)")
+        .build();
+    let response = agent
+        .get(url)
+        .call()
+        .map_err(|error| format!("Image download failed: {error}"))?;
+    if response
+        .header("Content-Length")
+        .and_then(|s| s.parse::<u64>().ok())
+        .is_some_and(|size| size > MAX_COVER_BYTES)
+    {
+        return Err("Online image exceeds the 10 MiB limit.".to_owned());
+    }
+    let mut bytes = Vec::new();
+    response
+        .into_reader()
+        .take(MAX_COVER_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("Could not read downloaded image: {error}"))?;
+    if bytes.len() as u64 > MAX_COVER_BYTES {
+        return Err("Online image exceeds the 10 MiB limit.".to_owned());
+    }
+    store_bytes(config_path, title, &bytes)
+}
+
 /// Search Wikimedia Commons for a cover image and download the first matching result.
 /// Only image files are fetched; ROM/content files are never searched or downloaded.
 pub(crate) fn search_online(config_path: &Path, title: &str) -> Result<(PathBuf, String), String> {
