@@ -810,16 +810,19 @@ impl Cpu {
         let rn = ((instruction >> 16) & 0xF) as usize;
         let register_list = instruction & 0xFFFF;
 
-        // User-bank transfers require exception/banked-register support, and an
-        // empty list has special architectural behavior not modeled here.
-        if user_registers || register_list == 0 {
+        // User-bank transfers require exception/banked-register support.
+        if user_registers {
             return Err(CpuError::UnsupportedInstruction {
                 address,
                 instruction,
             });
         }
 
-        let count = register_list.count_ones();
+        // ARM7TDMI treats an empty list as a PC transfer, but adjusts the
+        // address/write-back as though all 16 registers had been listed.
+        let empty_list = register_list == 0;
+        let effective_list = if empty_list { 1 << 15 } else { register_list };
+        let count = if empty_list { 16 } else { register_list.count_ones() };
         let base = self.read_operand_register(rn, address);
         let bytes = count * 4;
         let first_address = match (increment, pre_index) {
@@ -828,10 +831,16 @@ impl Cpu {
             (false, false) => base.wrapping_sub(bytes).wrapping_add(4),
             (false, true) => base.wrapping_sub(bytes),
         };
+        // With an empty list, PC is the only transferred register but its
+        // slot is still the sixteenth word in the 16-register address span.
+        let mut transfer_address = if empty_list {
+            first_address.wrapping_add(15 * 4)
+        } else {
+            first_address
+        };
 
-        let mut transfer_address = first_address;
         for register in 0..16 {
-            if register_list & (1 << register) == 0 {
+            if effective_list & (1 << register) == 0 {
                 continue;
             }
 
@@ -1272,6 +1281,29 @@ mod tests {
         assert_eq!(bus.read32(0x0200_0118), 0x1122_3344);
         assert_eq!(bus.read32(0x0200_011C), 0x0200_0120);
         assert_eq!(cpu.register(1), Some(0x0200_0118));
+    }
+
+    #[test]
+    fn arm_empty_block_transfer_uses_pc_and_full_writeback_span() {
+        // STMIA r0!, {} stores the ARM-visible PC at base + 0x3C and advances
+        // the base as though all 16 registers had been transferred.
+        let mut bus = bus_with_program(&[0xE8A0_0000]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0x0200_0100);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read32(0x0200_013C), 0x0200_0008);
+        assert_eq!(cpu.register(0), Some(0x0200_0140));
+
+        // LDMDB r1!, {} loads PC from base - 4 while decrementing by 0x40.
+        let mut bus = bus_with_program(&[0xE931_0000]);
+        bus.write32(0x0200_011C, 0x0200_0041);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 0x0200_0120);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(15), Some(0x0200_0040));
+        assert_eq!(cpu.register(1), Some(0x0200_00E0));
     }
 
     #[test]
