@@ -1663,8 +1663,6 @@ mod tests {
         std::fs::remove_dir(root).unwrap();
     }
 
-
-
     #[test]
     fn forgetting_a_missing_library_file_preserves_open_sessions() {
         let nonce = std::time::SystemTime::now()
