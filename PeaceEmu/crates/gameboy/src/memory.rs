@@ -783,7 +783,7 @@ mod tests {
         let mut bus = MemoryBus::new(cartridge());
 
         // Divisor 64: accumulate a partial prescaler phase, then disable the
-        // timer through its high control byte (the byte-wide register path).
+        // timer through its low control byte (the byte-wide register path).
         bus.write16(0x0400_0100, 0);
         bus.write16(0x0400_0102, 0x0081);
         bus.advance_cycles(32);
