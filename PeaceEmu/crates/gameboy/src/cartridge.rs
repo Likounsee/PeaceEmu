@@ -24,10 +24,14 @@ impl GbaCartridge {
     /// is valid; execution support is tracked separately.
     pub fn parse(bytes: &[u8]) -> Result<Self, CartridgeError> {
         if bytes.len() < GBA_HEADER_SIZE {
-            return Err(CartridgeError::TooSmall { actual: bytes.len() });
+            return Err(CartridgeError::TooSmall {
+                actual: bytes.len(),
+            });
         }
         if bytes.len() > MAX_ROM_SIZE {
-            return Err(CartridgeError::TooLarge { actual: bytes.len() });
+            return Err(CartridgeError::TooLarge {
+                actual: bytes.len(),
+            });
         }
 
         let expected = bytes[0xBD];
@@ -92,7 +96,13 @@ fn header_string(field: &[u8]) -> String {
         .map_or(0, |index| index + 1);
     field[..end]
         .iter()
-        .map(|byte| if byte.is_ascii_graphic() || *byte == b' ' { *byte as char } else { '?' })
+        .map(|byte| {
+            if byte.is_ascii_graphic() || *byte == b' ' {
+                *byte as char
+            } else {
+                '?'
+            }
+        })
         .collect()
 }
 
@@ -158,7 +168,9 @@ mod tests {
     fn rejects_truncated_header() {
         assert_eq!(
             GbaCartridge::parse(&[0; GBA_HEADER_SIZE - 1]),
-            Err(CartridgeError::TooSmall { actual: GBA_HEADER_SIZE - 1 })
+            Err(CartridgeError::TooSmall {
+                actual: GBA_HEADER_SIZE - 1
+            })
         );
     }
 
@@ -178,7 +190,9 @@ mod tests {
         rom[0xBD] = 0;
         assert_eq!(
             GbaCartridge::parse(&rom),
-            Err(CartridgeError::TooLarge { actual: MAX_ROM_SIZE + 1 })
+            Err(CartridgeError::TooLarge {
+                actual: MAX_ROM_SIZE + 1
+            })
         );
     }
 }

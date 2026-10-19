@@ -57,16 +57,22 @@ impl MemoryBus {
             0x0200_0000..=0x02FF_FFFF => self.ewram[(address as usize - 0x0200_0000) % EWRAM_SIZE],
             0x0300_0000..=0x03FF_FFFF => self.iwram[(address as usize - 0x0300_0000) % IWRAM_SIZE],
             0x0400_0000..=0x0400_03FF => self.io[(address as usize - 0x0400_0000) % IO_SIZE],
-            0x0500_0000..=0x05FF_FFFF => self.palette[(address as usize - 0x0500_0000) % PALETTE_RAM_SIZE],
+            0x0500_0000..=0x05FF_FFFF => {
+                self.palette[(address as usize - 0x0500_0000) % PALETTE_RAM_SIZE]
+            }
             0x0600_0000..=0x06FF_FFFF => {
                 let offset = (address as usize - 0x0600_0000) % 0x2_0000;
-                let offset = if offset >= 0x1_8000 { offset - 0x8_000 } else { offset };
+                let offset = if offset >= 0x1_8000 {
+                    offset - 0x8_000
+                } else {
+                    offset
+                };
                 self.vram[offset % VRAM_SIZE]
             }
             0x0700_0000..=0x07FF_FFFF => self.oam[(address as usize - 0x0700_0000) % OAM_SIZE],
-            0x0800_0000..=0x0DFF_FFFF => self.cartridge.read_rom_byte(
-                (address as usize - 0x0800_0000) % self.cartridge.len(),
-            ),
+            0x0800_0000..=0x0DFF_FFFF => self
+                .cartridge
+                .read_rom_byte((address as usize - 0x0800_0000) % self.cartridge.len()),
             0x0E00_0000..=0x0FFF_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
             _ => 0,
         }
@@ -92,17 +98,29 @@ impl MemoryBus {
     /// Writes one byte to writable memory. Cartridge ROM and BIOS writes are ignored.
     pub fn write8(&mut self, address: u32, value: u8) {
         match address {
-            0x0200_0000..=0x02FF_FFFF => self.ewram[(address as usize - 0x0200_0000) % EWRAM_SIZE] = value,
-            0x0300_0000..=0x03FF_FFFF => self.iwram[(address as usize - 0x0300_0000) % IWRAM_SIZE] = value,
-            0x0400_0000..=0x0400_03FF => self.io[(address as usize - 0x0400_0000) % IO_SIZE] = value,
-            0x0500_0000..=0x05FF_FFFF => self.palette[(address as usize - 0x0500_0000) % PALETTE_RAM_SIZE] = value,
+            0x0200_0000..=0x02FF_FFFF => {
+                self.ewram[(address as usize - 0x0200_0000) % EWRAM_SIZE] = value
+            }
+            0x0300_0000..=0x03FF_FFFF => {
+                self.iwram[(address as usize - 0x0300_0000) % IWRAM_SIZE] = value
+            }
+            0x0400_0000..=0x0400_03FF => {
+                self.io[(address as usize - 0x0400_0000) % IO_SIZE] = value
+            }
+            0x0500_0000..=0x05FF_FFFF => {
+                self.palette[(address as usize - 0x0500_0000) % PALETTE_RAM_SIZE] = value
+            }
             0x0600_0000..=0x06FF_FFFF => {
                 let offset = (address as usize - 0x0600_0000) % 0x2_0000;
                 let offset = if offset >= 0x1_8000 { offset - 0x8_000 } else { offset };
                 self.vram[offset % VRAM_SIZE] = value;
             }
-            0x0700_0000..=0x07FF_FFFF => self.oam[(address as usize - 0x0700_0000) % OAM_SIZE] = value,
-            0x0E00_0000..=0x0FFF_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE] = value,
+            0x0700_0000..=0x07FF_FFFF => {
+                self.oam[(address as usize - 0x0700_0000) % OAM_SIZE] = value
+            }
+            0x0E00_0000..=0x0FFF_FFFF => {
+                self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE] = value
+            }
             _ => {}
         }
     }
