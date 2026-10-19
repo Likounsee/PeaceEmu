@@ -1,8 +1,9 @@
 //! Initial memory map for the Game Boy Advance.
 //!
 //! This models address decoding, backing storage, timer progression, and the initial
-//! scanline/DISPSTAT timing signals. DMA, open-bus behavior, BIOS protection, and
-//! further peripheral side effects remain in development.
+//! scanline/DISPSTAT timing signals, and immediate/HBlank/VBlank DMA transfers.
+//! Open-bus behavior, BIOS protection, FIFO DMA, and further peripheral side effects
+//! remain in development.
 
 use crate::GbaCartridge;
 
@@ -1191,7 +1192,7 @@ mod tests {
         bus.write32(0x0400_00B0, 0x0200_0000);
         bus.write32(0x0400_00B4, 0x0300_0000);
         bus.write16(0x0400_00B8, 1);
-        bus.write16(0x0400_00BA, 0xB200); // enable, repeat, VBlank timing
+        bus.write16(0x0400_00BA, 0x9200); // enable, repeat, VBlank timing
 
         assert_eq!(bus.read16(0x0300_0000), 0);
         bus.advance_cycles(1232 * 159);
