@@ -971,6 +971,16 @@ impl Cpu {
         let rn = ((instruction >> 16) & 0xF) as usize;
         let rd = ((instruction >> 12) & 0xF) as usize;
 
+        // ARM7TDMI defines a load with write-back and Rd == Rn as
+        // unpredictable. Post-indexed loads always write back, so reject
+        // both forms instead of silently choosing an arbitrary register value.
+        if load && rd == rn && (!pre_index || write_back) {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
         if register_offset && instruction & (1 << 4) != 0 {
             return Err(CpuError::UnsupportedInstruction {
                 address,
@@ -1793,6 +1803,24 @@ mod tests {
                 instruction: 0xE25E_F004,
             })
         );
+    }
+
+    #[test]
+    fn arm_load_with_writeback_and_same_base_destination_is_rejected() {
+        // LDR r1, [r1], #4: architecturally unpredictable on ARM7TDMI.
+        let mut bus = bus_with_program(&[0xE491_1004]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 0x0200_0100);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction: 0xE491_1004,
+            })
+        );
+        assert_eq!(cpu.register(1), Some(0x0200_0100));
     }
 
     #[test]
