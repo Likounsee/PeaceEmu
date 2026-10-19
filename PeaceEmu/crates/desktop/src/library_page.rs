@@ -686,13 +686,24 @@ impl DesktopApp {
             self.cover_query = title.clone();
         }
         theme::card(ui, palette, |ui| {
-            let width = ui.available_width();
+            let available_width = ui.available_width();
             let cover_aspect = cover_target_aspect(detail_cover_texture.as_ref());
-            let cover_height = (width / cover_aspect).min(260.0);
-            let (cover, _) = ui.allocate_exact_size(
-                egui::vec2(width, cover_height),
-                egui::Sense::hover(),
-            );
+            let cover_width = if cover_aspect == 1.0 {
+                available_width.min(260.0)
+            } else {
+                available_width
+            };
+            let cover_height = cover_width / cover_aspect;
+            let mut cover_rect = egui::Rect::NOTHING;
+            ui.horizontal(|ui| {
+                ui.add_space(((available_width - cover_width) * 0.5).max(0.0));
+                let (cover, _) = ui.allocate_exact_size(
+                    egui::vec2(cover_width, cover_height),
+                    egui::Sense::hover(),
+                );
+                cover_rect = cover;
+            });
+            let cover = cover_rect;
             if let Some(texture) = &detail_cover_texture {
                 ui.painter().image(
                     texture.id(),
