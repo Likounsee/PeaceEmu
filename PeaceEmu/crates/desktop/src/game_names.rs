@@ -55,10 +55,7 @@ pub(crate) fn load(config_path: &Path) -> HashMap<PathBuf, String> {
     names
 }
 
-pub(crate) fn persist(
-    config_path: &Path,
-    names: &HashMap<PathBuf, String>,
-) -> std::io::Result<()> {
+pub(crate) fn persist(config_path: &Path, names: &HashMap<PathBuf, String>) -> std::io::Result<()> {
     let path = names_path(config_path);
     let parent = path.parent().ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "missing config parent")
@@ -113,7 +110,10 @@ mod tests {
         let root = std::env::temp_dir().join(format!(
             "peaceemu-game-names-{}-{}",
             std::process::id(),
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         ));
         fs::create_dir_all(&root).unwrap();
         let config = root.join("desktop.conf");
