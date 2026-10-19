@@ -340,11 +340,7 @@ impl Cpu {
 
             if load {
                 let value = bus.read32(transfer_address);
-                self.registers[register] = if register == 15 {
-                    value & !3
-                } else {
-                    value
-                };
+                self.registers[register] = if register == 15 { value & !3 } else { value };
             } else {
                 let value = if register == 15 {
                     address.wrapping_add(12)
