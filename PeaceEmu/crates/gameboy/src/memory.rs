@@ -32,6 +32,8 @@ pub struct MemoryBus {
     vram: Vec<u8>,
     oam: Vec<u8>,
     sram: Vec<u8>,
+    /// Active-low KEYINPUT state is stored internally as a pressed-key bitmask.
+    keys_pressed: u16,
 }
 
 impl MemoryBus {
@@ -46,6 +48,7 @@ impl MemoryBus {
             vram: vec![0; VRAM_SIZE],
             oam: vec![0; OAM_SIZE],
             sram: vec![0xFF; SRAM_SIZE],
+            keys_pressed: 0,
         }
     }
 
@@ -53,6 +56,13 @@ impl MemoryBus {
     ///
     /// Unmapped and BIOS addresses return zero in this early bus model.
     pub fn read8(&self, address: u32) -> u8 {
+        // KEYINPUT (0x04000130) is active-low and read-only. Bits 0..9 map
+        // to A, B, Select, Start, Right, Left, Up, Down, R and L.
+        if (0x0400_0130..=0x0400_0131).contains(&address) {
+            let keyinput = (!self.keys_pressed) & 0x03FF;
+            return ((keyinput >> ((address - 0x0400_0130) * 8)) & 0xFF) as u8;
+        }
+
         match address {
             0x0200_0000..=0x02FF_FFFF => self.ewram[(address as usize - 0x0200_0000) % EWRAM_SIZE],
             0x0300_0000..=0x03FF_FFFF => self.iwram[(address as usize - 0x0300_0000) % IWRAM_SIZE],
@@ -76,6 +86,15 @@ impl MemoryBus {
             0x0E00_0000..=0x0FFF_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
             _ => 0,
         }
+    }
+
+    /// Sets the pressed GBA buttons using a bitmask (bit 0=A, 1=B, 2=Select,
+    /// 3=Start, 4=Right, 5=Left, 6=Up, 7=Down, 8=R, 9=L).
+    ///
+    /// The hardware exposes these bits active-low through KEYINPUT; callers
+    /// pass 1 for a pressed key and 0 for a released key.
+    pub fn set_keys_pressed(&mut self, pressed: u16) {
+        self.keys_pressed = pressed & 0x03FF;
     }
 
     /// Reads a little-endian halfword, aligned down to a two-byte boundary.
@@ -186,6 +205,22 @@ mod tests {
         assert_eq!(bus.read8(0x0800_0000), 0xEA);
         bus.write8(0x0800_0000, 0x11);
         assert_eq!(bus.read8(0x0800_0000), 0xEA);
+    }
+
+    #[test]
+    fn keyinput_is_active_low_read_only_and_masks_unused_bits() {
+        let mut bus = MemoryBus::new(cartridge());
+        assert_eq!(bus.read16(0x0400_0130), 0x03FF);
+
+        bus.set_keys_pressed(0b10_0000_0001);
+        assert_eq!(bus.read16(0x0400_0130), 0b01_1111_1110);
+        assert_eq!(bus.read8(0x0400_0130), 0xFE);
+        assert_eq!(bus.read8(0x0400_0131), 0x01);
+
+        bus.write16(0x0400_0130, 0);
+        assert_eq!(bus.read16(0x0400_0130), 0b01_1111_1110);
+        bus.set_keys_pressed(u16::MAX);
+        assert_eq!(bus.read16(0x0400_0130), 0);
     }
 
     #[test]
