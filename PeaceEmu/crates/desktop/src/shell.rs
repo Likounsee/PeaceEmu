@@ -4,7 +4,6 @@ use super::*;
 use crate::theme::{Icon, Palette};
 
 const RAIL_WIDTH: f32 = 72.0;
-const SIDEBAR_WIDTH: f32 = 232.0;
 const SIDEBAR_PADDING: f32 = 16.0;
 
 impl DesktopPage {
@@ -156,7 +155,7 @@ impl DesktopApp {
                 .fold(0.0_f32, f32::max)
         });
         let navigation_width = nav_label_width + 42.0 + 44.0;
-        (text_width.max(navigation_width) + 2.0 * SIDEBAR_PADDING + 4.0).max(SIDEBAR_WIDTH)
+        (text_width.max(navigation_width) + 2.0 * SIDEBAR_PADDING + 4.0).max(180.0)
     }
 
     fn show_context_sidebar(&mut self, context: &egui::Context, palette: &Palette) {
