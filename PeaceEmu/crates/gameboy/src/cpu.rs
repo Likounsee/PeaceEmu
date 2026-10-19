@@ -381,7 +381,7 @@ impl Cpu {
             let rb = usize::from((raw >> 8) & 7);
             let register_list = u32::from(raw & 0xFF);
             let count = register_list.count_ones();
-            if count == 0 || (!load && register_list & (1 << rb) != 0) {
+            if count == 0 {
                 return Err(CpuError::UnsupportedInstruction {
                     address,
                     instruction,
@@ -397,7 +397,21 @@ impl Cpu {
                 if load {
                     self.registers[register] = bus.read32(transfer_address);
                 } else {
-                    bus.write32(transfer_address, self.registers[register]);
+                    // Thumb STMIA has a defined special case when the base is
+                    // included in the register list: if it is the lowest
+                    // listed register, the stored value is the updated base;
+                    // otherwise the original base is stored.
+                    let value = if register == rb {
+                        let lowest_register = register_list.trailing_zeros();
+                        if lowest_register == rb as u32 {
+                            base.wrapping_add(count * 4)
+                        } else {
+                            base
+                        }
+                    } else {
+                        self.registers[register]
+                    };
+                    bus.write32(transfer_address, value);
                 }
                 transfer_address = transfer_address.wrapping_add(4);
             }
@@ -1159,6 +1173,36 @@ mod tests {
         assert_eq!(cpu.register(2), Some(0x1122_3344));
         assert_eq!(cpu.register(3), Some(0xAABB_CCDD));
         assert_eq!(cpu.register(13), Some(0x0200_0018));
+    }
+
+    #[test]
+    fn thumb_stmia_handles_base_register_in_the_register_list() {
+        let mut bus = bus_with_program(&[]);
+        // STMIA r1!, {r0, r1}: because r1 is not the lowest listed
+        // register, the original base value is stored for r1.
+        bus.write16(0x0200_0000, 0xC103);
+        // STMIA r0!, {r0, r1}: because r0 is the lowest listed register,
+        // the updated base value is stored for r0.
+        bus.write16(0x0200_0002, 0xC003);
+
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(0, 0x1122_3344);
+        cpu.set_register(1, 0x0200_0100);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read32(0x0200_0100), 0x1122_3344);
+        assert_eq!(bus.read32(0x0200_0104), 0x0200_0100);
+        assert_eq!(cpu.register(1), Some(0x0200_0108));
+
+        // Use a fresh base to exercise the lowest-register case.
+        cpu.set_register(0, 0x0200_0120);
+        cpu.set_register(1, 0xAABB_CCDD);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read32(0x0200_0120), 0x0200_0128);
+        assert_eq!(bus.read32(0x0200_0124), 0xAABB_CCDD);
+        assert_eq!(cpu.register(0), Some(0x0200_0128));
     }
 
     #[test]
