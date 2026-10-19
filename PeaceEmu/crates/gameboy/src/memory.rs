@@ -253,6 +253,16 @@ impl MemoryBus {
     /// Writes a little-endian halfword, aligned down to a two-byte boundary.
     pub fn write16(&mut self, address: u32, value: u16) {
         let address = address & !1;
+
+        // KEYCNT is a single 16-bit register. Apply a halfword write atomically
+        // so intermediate byte values cannot spuriously latch a keypad IRQ.
+        if address == 0x0400_0132 {
+            let was_requested = self.keypad_irq_requested();
+            self.key_control = value & 0xC3FF;
+            self.latch_keypad_irq_on_rising_edge(was_requested);
+            return;
+        }
+
         let bytes = value.to_le_bytes();
         // These video-memory regions have width-specific write semantics, so
         // halfword stores must bypass write8's byte-write behavior.
@@ -372,6 +382,22 @@ mod tests {
         bus.write16(0x0400_0132, 0x3C00);
         assert_eq!(bus.read16(0x0400_0132), 0);
         assert!(!bus.keypad_irq_requested());
+    }
+
+    #[test]
+    fn keycnt_halfword_write_does_not_latch_irq_from_intermediate_value() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.set_keys_pressed(1);
+
+        // IRQ enabled but no keys selected: condition remains inactive.
+        bus.write16(0x0400_0132, 0x4000);
+        assert_eq!(bus.read16(0x0400_0202), 0);
+
+        // Final value selects A but disables IRQ. A byte-at-a-time write
+        // would transiently combine A with the old IRQ-enable bit.
+        bus.write16(0x0400_0132, 0x0001);
+        assert_eq!(bus.read16(0x0400_0132), 0x0001);
+        assert_eq!(bus.read16(0x0400_0202), 0);
     }
 
     #[test]
