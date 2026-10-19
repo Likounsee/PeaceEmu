@@ -397,7 +397,7 @@ impl DesktopApp {
         });
 
         let query = self.library_filter.trim().to_lowercase();
-        let mut entries: Vec<_> = self
+        let entries: Vec<_> = self
             .controller
             .library()
             .entries()
@@ -533,7 +533,7 @@ impl DesktopApp {
                             sw: 0.0,
                             se: 0.0,
                         },
-                        egui::Stroke::new(1.0, palette.sidebar),
+                        egui::Stroke::new(1.0_f32, palette.sidebar),
                     );
                 } else {
                     painter.rect_filled(
