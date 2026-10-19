@@ -230,6 +230,76 @@ impl Cpu {
                 }
                 _ => unreachable!(),
             }
+        } else if raw & 0xF800 == 0x4800 {
+            let rd = usize::from((raw >> 8) & 7);
+            let offset = u32::from(raw & 0xFF) * 4;
+            let base = address.wrapping_add(4) & !3;
+            self.registers[rd] = bus.read32(base.wrapping_add(offset));
+        } else if raw & 0xF000 == 0x5000 {
+            let operation = (raw >> 9) & 7;
+            let ro = usize::from((raw >> 6) & 7);
+            let rb = usize::from((raw >> 3) & 7);
+            let rd = usize::from(raw & 7);
+            let effective = self.registers[rb].wrapping_add(self.registers[ro]);
+            match operation {
+                0 => bus.write32(effective, self.registers[rd]),
+                1 => bus.write16(effective, self.registers[rd] as u16),
+                2 => bus.write8(effective, self.registers[rd] as u8),
+                3 => {
+                    self.registers[rd] = bus.read8(effective) as i8 as i32 as u32;
+                }
+                4 => self.registers[rd] = bus.read32(effective),
+                5 => self.registers[rd] = u32::from(bus.read16(effective)),
+                6 => self.registers[rd] = u32::from(bus.read8(effective)),
+                7 => {
+                    self.registers[rd] = if effective & 1 != 0 {
+                        bus.read8(effective) as i8 as i32 as u32
+                    } else {
+                        bus.read16(effective) as i16 as i32 as u32
+                    };
+                }
+                _ => unreachable!(),
+            }
+        } else if raw & 0xE000 == 0x6000 {
+            let byte_transfer = raw & (1 << 12) != 0;
+            let load = raw & (1 << 11) != 0;
+            let offset = u32::from((raw >> 6) & 0x1F);
+            let rb = usize::from((raw >> 3) & 7);
+            let rd = usize::from(raw & 7);
+            let scaled_offset = if byte_transfer { offset } else { offset * 4 };
+            let effective = self.registers[rb].wrapping_add(scaled_offset);
+            if load {
+                self.registers[rd] = if byte_transfer {
+                    u32::from(bus.read8(effective))
+                } else {
+                    bus.read32(effective)
+                };
+            } else if byte_transfer {
+                bus.write8(effective, self.registers[rd] as u8);
+            } else {
+                bus.write32(effective, self.registers[rd]);
+            }
+        } else if raw & 0xF000 == 0x8000 {
+            let load = raw & (1 << 11) != 0;
+            let offset = u32::from((raw >> 6) & 0x1F) * 2;
+            let rb = usize::from((raw >> 3) & 7);
+            let rd = usize::from(raw & 7);
+            let effective = self.registers[rb].wrapping_add(offset);
+            if load {
+                self.registers[rd] = u32::from(bus.read16(effective));
+            } else {
+                bus.write16(effective, self.registers[rd] as u16);
+            }
+        } else if raw & 0xF000 == 0x9000 {
+            let load = raw & (1 << 11) != 0;
+            let rd = usize::from((raw >> 8) & 7);
+            let offset = u32::from(raw & 0xFF) * 4;
+            let effective = self.registers[13].wrapping_add(offset);
+            if load {
+                self.registers[rd] = bus.read32(effective);
+            } else {
+                bus.write32(effective, self.registers[rd]);
+            }
         } else if raw & 0xE000 == 0x2000 {
             let operation = (raw >> 11) & 3;
             let rd = usize::from((raw >> 8) & 7);
@@ -930,6 +1000,31 @@ mod tests {
         assert!(cpu.flags().zero);
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(15), Some(0x0200_000A));
+    }
+
+    #[test]
+    fn thumb_load_store_transfers_words_bytes_and_halfwords() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x6008); // STR r0, [r1]
+        bus.write16(0x0200_0002, 0x680A); // LDR r2, [r1]
+        bus.write16(0x0200_0004, 0x704B); // STRB r3, [r1, #1]
+        bus.write16(0x0200_0006, 0x788C); // LDRB r4, [r1, #2]
+        bus.write16(0x0200_0008, 0x800D); // STRH r5, [r1]
+        bus.write16(0x0200_000A, 0x880E); // LDRH r6, [r1]
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(0, 0x1234_5678);
+        cpu.set_register(1, 0x0200_0100);
+        cpu.set_register(3, 0xAA);
+        cpu.set_register(5, 0xBEEF);
+
+        for _ in 0..6 {
+            cpu.step(&mut bus).unwrap();
+        }
+        assert_eq!(cpu.register(2), Some(0x1234_5678));
+        assert_eq!(cpu.register(4), Some(0x0000_00AA));
+        assert_eq!(cpu.register(6), Some(0x0000_BEEF));
     }
 
     #[test]
