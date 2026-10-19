@@ -550,6 +550,24 @@ mod tests {
     }
 
     #[test]
+    fn mode0_obj_vflip_reverses_4bpp_rows() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // index 1 red
+        bus.write16(PALETTE_BASE + 0x204, 0x03E0); // index 2 green
+        // The first pixel of row 0 is red; the first pixel of row 7 is green.
+        bus.write16(0x0601_0000, 0x0001);
+        bus.write16(0x0601_001C, 0x0002);
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 1 << 13); // vertical flip
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(0, 7), Some(0xFFFF_0000));
+    }
+
+    #[test]
     fn mode0_obj_hflip_reverses_4bpp_pixels() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
