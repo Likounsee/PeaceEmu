@@ -34,6 +34,7 @@ pub struct MemoryBus {
     sram: Vec<u8>,
     /// Active-low KEYINPUT state is stored internally as a pressed-key bitmask.
     keys_pressed: u16,
+    key_control: u16,
 }
 
 impl MemoryBus {
@@ -49,6 +50,7 @@ impl MemoryBus {
             oam: vec![0; OAM_SIZE],
             sram: vec![0xFF; SRAM_SIZE],
             keys_pressed: 0,
+            key_control: 0,
         }
     }
 
@@ -61,6 +63,9 @@ impl MemoryBus {
         if (0x0400_0130..=0x0400_0131).contains(&address) {
             let keyinput = (!self.keys_pressed) & 0x03FF;
             return ((keyinput >> ((address - 0x0400_0130) * 8)) & 0xFF) as u8;
+        }
+        if (0x0400_0132..=0x0400_0133).contains(&address) {
+            return ((self.key_control >> ((address - 0x0400_0132) * 8)) & 0xFF) as u8;
         }
 
         match address {
@@ -97,6 +102,25 @@ impl MemoryBus {
         self.keys_pressed = pressed & 0x03FF;
     }
 
+    /// Returns whether KEYCNT's configured keypad interrupt condition is met.
+    ///
+    /// This reports the keypad condition only; it does not yet raise the GBA's
+    /// interrupt request flag because the interrupt controller is not integrated.
+    pub fn keypad_irq_requested(&self) -> bool {
+        if self.key_control & (1 << 14) == 0 {
+            return false;
+        }
+        let selected = self.key_control & 0x03FF;
+        if selected == 0 {
+            return false;
+        }
+        if self.key_control & (1 << 15) == 0 {
+            self.keys_pressed & selected != 0
+        } else {
+            self.keys_pressed & selected == selected
+        }
+    }
+
     /// Reads a little-endian halfword, aligned down to a two-byte boundary.
     pub fn read16(&self, address: u32) -> u16 {
         let address = address & !1;
@@ -116,6 +140,20 @@ impl MemoryBus {
 
     /// Writes one byte to writable memory. Cartridge ROM and BIOS writes are ignored.
     pub fn write8(&mut self, address: u32, value: u8) {
+        // KEYINPUT is read-only; KEYCNT accepts only key-select, IRQ-enable and
+        // condition-mode bits (0..9, 14 and 15).
+        if (0x0400_0130..=0x0400_0131).contains(&address) {
+            return;
+        }
+        if (0x0400_0132..=0x0400_0133).contains(&address) {
+            let shift = (address - 0x0400_0132) * 8;
+            let mask = 0xC3FF_u16;
+            let byte_mask = 0xFF_u16 << shift;
+            let incoming = (value as u16) << shift;
+            self.key_control = (self.key_control & !(byte_mask & mask)) | (incoming & byte_mask & mask);
+            return;
+        }
+
         match address {
             0x0200_0000..=0x02FF_FFFF => {
                 self.ewram[(address as usize - 0x0200_0000) % EWRAM_SIZE] = value
@@ -221,6 +259,32 @@ mod tests {
         assert_eq!(bus.read16(0x0400_0130), 0b01_1111_1110);
         bus.set_keys_pressed(u16::MAX);
         assert_eq!(bus.read16(0x0400_0130), 0);
+    }
+
+    #[test]
+    fn keycnt_masks_reserved_bits_and_evaluates_or_and_conditions() {
+        let mut bus = MemoryBus::new(cartridge());
+        assert_eq!(bus.read16(0x0400_0132), 0);
+        assert!(!bus.keypad_irq_requested());
+
+        // IRQ enabled, A or B pressed: OR mode triggers for either selected key.
+        bus.write16(0x0400_0132, 0x4003);
+        bus.set_keys_pressed(0b10);
+        assert!(bus.keypad_irq_requested());
+        bus.set_keys_pressed(0b100);
+        assert!(!bus.keypad_irq_requested());
+
+        // AND mode requires both selected keys to be pressed simultaneously.
+        bus.write16(0x0400_0132, 0xC003);
+        bus.set_keys_pressed(0b1);
+        assert!(!bus.keypad_irq_requested());
+        bus.set_keys_pressed(0b11);
+        assert!(bus.keypad_irq_requested());
+
+        // Reserved bits are ignored on writes and never appear on reads.
+        bus.write16(0x0400_0132, 0x3C00);
+        assert_eq!(bus.read16(0x0400_0132), 0);
+        assert!(!bus.keypad_irq_requested());
     }
 
     #[test]
