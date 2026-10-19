@@ -202,6 +202,7 @@ struct DesktopApp {
     settings_section: SettingsSection,
     cover_paths: HashMap<PathBuf, PathBuf>,
     cover_textures: HashMap<PathBuf, egui::TextureHandle>,
+    cover_query: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -423,6 +424,7 @@ impl DesktopApp {
             settings_section: SettingsSection::Appearance,
             cover_paths,
             cover_textures: HashMap::new(),
+            cover_query: String::new(),
         };
         // Check the official stable manifest without blocking the first window render.
         // The user can still trigger another check from Settings after this completes.
