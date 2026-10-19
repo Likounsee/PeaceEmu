@@ -1320,11 +1320,21 @@ impl Cpu {
         }
 
         if write_back {
-            self.registers[rn] = if increment {
-                base.wrapping_add(bytes)
-            } else {
-                base.wrapping_sub(bytes)
-            };
+            // For LDM with the base register in the list, ARM7TDMI's result
+            // depends on register ordering: if the base is the first register
+            // loaded, the loaded memory value wins; otherwise write-back wins.
+            // The loop above has already loaded the base in the first case.
+            let loaded_base_wins = load
+                && !empty_list
+                && register_list & (1 << rn) != 0
+                && register_list.trailing_zeros() == rn as u32;
+            if !loaded_base_wins {
+                self.registers[rn] = if increment {
+                    base.wrapping_add(bytes)
+                } else {
+                    base.wrapping_sub(bytes)
+                };
+            }
         }
         Ok(())
     }
@@ -2029,6 +2039,33 @@ mod tests {
         assert_eq!(bus.read32(0x0200_0118), 0x1122_3344);
         assert_eq!(bus.read32(0x0200_011C), 0x0200_0120);
         assert_eq!(cpu.register(1), Some(0x0200_0118));
+    }
+
+    #[test]
+    fn arm_ldm_writeback_respects_base_register_order() {
+        // If Rn is the lowest register in the list, the loaded value wins.
+        let mut bus = bus_with_program(&[
+            0xE8B1_0006, // LDMIA r1!, {r1, r2}
+            0xE8B1_000C, // LDMIA r1!, {r2, r3}
+        ]);
+        bus.write32(0x0200_0100, 0xAABB_CCDD);
+        bus.write32(0x0200_0104, 0x1122_3344);
+        bus.write32(0x0200_0200, 0x5566_7788);
+        bus.write32(0x0200_0204, 0x99AA_BBCC);
+
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(1, 0x0200_0100);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(1), Some(0xAABB_CCDD));
+        assert_eq!(cpu.register(2), Some(0x1122_3344));
+
+        // When Rn is not the lowest register in the list, write-back wins.
+        cpu.set_register(1, 0x0200_0200);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0x5566_7788));
+        assert_eq!(cpu.register(3), Some(0x99AA_BBCC));
+        assert_eq!(cpu.register(1), Some(0x0200_0208));
     }
 
     #[test]
