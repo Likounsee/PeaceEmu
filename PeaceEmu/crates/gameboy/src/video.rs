@@ -246,6 +246,20 @@ mod tests {
     }
 
     #[test]
+    fn mode0_8bpp_odd_tile_index_uses_even_tile_slot() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
+        bus.write16(BG0CNT, 1 << 7); // 8bpp tiles
+        bus.write16(VRAM_BASE, 3); // odd tile index aliases tile 2
+        bus.write8(VRAM_BASE + 64, 5); // tile 2, first pixel
+        bus.write8(VRAM_BASE + 96, 6); // tile 3 slot must not be used
+        bus.write16(PALETTE_BASE + 10, 0x001F); // palette 5: red
+        bus.write16(PALETTE_BASE + 12, 0x03E0); // palette 6: green
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+    }
+
+    #[test]
     fn mode0_zero_pixel_stays_transparent_in_nonzero_palette_bank() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
