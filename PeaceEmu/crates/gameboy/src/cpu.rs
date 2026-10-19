@@ -214,9 +214,12 @@ impl Cpu {
             }
             if raw & 0xF000 == 0xC000 {
                 let registers = (raw & 0x00FF).count_ones();
-                // An empty Thumb LDM/STM list has special PC/16-register
-                // behavior on ARM7TDMI; account for its long transfer.
-                return if registers == 0 { 17 } else { 1 + registers };
+                // An empty Thumb LDM/STM list transfers PC while spanning
+                // sixteen words. LDM also refills the pipeline after loading PC.
+                if registers == 0 {
+                    return if raw & (1 << 11) != 0 { 19 } else { 17 };
+                }
+                return 1 + registers;
             }
             // Ordinary single transfers include register-offset, immediate,
             // halfword, SP-relative, and literal loads.
@@ -2798,6 +2801,28 @@ mod tests {
         store_cpu.step(&mut store_bus).unwrap();
         assert_eq!(store_bus.read32(0x0200_0100), 0x0200_0004);
         assert_eq!(store_cpu.register(0), Some(0x0200_0140));
+    }
+
+    #[test]
+    fn thumb_empty_multiple_transfer_cycles_include_load_pc_refill() {
+        let mut load_bus = bus_with_program(&[]);
+        load_bus.write16(0x0200_0000, 0xC800); // LDMIA r0!, {}
+        load_bus.write32(0x0200_0100, 0x0200_0020);
+        let mut load_cpu = Cpu::new();
+        load_cpu.reset(0x0200_0000);
+        load_cpu.thumb = true;
+        load_cpu.set_register(0, 0x0200_0100);
+        let (_, load_cycles) = load_cpu.step_with_cycles(&mut load_bus).unwrap();
+        assert_eq!(load_cycles, 19);
+
+        let mut store_bus = bus_with_program(&[]);
+        store_bus.write16(0x0200_0000, 0xC000); // STMIA r0!, {}
+        let mut store_cpu = Cpu::new();
+        store_cpu.reset(0x0200_0000);
+        store_cpu.thumb = true;
+        store_cpu.set_register(0, 0x0200_0100);
+        let (_, store_cycles) = store_cpu.step_with_cycles(&mut store_bus).unwrap();
+        assert_eq!(store_cycles, 17);
     }
 
     #[test]
