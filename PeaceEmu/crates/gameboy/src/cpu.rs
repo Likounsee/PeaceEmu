@@ -1475,6 +1475,32 @@ mod tests {
     }
 
     #[test]
+    fn thumb_adc_and_sbc_consume_and_update_carry_correctly() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0x4148); // ADCS r0, r1
+        bus.write16(0x0200_0002, 0x419A); // SBCS r2, r3
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.flags.carry = true;
+        cpu.set_register(0, u32::MAX);
+        cpu.set_register(1, 0);
+        cpu.set_register(2, 0);
+        cpu.set_register(3, 1);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0));
+        assert!(cpu.flags().zero);
+        assert!(cpu.flags().carry);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(u32::MAX));
+        assert!(cpu.flags().negative);
+        assert!(!cpu.flags().zero);
+        assert!(!cpu.flags().carry);
+    }
+
+    #[test]
     fn unsupported_instruction_is_reported() {
         let mut bus = bus_with_program(&[0xF000_0000]);
         let mut cpu = Cpu::new();
