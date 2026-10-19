@@ -1760,6 +1760,12 @@ mod tests {
         // PC writes still use their pipeline-refill estimate, not the
         // ordinary non-branch ALU estimate.
         assert_eq!(cpu.estimate_cycles(0xE1A0_F211), 3);
+
+        // Special instruction classes must not be mistaken for register shifts.
+        assert_eq!(cpu.estimate_cycles(0xE10F_0000), 1); // MRS r0, CPSR
+        assert_eq!(cpu.estimate_cycles(0xE128_F000), 1); // MSR CPSR_f, r0
+        assert_eq!(cpu.estimate_cycles(0xE000_0291), 2); // MUL r0, r1, r2
+        assert_eq!(cpu.estimate_cycles(0xE102_1093), 4); // SWP r1, r3, [r2]
     }
 
     #[test]
