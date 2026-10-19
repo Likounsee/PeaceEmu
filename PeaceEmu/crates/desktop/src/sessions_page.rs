@@ -32,6 +32,10 @@ pub(crate) fn state_color(state: &SessionState, palette: &theme::Palette) -> egu
     }
 }
 
+fn belongs_in_active_category(state: &SessionState) -> bool {
+    matches!(state, SessionState::Running | SessionState::Paused)
+}
+
 /// Draws the flat game icon (coloured tile with the title's initials).
 fn paint_cover(ui: &mut egui::Ui, title: &str, size: egui::Vec2) {
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
@@ -119,9 +123,9 @@ impl DesktopApp {
                 }
             });
         }
-        let (active, stopped): (Vec<_>, Vec<_>) = sessions.into_iter().partition(|summary| {
-            matches!(summary.state, SessionState::Running | SessionState::Paused)
-        });
+        let (active, stopped): (Vec<_>, Vec<_>) = sessions
+            .into_iter()
+            .partition(|summary| belongs_in_active_category(&summary.state));
 
         // ---------------------------------------------------------- Active (long rows)
         if !active.is_empty() {
@@ -670,6 +674,15 @@ impl DesktopApp {
 #[cfg(test)]
 mod state_label_tests {
     use super::*;
+
+    #[test]
+    fn active_category_contains_running_and_paused_sessions_only() {
+        assert!(belongs_in_active_category(&SessionState::Running));
+        assert!(belongs_in_active_category(&SessionState::Paused));
+        assert!(!belongs_in_active_category(&SessionState::Empty));
+        assert!(!belongs_in_active_category(&SessionState::Halted));
+        assert!(!belongs_in_active_category(&SessionState::Stopped));
+    }
 
     #[test]
     fn labels_every_session_state_in_french_and_english() {
