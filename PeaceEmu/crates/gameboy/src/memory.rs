@@ -679,8 +679,9 @@ mod tests {
         assert_eq!(bus.read16(0x0400_0202) & (1 << 3), 1 << 3);
 
         // Timer 1 in cascade mode ticks once for timer 0's overflow.
+        bus.write16(0x0400_0102, 0x0000); // disable and reset prescaler
         bus.write16(0x0400_0100, 0xFFFF);
-        bus.write16(0x0400_0102, 0x0080);
+        bus.write16(0x0400_0102, 0x0080); // re-enable to load FFFF
         bus.write16(0x0400_0104, 0x1234);
         bus.write16(0x0400_0106, 0x0084); // enable + cascade
         bus.advance_cycles(1);
