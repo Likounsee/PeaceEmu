@@ -644,10 +644,20 @@ impl Cpu {
                 },
             )
         } else if instruction & (1 << 4) != 0 {
-            return Err(CpuError::UnsupportedInstruction {
-                address,
-                instruction,
-            });
+            // Register-controlled shifts use Rs[7:0] as the shift amount.
+            // Bit 7 must be clear for the ARM7TDMI data-processing encoding.
+            if instruction & (1 << 7) != 0 {
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
+            }
+            let rm = (instruction & 0xF) as usize;
+            let rs = ((instruction >> 8) & 0xF) as usize;
+            let value = self.read_operand_register(rm, address);
+            let amount = self.read_operand_register(rs, address) & 0xFF;
+            let shift_type = (instruction >> 5) & 3;
+            Self::shift_register(value, shift_type, amount, self.flags.carry)
         } else {
             let rm = (instruction & 0xF) as usize;
             let value = self.read_operand_register(rm, address);
@@ -923,6 +933,47 @@ impl Cpu {
         }
     }
 
+    /// Applies an ARM register-controlled shift (ARM7TDMI register operand form).
+    fn shift_register(value: u32, kind: u32, amount: u32, old_carry: bool) -> (u32, Option<bool>) {
+        if amount == 0 {
+            return (value, None);
+        }
+
+        match kind {
+            0 => match amount {
+                1..=31 => (value << amount, Some((value >> (32 - amount)) & 1 != 0)),
+                32 => (0, Some(value & 1 != 0)),
+                _ => (0, Some(false)),
+            },
+            1 => match amount {
+                1..=31 => (value >> amount, Some((value >> (amount - 1)) & 1 != 0)),
+                32 => (0, Some(value >> 31 != 0)),
+                _ => (0, Some(false)),
+            },
+            2 => {
+                if amount >= 32 {
+                    let carry = value >> 31 != 0;
+                    (if carry { u32::MAX } else { 0 }, Some(carry))
+                } else {
+                    (
+                        ((value as i32) >> amount) as u32,
+                        Some((value >> (amount - 1)) & 1 != 0),
+                    )
+                }
+            }
+            3 => {
+                let rotation = amount & 31;
+                if rotation == 0 {
+                    (value, Some(value >> 31 != 0))
+                } else {
+                    let result = value.rotate_right(rotation);
+                    (result, Some(result >> 31 != 0))
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
     fn add(left: u32, right: u32, carry_in: bool) -> (u32, bool, bool) {
         let sum = u64::from(left) + u64::from(right) + u64::from(carry_in);
         let result = sum as u32;
@@ -1120,6 +1171,29 @@ mod tests {
 
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(0), Some(7));
+    }
+
+    #[test]
+    fn arm_register_controlled_shifts_cover_boundaries_and_carry() {
+        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 1, false), (0x0000_0002, Some(true)));
+        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 32, false), (0, Some(true)));
+        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 33, false), (0, Some(false)));
+        assert_eq!(Cpu::shift_register(0x8000_0001, 1, 32, false), (0, Some(true)));
+        assert_eq!(Cpu::shift_register(0x8000_0001, 2, 32, false), (u32::MAX, Some(true)));
+        assert_eq!(Cpu::shift_register(0x8000_0001, 2, 40, false), (u32::MAX, Some(true)));
+        assert_eq!(Cpu::shift_register(0x8000_0001, 3, 32, false), (0x8000_0001, Some(true)));
+        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 0, true), (0x8000_0001, None));
+    }
+
+    #[test]
+    fn arm_data_processing_uses_register_controlled_shift_amount() {
+        let mut bus = bus_with_program(&[0xE1A0_0312]); // MOV r0, r2, LSL r3
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0800_00C0);
+        cpu.set_register(2, 0x0000_0003);
+        cpu.set_register(3, 4);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(0x0000_0030));
     }
 
     #[test]
