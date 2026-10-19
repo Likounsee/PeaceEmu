@@ -221,12 +221,12 @@ pub(crate) fn search_online(
         .collect::<Vec<_>>()
         .join("");
     let endpoint = format!(
-        "https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=8&gsrsearch={}&prop=imageinfo&iiprop=url&iiurlwidth=512",
+        "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&generator=search&gsrnamespace=6&gsrlimit=12&gsrsearch={}&prop=imageinfo&iiprop=url&iiurlwidth=512",
         encoded.replace(' ', "%20")
     );
     let agent = ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(6))
-        .user_agent("PeaceEmu/0.2 (game cover lookup)")
+        .timeout(Duration::from_secs(20))
+        .user_agent("PeaceEmu/0.2 (https://github.com/Likounsee/PeaceEmu; game cover lookup)")
         .build();
     let response = agent
         .get(&endpoint)
@@ -240,12 +240,25 @@ pub(crate) fn search_online(
         .map_err(|error| error.to_string())?;
     let json: serde_json::Value =
         serde_json::from_slice(&body).map_err(|error| format!("Invalid search response: {error}"))?;
+    if let Some(api_error) = json.pointer("/error") {
+        let detail = api_error
+            .get("info")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Wikimedia Commons rejected the search request.");
+        return Err(format!("Online search service error: {detail}"));
+    }
     let pages = json
         .pointer("/query/pages")
-        .and_then(|v| v.as_object())
-        .ok_or_else(|| "No cover images found online.".to_owned())?;
+        .ok_or_else(|| "No cover images found online. The search returned no files.".to_owned())?;
+    let pages: Vec<&serde_json::Value> = if let Some(array) = pages.as_array() {
+        array.iter().collect()
+    } else if let Some(object) = pages.as_object() {
+        object.values().collect()
+    } else {
+        return Err("The online search returned an unexpected response.".to_owned());
+    };
 
-    for page in pages.values() {
+    for page in pages {
         let Some(info) = page.pointer("/imageinfo/0") else {
             continue;
         };
