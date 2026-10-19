@@ -582,28 +582,36 @@ impl Cpu {
             let load = raw & (1 << 11) != 0;
             let rb = usize::from((raw >> 8) & 7);
             let register_list = u32::from(raw & 0xFF);
-            let count = register_list.count_ones();
-            if count == 0 {
-                return Err(CpuError::UnsupportedInstruction {
-                    address,
-                    instruction,
-                });
-            }
+            // ARM7TDMI's empty Thumb LDMIA/STMIA list is a special case:
+            // it transfers PC while advancing the base by sixteen words.
+            let empty_list = register_list == 0;
+            let effective_list = if empty_list { 1 << 15 } else { register_list };
+            let count = if empty_list { 16 } else { register_list.count_ones() };
 
             let base = self.registers[rb];
             let mut transfer_address = base;
-            for register in 0..8 {
-                if register_list & (1 << register) == 0 {
+            for register in 0..16 {
+                if effective_list & (1 << register) == 0 {
                     continue;
                 }
                 if load {
-                    self.registers[register] = bus.read32(transfer_address);
+                    let value = bus.read32(transfer_address);
+                    if register == 15 {
+                        // LDM does not switch instruction set; the loaded PC
+                        // is halfword-aligned because this transfer is Thumb.
+                        self.registers[15] = value & !1;
+                    } else {
+                        self.registers[register] = value;
+                    }
                 } else {
                     // Thumb STMIA has a defined special case when the base is
                     // included in the register list: if it is the lowest
                     // listed register, the stored value is the updated base;
                     // otherwise the original base is stored.
-                    let value = if register == rb {
+                    let value = if empty_list {
+                        // PC reads as the Thumb pipeline-visible address + 4.
+                        address.wrapping_add(4)
+                    } else if register == rb {
                         let lowest_register = register_list.trailing_zeros();
                         if lowest_register == rb as u32 {
                             base.wrapping_add(count * 4)
@@ -617,7 +625,7 @@ impl Cpu {
                 }
                 transfer_address = transfer_address.wrapping_add(4);
             }
-            if !load || register_list & (1 << rb) == 0 {
+            if empty_list || !load || register_list & (1 << rb) == 0 {
                 self.registers[rb] = base.wrapping_add(count * 4);
             }
         } else if raw & 0xE000 == 0x2000 {
@@ -2763,6 +2771,33 @@ mod tests {
         thumb_cpu.set_register(0, 0);
         thumb_cpu.step(&mut thumb_bus).unwrap();
         assert_eq!(thumb_cpu.register(2), Some(0x3412));
+    }
+
+    #[test]
+    fn thumb_empty_multiple_transfer_uses_pc_and_sixteen_word_writeback() {
+        // Empty LDMIA behaves as loading PC and advancing the base by 0x40.
+        let mut load_bus = bus_with_program(&[]);
+        load_bus.write16(0x0200_0000, 0xC800); // LDMIA r0!, {}
+        load_bus.write32(0x0200_0100, 0x0200_0021);
+        let mut load_cpu = Cpu::new();
+        load_cpu.reset(0x0200_0000);
+        load_cpu.thumb = true;
+        load_cpu.set_register(0, 0x0200_0100);
+        load_cpu.step(&mut load_bus).unwrap();
+        assert_eq!(load_cpu.register(15), Some(0x0200_0020));
+        assert_eq!(load_cpu.register(0), Some(0x0200_0140));
+        assert!(load_cpu.is_thumb());
+
+        // Empty STMIA stores the Thumb-visible PC and advances by 0x40 too.
+        let mut store_bus = bus_with_program(&[]);
+        store_bus.write16(0x0200_0000, 0xC000); // STMIA r0!, {}
+        let mut store_cpu = Cpu::new();
+        store_cpu.reset(0x0200_0000);
+        store_cpu.thumb = true;
+        store_cpu.set_register(0, 0x0200_0100);
+        store_cpu.step(&mut store_bus).unwrap();
+        assert_eq!(store_bus.read32(0x0200_0100), 0x0200_0004);
+        assert_eq!(store_cpu.register(0), Some(0x0200_0140));
     }
 
     #[test]
