@@ -21,9 +21,9 @@ use preferences::{config_file_path, load_preferences, write_preferences_with_lan
 
 mod appearance_page;
 mod audio_output;
-mod game_page;
 mod game_covers;
 mod game_names;
+mod game_page;
 mod game_saves;
 mod game_view;
 mod home_page;
