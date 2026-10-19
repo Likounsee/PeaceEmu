@@ -308,10 +308,31 @@ impl MemoryBus {
         ]);
         let control = value & 0xF7E0;
         self.io[control_offset..control_offset + 2].copy_from_slice(&control.to_le_bytes());
-        if control & 0x8000 == 0 || old & 0x8000 != 0 || (control >> 12) & 3 != 0 {
+        if control & 0x8000 == 0 || old & 0x8000 != 0 {
             return;
         }
+        if (control >> 12) & 3 == 0 {
+            self.perform_dma_transfer(channel, control);
+        }
+    }
 
+    /// Fires enabled DMA channels whose timing selector matches a peripheral event.
+    fn trigger_dma_timing(&mut self, timing: u16) {
+        for channel in 0..4 {
+            let control_offset = 0xB0 + channel * 12 + 10;
+            let control = u16::from_le_bytes([
+                self.io[control_offset as usize],
+                self.io[control_offset as usize + 1],
+            ]);
+            if control & 0x8000 != 0 && (control >> 12) & 3 == timing {
+                self.perform_dma_transfer(channel as usize, control);
+            }
+        }
+    }
+
+    /// Executes one configured DMA transfer and updates its address registers.
+    fn perform_dma_transfer(&mut self, channel: usize, control: u16) {
+        let base = 0xB0 + channel as u32 * 12;
         let source_offset = base as usize;
         let destination_offset = (base + 4) as usize;
         let count_offset = (base + 8) as usize;
@@ -362,12 +383,26 @@ impl MemoryBus {
                 _ => dst.wrapping_add(step),
             };
         }
+
+        self.io[source_offset..source_offset + 4].copy_from_slice(&src.to_le_bytes());
+        let next_destination = if destination_mode == 3 {
+            destination & !(step - 1)
+        } else {
+            dst
+        };
+        self.io[destination_offset..destination_offset + 4]
+            .copy_from_slice(&next_destination.to_le_bytes());
+
         if control & (1 << 14) != 0 {
             self.request_interrupt(1 << (8 + channel));
         }
-        // Immediate DMA is one-shot, even when the repeat bit is set.
-        self.io[control_offset..control_offset + 2]
-            .copy_from_slice(&(control & !(1 << 15)).to_le_bytes());
+        let timing = (control >> 12) & 3;
+        let repeat = control & (1 << 9) != 0 && timing != 0;
+        if !repeat {
+            let control_offset = (base + 10) as usize;
+            self.io[control_offset..control_offset + 2]
+                .copy_from_slice(&(control & !(1 << 15)).to_le_bytes());
+        }
     }
 
     /// Advances the PPU timing state by one CPU cycle.
@@ -379,6 +414,7 @@ impl MemoryBus {
         self.video_cycles_in_line += 1;
         if self.video_cycles_in_line == 960 {
             self.dispstat |= 1 << 1;
+            self.trigger_dma_timing(2);
             if self.dispstat & (1 << 4) != 0 {
                 self.request_interrupt(1 << 1);
             }
@@ -395,6 +431,7 @@ impl MemoryBus {
         self.dispstat &= !(1 << 1);
         if self.vcount == 160 {
             self.dispstat |= 1;
+            self.trigger_dma_timing(1);
             if self.dispstat & (1 << 3) != 0 {
                 self.request_interrupt(1);
             }
@@ -1144,6 +1181,25 @@ mod tests {
         bus.write16(0x0400_00BA, 0x9000);
         assert_eq!(bus.read16(0x0300_0000), 0);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
+    }
+
+
+    #[test]
+    fn vblank_dma_transfers_only_when_vblank_begins_and_repeats_when_configured() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0xCAFE);
+        bus.write32(0x0400_00B0, 0x0200_0000);
+        bus.write32(0x0400_00B4, 0x0300_0000);
+        bus.write16(0x0400_00B8, 1);
+        bus.write16(0x0400_00BA, 0xB200); // enable, repeat, VBlank timing
+
+        assert_eq!(bus.read16(0x0300_0000), 0);
+        bus.advance_cycles(1232 * 159);
+        assert_eq!(bus.read16(0x0300_0000), 0);
+        bus.advance_cycles(1232);
+        assert_eq!(bus.read16(0x0300_0000), 0xCAFE);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
+        assert_eq!(bus.read16(0x0400_0202) & (1 << 8), 0);
     }
 
     #[test]
