@@ -222,20 +222,27 @@ impl MemoryBus {
                 self.io[(address as usize - 0x0400_0000) % IO_SIZE] = value
             }
             0x0500_0000..=0x05FF_FFFF => {
-                self.palette[(address as usize - 0x0500_0000) % PALETTE_RAM_SIZE] = value
+                // Palette RAM byte writes replicate the byte across its halfword.
+                let offset = (address as usize - 0x0500_0000) % PALETTE_RAM_SIZE;
+                let offset = offset & !1;
+                self.palette[offset] = value;
+                self.palette[offset + 1] = value;
             }
             0x0600_0000..=0x06FF_FFFF => {
+                // VRAM byte writes replicate across a halfword. Apply the GBA's
+                // 96 KiB mirroring rule before aligning the physical offset.
                 let offset = (address as usize - 0x0600_0000) % 0x2_0000;
                 let offset = if offset >= 0x1_8000 {
                     offset - 0x8_000
                 } else {
                     offset
                 };
-                self.vram[offset % VRAM_SIZE] = value;
+                let offset = (offset % VRAM_SIZE) & !1;
+                self.vram[offset] = value;
+                self.vram[offset + 1] = value;
             }
-            0x0700_0000..=0x07FF_FFFF => {
-                self.oam[(address as usize - 0x0700_0000) % OAM_SIZE] = value
-            }
+            // OAM does not support byte writes on GBA hardware.
+            0x0700_0000..=0x07FF_FFFF => {}
             0x0E00_0000..=0x0E00_FFFF => {
                 self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE] = value
             }
@@ -247,16 +254,39 @@ impl MemoryBus {
     pub fn write16(&mut self, address: u32, value: u16) {
         let address = address & !1;
         let bytes = value.to_le_bytes();
-        self.write8(address, bytes[0]);
-        self.write8(address.wrapping_add(1), bytes[1]);
+        // These video-memory regions have width-specific write semantics, so
+        // halfword stores must bypass write8's byte-write behavior.
+        match address {
+            0x0500_0000..=0x05FF_FFFF => {
+                let offset = (address as usize - 0x0500_0000) % PALETTE_RAM_SIZE;
+                self.palette[offset] = bytes[0];
+                self.palette[offset + 1] = bytes[1];
+            }
+            0x0600_0000..=0x06FF_FFFF => {
+                let offset = (address as usize - 0x0600_0000) % 0x2_0000;
+                let offset = if offset >= 0x1_8000 { offset - 0x8_000 } else { offset };
+                let offset = (offset % VRAM_SIZE) & !1;
+                self.vram[offset] = bytes[0];
+                self.vram[offset + 1] = bytes[1];
+            }
+            0x0700_0000..=0x07FF_FFFF => {
+                let offset = (address as usize - 0x0700_0000) % OAM_SIZE;
+                self.oam[offset] = bytes[0];
+                self.oam[offset + 1] = bytes[1];
+            }
+            _ => {
+                self.write8(address, bytes[0]);
+                self.write8(address.wrapping_add(1), bytes[1]);
+            }
+        }
     }
 
     /// Writes a little-endian word, aligned down to a four-byte boundary.
     pub fn write32(&mut self, address: u32, value: u32) {
         let address = address & !3;
-        for (offset, byte) in value.to_le_bytes().into_iter().enumerate() {
-            self.write8(address.wrapping_add(offset as u32), byte);
-        }
+        let bytes = value.to_le_bytes();
+        self.write16(address, u16::from_le_bytes([bytes[0], bytes[1]]));
+        self.write16(address.wrapping_add(2), u16::from_le_bytes([bytes[2], bytes[3]]));
     }
 }
 
@@ -379,6 +409,29 @@ mod tests {
         assert_eq!(bus.read16(0x0400_0200), 0x3FFF);
         bus.write16(0x0400_0208, 0x0100);
         assert_eq!(bus.read16(0x0400_0208), 0);
+    }
+
+    #[test]
+    fn video_memory_obeys_byte_and_halfword_write_widths() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        // Palette and VRAM byte writes replicate across the aligned halfword.
+        bus.write8(0x0500_0001, 0x12);
+        assert_eq!(bus.read16(0x0500_0000), 0x1212);
+        bus.write16(0x0500_0000, 0x3456);
+        assert_eq!(bus.read16(0x0500_0000), 0x3456);
+
+        bus.write8(0x0600_0003, 0xAB);
+        assert_eq!(bus.read16(0x0600_0002), 0xABAB);
+        bus.write16(0x0600_0002, 0x1234);
+        assert_eq!(bus.read16(0x0600_0002), 0x1234);
+
+        // OAM byte stores are ignored, while halfword stores are accepted.
+        bus.write16(0x0700_0000, 0xFFFF);
+        bus.write8(0x0700_0000, 0x12);
+        assert_eq!(bus.read16(0x0700_0000), 0xFFFF);
+        bus.write32(0x0700_0000, 0x1234_5678);
+        assert_eq!(bus.read32(0x0700_0000), 0x1234_5678);
     }
 
     #[test]
