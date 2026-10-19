@@ -5,6 +5,7 @@
 )]
 //! Experimental desktop frontend for the shared PeaceEmu application controller.
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -21,6 +22,7 @@ use preferences::{config_file_path, load_preferences, write_preferences_with_lan
 mod appearance_page;
 mod audio_output;
 mod game_page;
+mod game_covers;
 mod game_saves;
 mod game_view;
 mod home_page;
@@ -198,6 +200,8 @@ struct DesktopApp {
     fullscreen: bool,
     sidebar_open: bool,
     settings_section: SettingsSection,
+    cover_paths: HashMap<PathBuf, PathBuf>,
+    cover_textures: HashMap<PathBuf, egui::TextureHandle>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -374,6 +378,7 @@ impl DesktopApp {
                 "Preferences unavailable: no user config directory was found.".to_owned()
             };
         }
+        let cover_paths = config_path.as_deref().map(game_covers::load).unwrap_or_default();
         let language_pack = language_pack::LanguagePack::load(&language);
         let mut app = Self {
             controller,
@@ -416,6 +421,8 @@ impl DesktopApp {
             fullscreen: true,
             sidebar_open: true,
             settings_section: SettingsSection::Appearance,
+            cover_paths,
+            cover_textures: HashMap::new(),
         };
         // Check the official stable manifest without blocking the first window render.
         // The user can still trigger another check from Settings after this completes.
