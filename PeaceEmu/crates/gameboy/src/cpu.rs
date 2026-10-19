@@ -34,7 +34,7 @@ pub enum StepOutcome {
     },
 }
 
-/// Errors for ARM instructions that are not implemented yet.
+/// Errors for CPU instructions that are not implemented yet.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CpuError {
     /// The instruction encoding is outside the currently implemented subset.
@@ -54,7 +54,7 @@ impl core::fmt::Display for CpuError {
                 instruction,
             } => write!(
                 formatter,
-                "unsupported ARM instruction 0x{instruction:08X} at 0x{address:08X}"
+                "unsupported CPU instruction 0x{instruction:08X} at 0x{address:08X}"
             ),
         }
     }
