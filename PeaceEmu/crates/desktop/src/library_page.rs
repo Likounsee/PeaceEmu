@@ -234,7 +234,8 @@ impl DesktopApp {
         }
         let Some(config_path) = self.config_path.clone() else {
             self.message = if self.language == "fr" {
-                "Impossible d’enregistrer le nom : dossier de configuration indisponible.".to_owned()
+                "Impossible d’enregistrer le nom : dossier de configuration indisponible."
+                    .to_owned()
             } else {
                 "Could not save name: configuration directory is unavailable.".to_owned()
             };
@@ -527,10 +528,8 @@ impl DesktopApp {
                 let cover_aspect = cover_target_aspect(cover_texture.as_ref());
                 let cover_height = card_width / cover_aspect;
                 let card_height = cover_height + 72.0;
-                let (rect, response) = ui.allocate_exact_size(
-                    egui::vec2(card_width, card_height),
-                    egui::Sense::click(),
-                );
+                let (rect, response) = ui
+                    .allocate_exact_size(egui::vec2(card_width, card_height), egui::Sense::click());
                 let painter = ui.painter();
                 painter.rect_filled(
                     rect,
@@ -541,22 +540,23 @@ impl DesktopApp {
                         palette.sidebar
                     },
                 );
-                let cover = egui::Rect::from_min_size(
-                    rect.min,
-                    egui::vec2(rect.width(), cover_height),
-                );
+                let cover =
+                    egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), cover_height));
                 if let Some(texture) = &cover_texture {
-                    painter
-                        .with_clip_rect(cover.intersect(rect))
-                        .image(
-                            texture.id(),
-                            cover,
-                            cover_uv(texture, cover_aspect),
-                            egui::Color32::WHITE,
-                        );
+                    painter.with_clip_rect(cover.intersect(rect)).image(
+                        texture.id(),
+                        cover,
+                        cover_uv(texture, cover_aspect),
+                        egui::Color32::WHITE,
+                    );
                     painter.rect_stroke(
                         cover,
-                        egui::Rounding { nw: 12.0, ne: 12.0, sw: 0.0, se: 0.0 },
+                        egui::Rounding {
+                            nw: 12.0,
+                            ne: 12.0,
+                            sw: 0.0,
+                            se: 0.0,
+                        },
                         egui::Stroke::new(1.0, palette.sidebar),
                     );
                 } else {
@@ -712,25 +712,20 @@ impl DesktopApp {
             });
             let cover = cover_rect;
             if let Some(texture) = &detail_cover_texture {
-                ui.painter()
-                    .with_clip_rect(cover)
-                    .image(
-                        texture.id(),
-                        cover,
-                        cover_uv(texture, cover_aspect),
-                        egui::Color32::WHITE,
-                    );
+                ui.painter().with_clip_rect(cover).image(
+                    texture.id(),
+                    cover,
+                    cover_uv(texture, cover_aspect),
+                    egui::Color32::WHITE,
+                );
                 ui.painter().rect_stroke(
                     cover,
                     egui::Rounding::same(10.0),
                     egui::Stroke::new(1.0, palette.sidebar),
                 );
             } else {
-                ui.painter().rect_filled(
-                    cover,
-                    egui::Rounding::same(10.0),
-                    cover_color(&title),
-                );
+                ui.painter()
+                    .rect_filled(cover, egui::Rounding::same(10.0), cover_color(&title));
                 ui.painter().text(
                     cover.center(),
                     egui::Align2::CENTER_CENTER,
@@ -741,21 +736,36 @@ impl DesktopApp {
             }
             ui.label(egui::RichText::new(&title).size(18.0).strong());
             ui.add_space(4.0);
-            ui.label(egui::RichText::new(if french {
-                "Nom affiché"
-            } else {
-                "Display name"
-            }).strong());
+            ui.label(
+                egui::RichText::new(if french {
+                    "Nom affiché"
+                } else {
+                    "Display name"
+                })
+                .strong(),
+            );
             ui.add(
-                egui::TextEdit::singleline(&mut self.display_name_edit)
-                    .hint_text(if french { "Nom personnalisé du jeu" } else { "Custom game name" }),
+                egui::TextEdit::singleline(&mut self.display_name_edit).hint_text(if french {
+                    "Nom personnalisé du jeu"
+                } else {
+                    "Custom game name"
+                }),
             );
             ui.horizontal_wrapped(|ui| {
-                if ui.button(if french { "Enregistrer le nom" } else { "Save name" }).clicked() {
+                if ui
+                    .button(if french {
+                        "Enregistrer le nom"
+                    } else {
+                        "Save name"
+                    })
+                    .clicked()
+                {
                     self.save_game_display_name(&path);
                 }
                 if self.game_names.contains_key(&path)
-                    && ui.button(if french { "Rétablir" } else { "Reset" }).clicked()
+                    && ui
+                        .button(if french { "Rétablir" } else { "Reset" })
+                        .clicked()
                 {
                     self.reset_game_display_name(&path);
                 }
