@@ -789,8 +789,12 @@ impl Cpu {
                 2 | 3 | 4 | 7 => {
                     // Register-controlled Thumb shifts use the low byte of Rs.
                     let amount = right & 0xFF;
-                    if amount != 0 {
-                        let (result, carry) = match operation {
+                    let (result, carry) = if amount == 0 {
+                        // A zero register-specified shift preserves the value
+                        // and C flag, but the instruction still updates N and Z.
+                        (left, None)
+                    } else {
+                        match operation {
                             2 => match amount {
                                 1..=31 => (left << amount, Some((left >> (32 - amount)) & 1 != 0)),
                                 32 => (0, Some(left & 1 != 0)),
@@ -822,10 +826,10 @@ impl Cpu {
                                 }
                             }
                             _ => unreachable!(),
-                        };
-                        self.registers[rd] = result;
-                        self.set_logic_flags(result, carry);
-                    }
+                        }
+                    };
+                    self.registers[rd] = result;
+                    self.set_logic_flags(result, carry);
                 }
                 5 => {
                     let (result, carry, overflow) = Self::add(left, right, self.flags.carry);
@@ -1855,6 +1859,34 @@ mod tests {
         assert_eq!(cpu.register(0), Some(0));
         assert_eq!(cpu.register(15), Some(0x0800_0004));
         assert_eq!(bus.read16(0x0400_0100), 0);
+    }
+
+    #[test]
+    fn thumb_register_shift_by_zero_updates_nz_and_preserves_carry() {
+        // LSL r0, r1 with r1=0 leaves r0/C unchanged but still updates N/Z.
+        let mut bus = bus_with_program(&[]);
+        let mut cpu = Cpu::new();
+        cpu.thumb = true;
+        cpu.set_register(15, 0x0200_0000);
+        cpu.set_register(0, 0);
+        cpu.set_register(1, 0);
+        cpu.flags = ConditionFlags {
+            negative: true,
+            zero: false,
+            carry: true,
+            overflow: true,
+        };
+        bus.write16(0x0200_0000, 0x4088);
+
+        cpu.step(&mut bus).unwrap();
+
+        assert_eq!(cpu.register(0), Some(0));
+        assert_eq!(cpu.flags(), ConditionFlags {
+            negative: false,
+            zero: true,
+            carry: true,
+            overflow: true,
+        });
     }
 
     #[test]
