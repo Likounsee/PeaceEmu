@@ -1,4 +1,4 @@
-//! Initial GBA renderer for text background mode 0 and bitmap modes 3, 4, and 5.
+//! GBA renderer for text background mode 0 and bitmap modes 3, 4, and 5.
 //!
 //! This module renders the current video-memory snapshot. It does not yet
 //! advance scanlines, composite multiple backgrounds/objects, model affine
@@ -41,7 +41,7 @@ impl VideoFrame {
 
 /// Renders the current GBA bitmap display state.
 ///
-/// Mode 0 renders BG0 as a tiled text background; mode 3 uses direct 15-bit
+/// Mode 0 composites BG0–BG3 as tiled text backgrounds; mode 3 uses direct 15-bit
 /// color, mode 4 uses 8-bit palette indices, and mode 5 uses direct color in
 /// a centered 160×128 viewport. Modes 1, 2, and 6+ return None unless forced
 /// blank is active. Forced blank returns an opaque white frame.
@@ -112,16 +112,25 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
 }
 
 
-/// Renders BG0's regular text background in display mode 0. BG1–BG3 and
-/// sprites are intentionally not composited yet.
+/// Composites regular text backgrounds from back to front (priority 3 to 0).
+/// Sprites and affine backgrounds are not implemented yet.
 fn render_text_bg0(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame) {
-    let backdrop = rgb555(bus.read16(PALETTE_BASE));
-    frame.pixels.fill(backdrop);
-    if display_control & (1 << 8) == 0 {
-        return;
+    frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
+    for priority in (0..=3).rev() {
+        for bg in 0..4 {
+            let control_address = BG0CNT + bg * 2;
+            let control = bus.read16(control_address);
+            if display_control & (1 << (8 + bg)) == 0 || control & 3 != priority as u16 {
+                continue;
+            }
+            render_text_background(bus, bg, control, frame);
+        }
     }
+}
 
-    let control = bus.read16(BG0CNT);
+fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut VideoFrame) {
+    let hofs_address = BG0HOFS + bg * 4;
+    let vofs_address = BG0VOFS + bg * 4;
     let char_base = u32::from((control >> 2) & 0x3) * 0x4000;
     let screen_base = u32::from((control >> 8) & 0x1F) * 0x800;
     let color_8bpp = control & (1 << 7) != 0;
@@ -132,8 +141,8 @@ fn render_text_bg0(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame
         2 => (256, 512),
         _ => (512, 512),
     };
-    let scroll_x = u32::from(bus.read16(BG0HOFS) & 0x01FF);
-    let scroll_y = u32::from(bus.read16(BG0VOFS) & 0x01FF);
+    let scroll_x = u32::from(bus.read16(hofs_address) & 0x01FF);
+    let scroll_y = u32::from(bus.read16(vofs_address) & 0x01FF);
     let map_blocks_per_row = map_width / 256;
 
     for y in 0..SCREEN_HEIGHT {
@@ -276,6 +285,26 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_00FF));
         assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
+    }
+
+    #[test]
+    fn mode0_composites_backgrounds_by_priority() {
+        let mut bus = bus();
+        // Enable BG0 and BG1. BG0 has priority 0; BG1 has priority 1.
+        bus.write16(0x0400_0000, (1 << 8) | (1 << 9));
+        bus.write16(BG0CNT, 0);
+        bus.write16(BG0CNT + 2, 1);
+        // BG0 tile 1: first pixel is palette index 1 (red).
+        bus.write16(VRAM_BASE, 1);
+        bus.write8(VRAM_BASE + 32, 1);
+        bus.write16(PALETTE_BASE + 2, 0x001F);
+        // BG1 screen block 1, tile 2: first pixel is palette index 2 (green).
+        bus.write16(VRAM_BASE + 0x800, 2);
+        bus.write8(VRAM_BASE + 64, 2);
+        bus.write16(PALETTE_BASE + 4, 0x03E0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
     }
 
     #[test]
