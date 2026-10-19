@@ -41,11 +41,10 @@ impl VideoFrame {
 
 /// Renders the current GBA bitmap display state.
 ///
-/// Mode 3 uses direct 15-bit color, mode 4 uses 8-bit palette indices, and
-/// mode 5 uses direct color in a centered 160×128 viewport. Unsupported tile
-/// modes return None so callers can distinguish them from a valid black frame.
-/// Forced blank returns an opaque white frame, as specified by the display
-/// control register.
+/// Mode 0 renders BG0 as a tiled text background; mode 3 uses direct 15-bit
+/// color, mode 4 uses 8-bit palette indices, and mode 5 uses direct color in
+/// a centered 160×128 viewport. Modes 1, 2, and 6+ return None unless forced
+/// blank is active. Forced blank returns an opaque white frame.
 pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     let display_control = bus.read16(0x0400_0000);
     let mode = display_control & 7;
@@ -158,15 +157,21 @@ fn render_text_bg0(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame
             let pixel_y = if entry & (1 << 11) != 0 { 7 - in_tile_y } else { in_tile_y };
             let tile_bytes = if color_8bpp { 64 } else { 32 };
             let tile_address = VRAM_BASE + char_base + tile_index * tile_bytes;
-            let palette_index = if color_8bpp {
-                u32::from(bus.read8(tile_address + pixel_y * 8 + pixel_x))
+            let (palette_index, transparent) = if color_8bpp {
+                let index = u32::from(bus.read8(tile_address + pixel_y * 8 + pixel_x));
+                (index, index == 0)
             } else {
                 let packed = bus.read8(tile_address + pixel_y * 4 + pixel_x / 2);
                 let nibble = if pixel_x & 1 == 0 { packed & 0x0F } else { packed >> 4 };
-                u32::from(nibble) + u32::from((entry >> 12) & 0xF) * 16
+                let index = u32::from(nibble);
+                (
+                    index + u32::from((entry >> 12) & 0xF) * 16,
+                    index == 0,
+                )
             };
-            // Palette index zero is transparent for backgrounds.
-            if palette_index != 0 {
+            // Color index zero is transparent even when a 4bpp palette bank
+            // makes its absolute palette index nonzero.
+            if !transparent {
                 frame.pixels[y * SCREEN_WIDTH + x] =
                     rgb555(bus.read16(PALETTE_BASE + palette_index * 2));
             }
@@ -210,6 +215,21 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
         assert_eq!(frame.pixel(1, 0), Some(0xFF00_FF00));
+    }
+
+
+    #[test]
+    fn mode0_zero_pixel_stays_transparent_in_nonzero_palette_bank() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 8); // mode 0, BG0 enabled
+        bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop
+        bus.write16(VRAM_BASE, (1 << 12) | 1); // tile 1, palette bank 1
+        // Tile 1 begins with zero (transparent); next pixel uses palette entry 17.
+        bus.write8(VRAM_BASE + 32, 0x10);
+        bus.write16(PALETTE_BASE + 34, 0x001F); // palette 17: red
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_00FF));
+        assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
     }
 
     #[test]
