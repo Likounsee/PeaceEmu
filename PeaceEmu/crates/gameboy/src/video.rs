@@ -126,6 +126,8 @@ fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut Vi
             }
             render_text_background(bus, bg, control, frame);
         }
+        // OBJ pixels have precedence over BG pixels at the same priority.
+        render_regular_objects(bus, display_control, priority, frame);
     }
 }
 
@@ -211,6 +213,110 @@ fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut Vi
             if !transparent {
                 frame.pixels[y * SCREEN_WIDTH + x] =
                     rgb555(bus.read16(PALETTE_BASE + palette_index * 2));
+            }
+        }
+    }
+}
+
+
+/// Draws regular (non-affine) OBJ sprites for the requested priority.
+/// OBJ is composited after backgrounds of the same priority; lower OAM indices
+/// win ties, so entries are visited from 127 down to 0.
+fn render_regular_objects(
+    bus: &MemoryBus,
+    display_control: u16,
+    priority: u16,
+    frame: &mut VideoFrame,
+) {
+    if display_control & (1 << 12) == 0 {
+        return;
+    }
+    const OAM_BASE: u32 = 0x0700_0000;
+    const OBJ_VRAM_BASE: u32 = 0x0601_0000;
+    let one_dimensional = display_control & (1 << 6) != 0;
+
+    for index in (0..128_u32).rev() {
+        let base = OAM_BASE + index * 8;
+        let attr0 = bus.read16(base);
+        let attr1 = bus.read16(base + 2);
+        let attr2 = bus.read16(base + 4);
+
+        // Affine sprites need matrix transforms and are deliberately skipped
+        // until that part of the PPU is implemented. Disabled regular sprites
+        // and prohibited shape 3 are likewise not drawable.
+        if attr0 & (1 << 8) != 0 || attr0 & (1 << 9) != 0 || (attr0 >> 14) & 3 == 3 {
+            continue;
+        }
+        if u16::from((attr2 >> 10) & 3) != priority {
+            continue;
+        }
+
+        let shape = (attr0 >> 14) & 3;
+        let size = (attr1 >> 14) & 3;
+        let (width, height) = match (shape, size) {
+            (0, 0) => (8_u32, 8_u32),
+            (0, 1) => (16, 16),
+            (0, 2) => (32, 32),
+            (0, 3) => (64, 64),
+            (1, 0) => (16, 8),
+            (1, 1) => (32, 8),
+            (1, 2) => (32, 16),
+            (1, 3) => (64, 32),
+            (2, 0) => (8, 16),
+            (2, 1) => (8, 32),
+            (2, 2) => (16, 32),
+            (2, 3) => (32, 64),
+            _ => continue,
+        };
+
+        let raw_x = u32::from(attr1 & 0x01FF);
+        let origin_x = if raw_x >= 256 { raw_x as i32 - 512 } else { raw_x as i32 };
+        let raw_y = u32::from(attr0 & 0x00FF);
+        let origin_y = if raw_y >= 256 - height { raw_y as i32 - 256 } else { raw_y as i32 };
+        let color_8bpp = attr0 & (1 << 13) != 0;
+        let tile_index = u32::from(attr2 & 0x03FF) & if color_8bpp { !1 } else { !0 };
+        let palette_bank = u32::from((attr2 >> 12) & 0xF);
+        let hflip = attr1 & (1 << 12) != 0;
+        let vflip = attr1 & (1 << 13) != 0;
+        let tile_bytes = if color_8bpp { 64 } else { 32 };
+        let row_stride = if one_dimensional {
+            (width / 8) * if color_8bpp { 2 } else { 1 }
+        } else {
+            32
+        };
+
+        for dy in 0..height {
+            let screen_y = origin_y + dy as i32;
+            if !(0..SCREEN_HEIGHT as i32).contains(&screen_y) {
+                continue;
+            }
+            let source_y = if vflip { height - 1 - dy } else { dy };
+            for dx in 0..width {
+                let screen_x = origin_x + dx as i32;
+                if !(0..SCREEN_WIDTH as i32).contains(&screen_x) {
+                    continue;
+                }
+                let source_x = if hflip { width - 1 - dx } else { dx };
+                let tile_x = source_x / 8;
+                let tile_y = source_y / 8;
+                let slot = tile_index + tile_y * row_stride + tile_x * if color_8bpp { 2 } else { 1 };
+                let address = OBJ_VRAM_BASE + slot * 32
+                    + (source_y & 7) * if color_8bpp { 8 } else { 4 };
+                let palette_index = if color_8bpp {
+                    u32::from(bus.read8(address + (source_x & 7)))
+                } else {
+                    let packed = bus.read8(address + (source_x & 7) / 2);
+                    let nibble = if source_x & 1 == 0 { packed & 0x0F } else { packed >> 4 };
+                    if nibble == 0 {
+                        continue;
+                    }
+                    palette_bank * 16 + u32::from(nibble)
+                };
+                if palette_index == 0 {
+                    continue;
+                }
+                let color = bus.read16(PALETTE_BASE + 0x200 + palette_index * 2);
+                frame.pixels[screen_y as usize * SCREEN_WIDTH + screen_x as usize] = rgb555(color);
             }
         }
     }
@@ -367,6 +473,41 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 0);
         bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_00FF));
+    }
+
+    #[test]
+    fn mode0_renders_regular_4bpp_obj_over_background() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, (1 << 8) | (1 << 12)); // BG0 and OBJ enabled
+        bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop
+        bus.write16(PALETTE_BASE + 2, 0x03E0); // BG palette index 1: green
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
+        bus.write16(VRAM_BASE, 1);
+        bus.write8(VRAM_BASE + 32, 1); // BG tile 1: green
+        // OBJ tile 0 at 0x06010000; low nibble is first pixel, index 1.
+        bus.write16(0x0601_0000, 0x0001);
+        // OAM entry 0: regular 8x8 sprite at (0,0), tile 0, priority 0.
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_FF00));
+    }
+
+    #[test]
+    fn mode0_obj_transparency_preserves_background() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, (1 << 8) | (1 << 12));
+        bus.write16(PALETTE_BASE, 0x7C00); // backdrop blue
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1 red
+        // Sprite tile starts with index 0: transparent.
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_00FF));
     }
