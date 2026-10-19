@@ -226,6 +226,12 @@ impl Cpu {
         if instruction & 0x0E00_0000 == 0x0A00_0000 {
             return 3;
         }
+        // SWP/SWPB perform a read-modify-write sequence and take four
+        // ARM7TDMI cycles. Match them before the halfword-transfer pattern,
+        // which shares the low 0x90 encoding bits and would undercount them.
+        if instruction & 0x0FB0_0FF0 == 0x0100_0090 {
+            return 4;
+        }
         // Single and halfword transfers use at least one data access cycle.
         if instruction & 0x0E00_0000 == 0x0800_0000 {
             let register_list = instruction & 0x0000_FFFF;
@@ -1646,6 +1652,17 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE591_F000), 4);
         // STR pc, [r1] does not redirect execution.
         assert_eq!(cpu.estimate_cycles(0xE581_F000), 2);
+    }
+
+    #[test]
+    fn arm_swap_cycle_estimates_include_read_modify_write_cost() {
+        let cpu = Cpu::new();
+
+        // SWP and SWPB must not fall through to the shared halfword pattern.
+        assert_eq!(cpu.estimate_cycles(0xE102_1093), 4);
+        assert_eq!(cpu.estimate_cycles(0xE142_4095), 4);
+        // A real LDRH encoding retains the existing halfword estimate.
+        assert_eq!(cpu.estimate_cycles(0xE1D2_10B0), 2);
     }
 
     #[test]
