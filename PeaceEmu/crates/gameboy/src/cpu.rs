@@ -124,8 +124,9 @@ impl Cpu {
     /// Executes one ARM-state instruction from the current program counter.
     ///
     /// The CPU advances the PC by four bytes before executing the operation.
-    /// This first implementation is instruction-functional, not cycle-accurate,
-    /// and does not implement Thumb state, exceptions, banked registers, or SPSR.
+    /// This implementation is instruction-functional, not cycle-accurate.
+    /// Thumb execution is supported, but exceptions, banked registers, and SPSRs
+    /// are not modeled yet.
     pub fn step(&mut self, bus: &mut MemoryBus) -> Result<StepOutcome, CpuError> {
         if self.thumb {
             return self.step_thumb(bus);
@@ -1238,6 +1239,24 @@ mod tests {
         assert_eq!(cpu.register(1), Some(50));
         assert!(cpu.flags().zero);
         assert!(cpu.flags().carry);
+    }
+
+    #[test]
+    fn arm_data_processing_exception_return_is_rejected_without_spsr() {
+        // MOVS pc, lr restores CPSR from the current SPSR on ARM7TDMI.
+        // The core has no SPSR/exception-mode model yet, so it must reject
+        // this instruction rather than silently changing flags and branching.
+        let mut bus = bus_with_program(&[0xE1B0_F00E]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+
+        assert_eq!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction {
+                address: 0x0200_0000,
+                instruction: 0xE1B0_F00E,
+            })
+        );
     }
 
     #[test]
