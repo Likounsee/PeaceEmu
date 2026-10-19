@@ -1248,6 +1248,33 @@ mod tests {
     }
 
     #[test]
+    fn arm_stmdb_writeback_stores_base_according_to_register_order() {
+        // STMDB r0!, {r0, r1}: the base is the lowest listed register, so
+        // its memory slot receives the decremented base value.
+        let mut bus = bus_with_program(&[0xE920_0003]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0x0200_0120);
+        cpu.set_register(1, 0xAABB_CCDD);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read32(0x0200_0118), 0x0200_0118);
+        assert_eq!(bus.read32(0x0200_011C), 0xAABB_CCDD);
+        assert_eq!(cpu.register(0), Some(0x0200_0118));
+
+        // STMDB r1!, {r0, r1}: because r0 is listed first, r1's slot
+        // contains the original base even though write-back decrements r1.
+        let mut bus = bus_with_program(&[0xE921_0003]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0x1122_3344);
+        cpu.set_register(1, 0x0200_0120);
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(bus.read32(0x0200_0118), 0x1122_3344);
+        assert_eq!(bus.read32(0x0200_011C), 0x0200_0120);
+        assert_eq!(cpu.register(1), Some(0x0200_0118));
+    }
+
+    #[test]
     fn halfword_and_signed_loads_use_correct_width_and_sign_extension() {
         let mut bus = bus_with_program(&[
             0xE1C1_00B0, // STRH r0, [r1]
