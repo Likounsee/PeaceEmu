@@ -7,7 +7,6 @@ name = "host-app"
 version = "0.1.0"
 dependencies = [
  "emulation-core",
- "game-boy-color",
 ]
 
 [[package]]
@@ -17,12 +16,6 @@ dependencies = [
  "windows-durability",
 ]
 
-[[package]]
-name = "game-boy-color"
-version = "0.1.0"
-dependencies = [
- "emulation-core",
-]
 
 [[package]]
 name = "windows-durability"

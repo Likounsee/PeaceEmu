@@ -6,19 +6,8 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-
-[[bin]]
-name = "host-app"
-path = "src/main.rs"
-required-features = ["game-boy-color-module"]
-
-[features]
-default = []
-game-boy-color-module = ["dep:game-boy"]
+autobins = false
 
 [dependencies]
 emulation-core = { version = "0.1.0", path = "../core" }
-game-boy = { package = "game-boy-color", version = "0.1.0", path = "../game-boy", optional = true }
 
-[dev-dependencies]
-game-boy = { package = "game-boy-color", version = "0.1.0", path = "../game-boy" }

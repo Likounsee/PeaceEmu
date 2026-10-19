@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "crates/core",
     "crates/app",
-    "crates/game-boy",
     "crates/windows-durability",
 ]
 exclude = ["crates/desktop"]

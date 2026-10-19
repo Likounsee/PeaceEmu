@@ -12,7 +12,7 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
 use audio_output::AudioOutput;
-#[cfg(feature = "game-boy-color-module")]
+#[cfg(any())]
 use emulation_core::content::{ContentFormatProbe, ContentLimits};
 use emulation_core::core_io::{FrameCadence, InputControl, InputEvent};
 use game_view::{map_key_to_control, video_frame_to_image};
@@ -45,7 +45,7 @@ use eframe::egui;
 use emulation_core::host_runtime::{HostRuntime, HostRuntimeConfig, SessionId};
 use emulation_core::runtime::SessionState;
 use emulation_core::CoreRegistry;
-#[cfg(feature = "game-boy-color-module")]
+#[cfg(any())]
 use game_boy::{register_game_boy_color, GameBoyColorCartridgeProbe};
 
 const MAX_CONTENT_BYTES: usize = 32 * 1024 * 1024;
@@ -166,7 +166,7 @@ fn poll_background_result<T>(receiver: &mut Option<Receiver<T>>) -> Result<Optio
 struct DesktopApp {
     controller: ApplicationController,
     registry: CoreRegistry,
-    #[cfg(feature = "game-boy-color-module")]
+    #[cfg(any())]
     probe: GameBoyColorCartridgeProbe,
     content_path: String,
     library_filter: String,
@@ -268,7 +268,7 @@ impl DesktopPage {
 impl DesktopApp {
     fn new() -> Result<Self, Box<dyn Error>> {
         let registry = CoreRegistry::new();
-        #[cfg(feature = "game-boy-color-module")]
+        #[cfg(any())]
         let registry = {
             let mut registry = registry;
             register_game_boy_color(&mut registry)?;
@@ -371,7 +371,7 @@ impl DesktopApp {
         let mut app = Self {
             controller,
             registry,
-            #[cfg(feature = "game-boy-color-module")]
+            #[cfg(any())]
             probe: GameBoyColorCartridgeProbe,
             content_path: selected_content
                 .as_ref()
@@ -682,7 +682,7 @@ impl DesktopApp {
         }
     }
 
-    #[cfg(feature = "game-boy-color-module")]
+    #[cfg(any())]
     fn launch_content(&mut self) {
         let path = self.content_path.trim();
         if path.is_empty() {
@@ -706,9 +706,9 @@ impl DesktopApp {
             return;
         }
 
-        #[cfg(feature = "game-boy-color-module")]
+        #[cfg(any())]
         let probes: [&dyn ContentFormatProbe; 1] = [&self.probe];
-        #[cfg(not(feature = "game-boy-color-module"))]
+        #[cfg(not(any()))]
         let probes: [&dyn ContentFormatProbe; 0] = [];
         match self.controller.launch_content_path(
             Path::new(path),
@@ -762,7 +762,7 @@ impl DesktopApp {
         }
     }
 
-    #[cfg(not(feature = "game-boy-color-module"))]
+    #[cfg(not(any()))]
     fn launch_content(&mut self) {
         self.message = if self.language == "fr" {
             "Le module Game Boy Color n’est pas inclus dans cette compilation. Recompilez avec --features game-boy-color-module pour l’activer.".to_owned()
@@ -895,7 +895,7 @@ impl DesktopApp {
         }
     }
 
-    #[cfg(feature = "game-boy-color-module")]
+    #[cfg(any())]
     fn load_game_data_for_session(&mut self, id: SessionId) -> Result<bool, String> {
         let summary = self
             .controller
