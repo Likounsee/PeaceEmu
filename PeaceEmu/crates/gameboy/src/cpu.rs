@@ -183,7 +183,17 @@ impl Cpu {
         self.registers[15] = address.wrapping_add(2);
         let raw = instruction as u16;
 
-        if raw & 0xF800 == 0xE000 {
+        if raw & 0xF800 == 0xF000 {
+            // First half of Thumb BL: form the signed high displacement in LR.
+            let high_displacement = ((u32::from(raw & 0x07FF) << 21) as i32 >> 9) as u32;
+            self.registers[14] = address.wrapping_add(4).wrapping_add(high_displacement);
+        } else if raw & 0xF800 == 0xF800 {
+            // Second half of Thumb BL: branch relative to the saved high part.
+            let low_displacement = u32::from(raw & 0x07FF) << 1;
+            let target = self.registers[14].wrapping_add(low_displacement);
+            self.registers[14] = address.wrapping_add(2) | 1;
+            self.registers[15] = target & !1;
+        } else if raw & 0xF800 == 0xE000 {
             let displacement = (((u32::from(raw & 0x07FF)) << 21) as i32 >> 20) as u32;
             self.registers[15] = address.wrapping_add(4).wrapping_add(displacement) & !1;
         } else if raw & 0xF000 == 0xD000 {
@@ -1076,6 +1086,29 @@ mod tests {
         assert!(cpu.flags().zero);
         cpu.step(&mut bus).unwrap();
         assert_eq!(cpu.register(15), Some(0x0200_000A));
+    }
+
+    #[test]
+    fn thumb_long_branch_with_link_sets_target_and_thumb_return_address() {
+        let mut bus = bus_with_program(&[]);
+        // BL +0: high part at 0, low part at 2, target at 4.
+        bus.write16(0x0200_0000, 0xF000);
+        bus.write16(0x0200_0002, 0xF800);
+        bus.write16(0x0200_0004, 0x2007); // MOVS r0, #7 at the target.
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(14), Some(0x0200_0004));
+        assert_eq!(cpu.register(15), Some(0x0200_0002));
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(15), Some(0x0200_0004));
+        assert_eq!(cpu.register(14), Some(0x0200_0005));
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(0), Some(7));
     }
 
     #[test]
