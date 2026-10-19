@@ -5,18 +5,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>PeaceEmu — One home for classic gaming</title>
-  <meta name="description" content="PeaceEmu is an open-source, modular multi-system emulation project built primarily in Rust. Explore its architecture, development and source code.">
+  <title>PeaceEmu | Open-Source Multi-Console Emulator Framework in Rust</title>
+  <meta name="description" content="PeaceEmu is an open-source, modular multi-console emulator framework built primarily in Rust. Explore its shared runtime, developing emulation cores and source code.">
   <meta name="theme-color" content="#090a10">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="PeaceEmu — One home for classic gaming">
   <meta property="og:description" content="A modular, open-source emulation project. Built with Rust, designed to grow.">
   <meta property="og:site_name" content="PeaceEmu">
+  <meta property="og:url" content="https://likounsee.github.io/PeaceEmu/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="PeaceEmu | Open-Source Multi-Console Emulator Framework in Rust">
+  <meta name="twitter:description" content="An open-source, modular multi-console emulation framework built primarily in Rust. Early development, open on GitHub.">
 
   <meta name="google-site-verification" content="VwjQbHbnQPRc2DfCMb0M6_MQGfxhsBpeA-ITN4ZLYLc">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://likounsee.github.io/PeaceEmu/">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "PeaceEmu",
+    "alternateName": "PeaceEmu Emulator Project",
+    "url": "https://likounsee.github.io/PeaceEmu/",
+    "description": "PeaceEmu is an open-source, modular multi-console emulation framework built primarily in Rust. It is in early development and does not currently claim support for any console.",
+    "sameAs": "https://github.com/Likounsee/PeaceEmu"
+  }
+  </script>
 
   <style>
     :root {
@@ -830,6 +845,59 @@
               View source code ↗
             </a>
           </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="development">
+      <div class="container">
+        <div class="section-heading">
+          <div class="section-kicker">Development status</div>
+          <h2>An open-source emulator framework in Rust.</h2>
+          <p>
+            PeaceEmu is an early-stage, multi-console emulation project. Current
+            development focuses on the shared runtime, clear interfaces between
+            emulation cores, input and media contracts, and reproducible tests.
+            The project is built in the open so its progress can be checked
+            directly against the source code.
+          </p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">01</div>
+            <h3>Shared runtime foundations</h3>
+            <p>
+              The Rust workspace includes foundations for system identifiers,
+              core registration, independent session lifecycles, input state,
+              and common media payloads. These building blocks are still being
+              developed and tested.
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">02</div>
+            <h3>Game Boy core prototype</h3>
+            <p>
+              A limited LR35902 instruction subset can execute simple code from
+              ROM-only cartridges. Video output, audio, timers, interrupts,
+              banking and full instruction coverage are not yet implemented;
+              this prototype is not a claim of playable-game compatibility.
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">03</div>
+            <h3>Transparent compatibility claims</h3>
+            <p>
+              No console is currently advertised as supported. Compatibility
+              will only be claimed when a real emulation core and reproducible
+              tests demonstrate it. Follow implementation details and the
+              roadmap in the public repository.
+            </p>
+          </article>
+        </div>
+        <div class="actions">
+          <a class="button button-primary" href="https://github.com/Likounsee/PeaceEmu/blob/PeaceEmu/README.md" target="_blank" rel="noopener noreferrer">Read the technical overview ↗</a>
+          <a class="button button-secondary" href="https://github.com/Likounsee/PeaceEmu/blob/PeaceEmu/PeaceEmu/docs/ROADMAP.md" target="_blank" rel="noopener noreferrer">View the development roadmap ↗</a>
         </div>
       </div>
     </section>
