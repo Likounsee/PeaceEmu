@@ -435,7 +435,7 @@ impl MemoryBus {
         // DMA control's high byte contains the enable bit; support STRB writes.
         if (0x0400_00B0..=0x0400_00DF).contains(&address) {
             let offset = address - 0x0400_0000;
-            if offset % 12 == 11 {
+            if (offset - 0x00B0) % 12 == 11 {
                 let control_address = address & !1;
                 let current = self.read16(control_address);
                 let next = (current & 0x00FF) | (u16::from(value) << 8);
