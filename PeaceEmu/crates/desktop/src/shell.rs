@@ -90,19 +90,6 @@ impl DesktopApp {
                     {
                         self.navigate_to(DesktopPage::Settings);
                     }
-                    if theme::rail_button(
-                        ui,
-                        palette,
-                        Icon::Fullscreen,
-                        self.fullscreen,
-                        self.language_pack.text("ui.shell.001"),
-                    )
-                    .clicked()
-                    {
-                        self.fullscreen = !self.fullscreen;
-                        context
-                            .send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.fullscreen));
-                    }
                     if self.active_page.has_sidebar()
                         && theme::rail_button(
                             ui,
