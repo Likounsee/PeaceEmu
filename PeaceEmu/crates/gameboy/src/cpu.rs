@@ -228,13 +228,19 @@ impl Cpu {
         }
         // Single and halfword transfers use at least one data access cycle.
         if instruction & 0x0E00_0000 == 0x0800_0000 {
-            let registers = (instruction & 0x0000_FFFF).count_ones();
-            let loads_pc = instruction & (1 << 20) != 0 && instruction & (1 << 15) != 0;
-            return if registers == 0 {
-                17
+            let register_list = instruction & 0x0000_FFFF;
+            let empty_list = register_list == 0;
+            // ARM7TDMI treats an empty list as a PC transfer whose address
+            // span still covers 16 registers. A load therefore also refills
+            // the pipeline, just like an explicit LDM including PC.
+            let registers = if empty_list {
+                16
             } else {
-                1 + registers + if loads_pc { 2 } else { 0 }
+                register_list.count_ones()
             };
+            let load = instruction & (1 << 20) != 0;
+            let loads_pc = load && (empty_list || register_list & (1 << 15) != 0);
+            return 1 + registers + if loads_pc { 2 } else { 0 };
         }
         // Match multiply encodings before the broad halfword-transfer
         // pattern below: that pattern also matches the low opcode bits of
@@ -1603,6 +1609,17 @@ mod tests {
         assert_eq!(cpu.estimate_cycles(0xE081_0392), 5);
         // UMLAL adds the accumulate cycle.
         assert_eq!(cpu.estimate_cycles(0xE0A1_0392), 6);
+    }
+
+    #[test]
+    fn arm_empty_block_transfer_estimate_accounts_for_pc_load_refill() {
+        let cpu = Cpu::new();
+        // Empty STM behaves as a long-span PC store: 16-register span.
+        assert_eq!(cpu.estimate_cycles(0xE8A0_0000), 17);
+        // Empty LDM transfers PC and must also account for pipeline refill.
+        assert_eq!(cpu.estimate_cycles(0xE8B0_0000), 19);
+        // An explicit one-register LDM without PC remains a short transfer.
+        assert_eq!(cpu.estimate_cycles(0xE8B0_0001), 2);
     }
 
     #[test]
