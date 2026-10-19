@@ -1816,6 +1816,25 @@ mod tests {
     }
 
     #[test]
+    fn failed_arm_condition_advances_peripherals_by_one_cycle() {
+        let mut bus = bus_with_program(&[0x03A0_002A]); // MOVEQ r0, #42 (EQ fails after reset).
+        let mut cpu = Cpu::new();
+        cpu.set_register(15, 0x0800_0000);
+
+        // The timer is one tick from overflow. A condition-failed instruction
+        // is skipped, but the CPU still spends one sequential fetch cycle.
+        bus.write16(0x0400_0100, 0xFFFF);
+        bus.write16(0x0400_0102, 0x0080);
+        let (outcome, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+
+        assert!(matches!(outcome, StepOutcome::ConditionFailed { .. }));
+        assert_eq!(cycles, 1);
+        assert_eq!(cpu.register(0), Some(0));
+        assert_eq!(cpu.register(15), Some(0x0800_0004));
+        assert_eq!(bus.read16(0x0400_0100), 0);
+    }
+
+    #[test]
     fn timed_thumb_conditional_branch_uses_taken_or_sequential_cycle_count() {
         let mut bus = bus_with_program(&[]);
         let mut cpu = Cpu::new();
