@@ -1041,6 +1041,15 @@ impl Cpu {
             });
         }
 
+        // Writing back through r15 makes the block-transfer base depend on
+        // the pipeline-visible PC and has unpredictable control-flow effects.
+        if rn == 15 && write_back {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
         // ARM7TDMI treats an empty list as a PC transfer, but adjusts the
         // address/write-back as though all 16 registers had been listed.
         let empty_list = register_list == 0;
@@ -2516,6 +2525,28 @@ mod tests {
                 "instruction 0x{instruction:08X}"
             );
             assert_eq!(cpu.register(15), Some(0x0200_0004));
+        }
+    }
+
+    #[test]
+    fn arm_block_transfer_rejects_pc_base_writeback() {
+        // STMIA pc!, {r0} and LDMIA pc!, {r0} have unpredictable PC writeback.
+        for instruction in [0xE8AF_0001_u32, 0xE8BF_0001] {
+            let mut bus = bus_with_program(&[instruction]);
+            let mut cpu = Cpu::new();
+            cpu.reset(0x0200_0000);
+            cpu.set_register(0, 0x1234_5678);
+
+            assert_eq!(
+                cpu.step(&mut bus),
+                Err(CpuError::UnsupportedInstruction {
+                    address: 0x0200_0000,
+                    instruction,
+                }),
+                "instruction 0x{instruction:08X}"
+            );
+            assert_eq!(cpu.register(15), Some(0x0200_0004));
+            assert_eq!(bus.read32(0x0200_0004), 0);
         }
     }
 
