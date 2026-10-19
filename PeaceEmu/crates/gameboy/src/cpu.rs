@@ -144,19 +144,22 @@ impl Cpu {
             bus.read32(address & !3)
         };
         let estimated_cycles = self.estimate_cycles(instruction);
+        // Capture the condition before execution. Comparing the resulting PC
+        // with address+2 is insufficient: a taken backward branch can land
+        // exactly on the sequential address.
+        let thumb_branch_taken = was_thumb
+            && instruction & 0xF000 == 0xD000
+            && ((instruction >> 8) & 0xF) < 0xE
+            && self.condition_passed((instruction >> 8) & 0xF);
         let outcome = self.step(bus)?;
         // A condition-failed ARM instruction is skipped without a branch or
         // data access, so it consumes only the sequential instruction cycle.
-        // Thumb conditional branches are reported as executed regardless of
-        // whether the condition matched; use the resulting PC to distinguish
-        // the taken (pipeline refill) and not-taken paths.
-        let thumb_conditional_branch = was_thumb
-            && instruction & 0xF000 == 0xD000
-            && ((instruction >> 8) & 0xF) < 0xE;
         let cycles = if matches!(outcome, StepOutcome::ConditionFailed { .. }) {
             1
-        } else if thumb_conditional_branch
-            && self.registers[15] == address.wrapping_add(2)
+        } else if was_thumb
+            && instruction & 0xF000 == 0xD000
+            && ((instruction >> 8) & 0xF) < 0xE
+            && !thumb_branch_taken
         {
             1
         } else {
@@ -1576,12 +1579,20 @@ mod tests {
         assert_eq!(cycles, 1);
         assert_eq!(cpu.register(15), Some(0x0200_0002));
 
-        // Reset PC and execute BNE +2; Z is still clear, so it is taken.
+        // BNE +2 is taken because Z is clear.
         cpu.set_register(15, 0x0200_0000);
         bus.write16(0x0200_0000, 0xD101);
         let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
         assert_eq!(cycles, 3);
         assert_eq!(cpu.register(15), Some(0x0200_0006));
+
+        // A taken BNE with displacement -2 lands at address+2, the same PC
+        // as sequential execution. It must still pay the pipeline-refill cost.
+        cpu.set_register(15, 0x0200_0000);
+        bus.write16(0x0200_0000, 0xD1FF);
+        let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+        assert_eq!(cycles, 3);
+        assert_eq!(cpu.register(15), Some(0x0200_0002));
     }
 
     #[test]
