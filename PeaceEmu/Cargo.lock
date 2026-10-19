@@ -3,6 +3,10 @@
 version = 4
 
 [[package]]
+name = "gameboy"
+version = "0.1.0"
+
+[[package]]
 name = "host-app"
 version = "0.1.0"
 dependencies = [
@@ -15,7 +19,6 @@ version = "0.1.0"
 dependencies = [
  "windows-durability",
 ]
-
 
 [[package]]
 name = "windows-durability"
