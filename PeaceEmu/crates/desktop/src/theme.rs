@@ -371,12 +371,10 @@ pub fn choice_card(
 pub enum Icon {
     Home,
     Library,
-    Sessions,
     Game,
     Systems,
     Settings,
     Sidebar,
-    Fullscreen,
 }
 
 pub fn paint_icon(painter: &egui::Painter, center: Pos2, size: f32, icon: Icon, color: Color32) {
@@ -403,12 +401,6 @@ pub fn paint_icon(painter: &egui::Painter, center: Pos2, size: f32, icon: Icon, 
                     Rounding::same(2.0),
                     stroke,
                 );
-            }
-        }
-        Icon::Sessions => {
-            for y in [-0.6, 0.0, 0.6] {
-                painter.line_segment([at(-0.35, y), at(0.9, y)], stroke);
-                painter.circle_filled(at(-0.85, y), 1.5, color);
             }
         }
         Icon::Game => {
@@ -446,13 +438,7 @@ pub fn paint_icon(painter: &egui::Painter, center: Pos2, size: f32, icon: Icon, 
             );
             painter.line_segment([at(-0.3, -0.75), at(-0.3, 0.75)], stroke);
         }
-        Icon::Fullscreen => {
-            for (sx, sy) in [(-1.0_f32, -1.0_f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
-                let corner = at(0.85 * sx, 0.85 * sy);
-                painter.line_segment([corner, at(0.35 * sx, 0.85 * sy)], stroke);
-                painter.line_segment([corner, at(0.85 * sx, 0.35 * sy)], stroke);
-            }
-        }
+
     }
 }
 
