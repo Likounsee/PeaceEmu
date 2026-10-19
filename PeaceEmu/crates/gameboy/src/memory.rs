@@ -621,8 +621,8 @@ mod tests {
     fn waitcnt_masks_reserved_bits_and_supports_byte_writes() {
         let mut bus = MemoryBus::new(cartridge());
 
-        // WAITCNT has writable timing/PHI/prefetch fields, but bits 13 and 15
-        // are reserved and must not be retained by the register model.
+        // WAITCNT has writable timing/PHI/prefetch fields; reserved bits 2 and 15
+        // must be cleared while the valid high-byte controls are preserved.
         bus.write16(0x0400_0204, 0xFFFF);
         assert_eq!(bus.read16(0x0400_0204), 0x7FFB);
 
@@ -630,7 +630,7 @@ mod tests {
         bus.write8(0x0400_0204, 0xA5);
         bus.write8(0x0400_0205, 0x7F);
         assert_eq!(bus.read16(0x0400_0204), 0x7FA1);
-        assert_eq!(bus.read8(0x0400_0204), 0xA5);
+        assert_eq!(bus.read8(0x0400_0204), 0xA1);
         assert_eq!(bus.read8(0x0400_0205), 0x7F);
     }
 
