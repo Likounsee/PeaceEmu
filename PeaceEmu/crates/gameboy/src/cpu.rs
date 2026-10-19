@@ -109,7 +109,11 @@ impl Cpu {
             return false;
         }
         self.registers[index] = if index == 15 {
-            if self.thumb { value & !1 } else { value & !3 }
+            if self.thumb {
+                value & !1
+            } else {
+                value & !3
+            }
         } else {
             value
         };
@@ -182,13 +186,9 @@ impl Cpu {
     fn multiply_internal_cycles_for_extension(value: u32, signed: bool) -> u32 {
         if value & 0xFFFF_FF00 == 0 || (signed && value & 0xFFFF_FF00 == 0xFFFF_FF00) {
             1
-        } else if value & 0xFFFF_0000 == 0
-            || (signed && value & 0xFFFF_0000 == 0xFFFF_0000)
-        {
+        } else if value & 0xFFFF_0000 == 0 || (signed && value & 0xFFFF_0000 == 0xFFFF_0000) {
             2
-        } else if value & 0xFF00_0000 == 0
-            || (signed && value & 0xFF00_0000 == 0xFF00_0000)
-        {
+        } else if value & 0xFF00_0000 == 0 || (signed && value & 0xFF00_0000 == 0xFF00_0000) {
             3
         } else {
             4
@@ -224,8 +224,7 @@ impl Cpu {
             // cycle per register, plus the instruction-fetch cycle. POP {pc}
             // also refills the pipeline.
             if raw & 0xF600 == 0xB400 {
-                let registers = (raw & 0x00FF).count_ones()
-                    + u32::from(raw & 0x0100 != 0);
+                let registers = (raw & 0x00FF).count_ones() + u32::from(raw & 0x0100 != 0);
                 let loads_pc = raw & 0xFE00 == 0xBC00 && raw & 0x0100 != 0;
                 return 1 + registers + if loads_pc { 2 } else { 0 };
             }
@@ -251,10 +250,7 @@ impl Cpu {
                 // Register-offset operations 0..2 store; 3..7 load.
                 return if (raw >> 9) & 7 >= 3 { 3 } else { 2 };
             }
-            if raw & 0xE000 == 0x6000
-                || raw & 0xF000 == 0x8000
-                || raw & 0xF000 == 0x9000
-            {
+            if raw & 0xE000 == 0x6000 || raw & 0xF000 == 0x8000 || raw & 0xF000 == 0x9000 {
                 let load = raw & (1 << 11) != 0;
                 return if load { 3 } else { 2 };
             }
@@ -305,10 +301,7 @@ impl Cpu {
             let accumulate = instruction & (1 << 21) != 0;
             // Long multiply writes a 64-bit result and needs one additional
             // internal cycle beyond MUL/MLA for the high result word.
-            return 1
-                + multiplier_cycles
-                + u32::from(accumulate)
-                + u32::from(long_multiply);
+            return 1 + multiplier_cycles + u32::from(accumulate) + u32::from(long_multiply);
         }
         // Data-processing instructions that write PC redirect execution
         // and refill the ARM pipeline. Exclude status-register operations,
@@ -335,9 +328,7 @@ impl Cpu {
         // on ARM7TDMI. Restrict this estimate to encodings that the executor
         // recognizes as ordinary data-processing operations; special
         // encodings such as BX must retain their own timing above.
-        if instruction & 0x0C00_0090 == 0x0000_0010
-            && (instruction >> 12) & 0xF != 15
-        {
+        if instruction & 0x0C00_0090 == 0x0000_0010 && (instruction >> 12) & 0xF != 15 {
             return 2;
         }
         if instruction & 0x0C00_0000 == 0x0400_0000 {
@@ -536,9 +527,8 @@ impl Cpu {
                 4 => {
                     // Thumb LDR uses the same ARM7TDMI unaligned-word
                     // rotation behavior as ARM-state LDR.
-                    self.registers[rd] =
-                        bus.read32(effective).rotate_right((effective & 3) * 8);
-                },
+                    self.registers[rd] = bus.read32(effective).rotate_right((effective & 3) * 8);
+                }
                 5 => {
                     // ARM7TDMI LDRH rotates the aligned halfword by one byte
                     // when the effective address is odd.
@@ -617,8 +607,7 @@ impl Cpu {
             if load {
                 // This is an ordinary Thumb word load: preserve ARM7TDMI's
                 // rotate-right behavior even if software has made SP unaligned.
-                self.registers[rd] =
-                    bus.read32(effective).rotate_right((effective & 3) * 8);
+                self.registers[rd] = bus.read32(effective).rotate_right((effective & 3) * 8);
             } else {
                 bus.write32(effective, self.registers[rd]);
             }
@@ -678,7 +667,11 @@ impl Cpu {
             // it transfers PC while advancing the base by sixteen words.
             let empty_list = register_list == 0;
             let effective_list = if empty_list { 1 << 15 } else { register_list };
-            let count = if empty_list { 16 } else { register_list.count_ones() };
+            let count = if empty_list {
+                16
+            } else {
+                register_list.count_ones()
+            };
 
             let base = self.registers[rb];
             let mut transfer_address = base;
@@ -726,11 +719,7 @@ impl Cpu {
                 && !empty_list
                 && register_list & (1 << rb) != 0
                 && register_list.trailing_zeros() == rb as u32;
-            if empty_list
-                || !load
-                || register_list & (1 << rb) == 0
-                || !loaded_base_wins
-            {
+            if empty_list || !load || register_list & (1 << rb) == 0 || !loaded_base_wins {
                 self.registers[rb] = base.wrapping_add(count * 4);
             }
         } else if raw & 0xE000 == 0x2000 {
@@ -990,7 +979,10 @@ impl Cpu {
         let immediate = instruction & (1 << 25) != 0;
 
         if saved_status || field_mask & !0x8 != 0 {
-            return Err(CpuError::UnsupportedInstruction { address, instruction });
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
         }
         if field_mask == 0 {
             return Ok(());
@@ -1075,11 +1067,7 @@ impl Cpu {
         Ok(())
     }
 
-    fn execute_long_multiply(
-        &mut self,
-        address: u32,
-        instruction: u32,
-    ) -> Result<(), CpuError> {
+    fn execute_long_multiply(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
         let signed = instruction & (1 << 22) != 0;
         let accumulate = instruction & (1 << 21) != 0;
         let set_flags = instruction & (1 << 20) != 0;
@@ -1487,7 +1475,7 @@ impl Cpu {
                     } else {
                         value
                     })
-                },
+                }
                 2 => bus.read8(effective) as i8 as i32 as u32,
                 // LDRSH at an odd address behaves like LDRSB on ARM7TDMI.
                 3 => {
@@ -1496,7 +1484,7 @@ impl Cpu {
                     } else {
                         bus.read16(effective) as i16 as i32 as u32
                     }
-                },
+                }
                 _ => unreachable!(),
             };
             self.registers[rd] = if rd == 15 { value & !3 } else { value };
@@ -1941,12 +1929,15 @@ mod tests {
         cpu.step(&mut bus).unwrap();
 
         assert_eq!(cpu.register(0), Some(0));
-        assert_eq!(cpu.flags(), ConditionFlags {
-            negative: false,
-            zero: true,
-            carry: true,
-            overflow: true,
-        });
+        assert_eq!(
+            cpu.flags(),
+            ConditionFlags {
+                negative: false,
+                zero: true,
+                carry: true,
+                overflow: true,
+            }
+        );
     }
 
     #[test]
@@ -2049,7 +2040,10 @@ mod tests {
             overflow: false,
         };
 
-        assert!(matches!(cpu.step(&mut bus), Err(CpuError::UnsupportedInstruction { .. })));
+        assert!(matches!(
+            cpu.step(&mut bus),
+            Err(CpuError::UnsupportedInstruction { .. })
+        ));
         assert_eq!(cpu.register(2), Some(0));
         assert_eq!(cpu.flags().zero, true);
 
@@ -2071,14 +2065,26 @@ mod tests {
         cpu.set_register(0, 0xA000_0000);
 
         cpu.step(&mut bus).unwrap();
-        assert_eq!(cpu.flags(), ConditionFlags {
-            negative: true, zero: false, carry: true, overflow: false,
-        });
+        assert_eq!(
+            cpu.flags(),
+            ConditionFlags {
+                negative: true,
+                zero: false,
+                carry: true,
+                overflow: false,
+            }
+        );
 
         cpu.step(&mut bus).unwrap();
-        assert_eq!(cpu.flags(), ConditionFlags {
-            negative: true, zero: true, carry: true, overflow: true,
-        });
+        assert_eq!(
+            cpu.flags(),
+            ConditionFlags {
+                negative: true,
+                zero: true,
+                carry: true,
+                overflow: true,
+            }
+        );
     }
 
     #[test]
@@ -2408,8 +2414,7 @@ mod tests {
         cpu.set_register(0, 0xFFFF_FFFA);
         cpu.set_register(1, 0xFFFF_FFFF);
         cpu.step(&mut bus).unwrap();
-        let expected = (u64::from(0xFFFF_FFFF_u32) << 32)
-            | u64::from(0xFFFF_FFFA_u32);
+        let expected = (u64::from(0xFFFF_FFFF_u32) << 32) | u64::from(0xFFFF_FFFA_u32);
         let expected = expected.wrapping_add(u64::from(0xFFFF_FFFE_u32) * 3);
         assert_eq!(cpu.register(0), Some(expected as u32));
         assert_eq!(cpu.register(1), Some((expected >> 32) as u32));
@@ -2925,11 +2930,7 @@ mod tests {
 
     #[test]
     fn arm_word_load_rotates_unaligned_bus_data_for_each_byte_offset() {
-        for (offset, expected) in [
-            (1, 0x7812_3456),
-            (2, 0x5678_1234),
-            (3, 0x3456_7812),
-        ] {
+        for (offset, expected) in [(1, 0x7812_3456), (2, 0x5678_1234), (3, 0x3456_7812)] {
             let mut bus = bus_with_program(&[0xE591_2000]); // LDR r2, [r1]
             bus.write32(0x0200_0100, 0x1234_5678);
             let mut cpu = Cpu::new();
@@ -2971,12 +2972,7 @@ mod tests {
     #[test]
     fn arm_test_and_compare_encodings_without_s_bit_are_rejected() {
         // TST, TEQ, CMP and CMN require S=1 on ARM7TDMI.
-        for instruction in [
-            0xE101_0002_u32,
-            0xE121_0002,
-            0xE141_0002,
-            0xE161_0002,
-        ] {
+        for instruction in [0xE101_0002_u32, 0xE121_0002, 0xE141_0002, 0xE161_0002] {
             let mut bus = bus_with_program(&[instruction]);
             let mut cpu = Cpu::new();
             cpu.reset(0x0200_0000);
@@ -3233,9 +3229,9 @@ mod tests {
         // including STRH (whose PC source value would otherwise be mis-modeled).
         for instruction in [
             0xE1D1_F0B0_u32, // LDRH
-            0xE1D1_F0D0,      // LDRSB
-            0xE1D1_F0F0,      // LDRSH
-            0xE1C1_F0B0,      // STRH
+            0xE1D1_F0D0,     // LDRSB
+            0xE1D1_F0F0,     // LDRSH
+            0xE1C1_F0B0,     // STRH
         ] {
             let mut bus = bus_with_program(&[instruction]);
             let mut cpu = Cpu::new();
@@ -3391,5 +3387,4 @@ mod tests {
         assert_eq!(cpu.register(0), Some(0xAABB_CCDD));
         assert_eq!(cpu.register(1), Some(0x0200_0128));
     }
-
 }
