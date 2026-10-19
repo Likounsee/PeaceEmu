@@ -300,6 +300,55 @@ impl Cpu {
             } else {
                 bus.write32(effective, self.registers[rd]);
             }
+        } else if raw & 0xFE00 == 0xB400 || raw & 0xFE00 == 0xBC00 {
+            let pop = raw & 0x0800 != 0;
+            let extra_register = raw & (1 << 8) != 0;
+            let register_list = u32::from(raw & 0xFF);
+            let count = register_list.count_ones() + u32::from(extra_register);
+            if count == 0 {
+                return Err(CpuError::UnsupportedInstruction {
+                    address,
+                    instruction,
+                });
+            }
+
+            let old_sp = self.registers[13];
+            if pop {
+                let mut transfer_address = old_sp;
+                for register in 0..8 {
+                    if register_list & (1 << register) != 0 {
+                        self.registers[register] = bus.read32(transfer_address);
+                        transfer_address = transfer_address.wrapping_add(4);
+                    }
+                }
+                if extra_register {
+                    let value = bus.read32(transfer_address);
+                    self.registers[15] = value & !1;
+                    transfer_address = transfer_address.wrapping_add(4);
+                }
+                self.registers[13] = old_sp.wrapping_add(count * 4);
+            } else {
+                let new_sp = old_sp.wrapping_sub(count * 4);
+                let mut transfer_address = new_sp;
+                for register in 0..8 {
+                    if register_list & (1 << register) != 0 {
+                        bus.write32(transfer_address, self.registers[register]);
+                        transfer_address = transfer_address.wrapping_add(4);
+                    }
+                }
+                if extra_register {
+                    bus.write32(transfer_address, self.registers[14]);
+                }
+                self.registers[13] = new_sp;
+            }
+        } else if raw & 0xFF00 == 0xB000 {
+            let subtract = raw & (1 << 7) != 0;
+            let offset = u32::from(raw & 0x7F) * 4;
+            self.registers[13] = if subtract {
+                self.registers[13].wrapping_sub(offset)
+            } else {
+                self.registers[13].wrapping_add(offset)
+            };
         } else if raw & 0xE000 == 0x2000 {
             let operation = (raw >> 11) & 3;
             let rd = usize::from((raw >> 8) & 7);
@@ -1025,6 +1074,32 @@ mod tests {
         assert_eq!(cpu.register(2), Some(0x1234_5678));
         assert_eq!(cpu.register(4), Some(0x0000_00AA));
         assert_eq!(cpu.register(6), Some(0x0000_BEEF));
+    }
+
+    #[test]
+    fn thumb_push_pop_and_stack_adjustment_preserve_registers() {
+        let mut bus = bus_with_program(&[]);
+        bus.write16(0x0200_0000, 0xB403); // PUSH {r0, r1}
+        bus.write16(0x0200_0002, 0xB081); // SUB sp, #4
+        bus.write16(0x0200_0004, 0xB001); // ADD sp, #4
+        bus.write16(0x0200_0006, 0xBC0C); // POP {r2, r3}
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.thumb = true;
+        cpu.set_register(13, 0x0200_0120);
+        cpu.set_register(0, 0x1122_3344);
+        cpu.set_register(1, 0xAABB_CCDD);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(13), Some(0x0200_0118));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(13), Some(0x0200_0114));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(13), Some(0x0200_0118));
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.register(2), Some(0x1122_3344));
+        assert_eq!(cpu.register(3), Some(0xAABB_CCDD));
+        assert_eq!(cpu.register(13), Some(0x0200_0120));
     }
 
     #[test]
