@@ -605,7 +605,6 @@ impl DesktopApp {
                 if response.clicked() || response.double_clicked() {
                     self.selected_content = Some(path.clone());
                     self.content_path = path.display().to_string();
-                    self.cover_query = title.clone();
                     self.display_name_edit = title.clone();
                 }
                 if response.double_clicked() && file_available {
@@ -664,9 +663,6 @@ impl DesktopApp {
         let detail_cover_texture = self.cover_texture(ui.ctx(), &path);
         if self.display_name_edit.is_empty() {
             self.display_name_edit = title.clone();
-        }
-        if self.cover_query.is_empty() {
-            self.cover_query = title.clone();
         }
         theme::card(ui, palette, |ui| {
             let available_width = ui.available_width();
