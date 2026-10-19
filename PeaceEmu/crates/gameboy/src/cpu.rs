@@ -324,7 +324,6 @@ impl Cpu {
                 if extra_register {
                     let value = bus.read32(transfer_address);
                     self.registers[15] = value & !1;
-                    transfer_address = transfer_address.wrapping_add(4);
                 }
                 self.registers[13] = old_sp.wrapping_add(count * 4);
             } else {
