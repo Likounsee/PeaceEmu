@@ -136,14 +136,10 @@ impl DesktopApp {
     fn show_library_sidebar(&mut self, ui: &mut egui::Ui, palette: &Palette) {
         let mut all = 0usize;
         let mut game_boy = 0usize;
-        let mut game_boy_color = 0usize;
         for entry in self.controller.library().entries() {
             all += 1;
             if LibraryFormat::GameBoy.matches(entry.path()) {
                 game_boy += 1;
-            }
-            if LibraryFormat::GameBoyColor.matches(entry.path()) {
-                game_boy_color += 1;
             }
         }
         ui.label(
@@ -164,11 +160,10 @@ impl DesktopApp {
                 self.language_pack.text("ui.shell.005"),
                 all,
             ),
-            (LibraryFormat::GameBoy, "Game Boy (.gb)", game_boy),
             (
-                LibraryFormat::GameBoyColor,
-                "Game Boy Color (.gbc)",
-                game_boy_color,
+                LibraryFormat::GameBoy,
+                "Game Boy (GB / GBC / GBA)",
+                game_boy,
             ),
         ] {
             if theme::nav_item(
