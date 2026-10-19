@@ -1,7 +1,6 @@
 //! Sessions page for the PeaceEmu desktop frontend.
 //!
-//! Running sessions are full-width rows in an "Active" category; every other
-//! session (paused or otherwise stopped) is a small tile with the game icon.
+//! Running and paused sessions are full-width rows; stopped sessions are small tiles.
 
 use super::*;
 
@@ -120,16 +119,20 @@ impl DesktopApp {
                 }
             });
         }
-        let (active, stopped): (Vec<_>, Vec<_>) = sessions
-            .into_iter()
-            .partition(|summary| summary.state == SessionState::Running);
+        let (active, stopped): (Vec<_>, Vec<_>) = sessions.into_iter().partition(|summary| {
+            matches!(summary.state, SessionState::Running | SessionState::Paused)
+        });
 
         // ---------------------------------------------------------- Active (long rows)
         if !active.is_empty() {
             section_title(
                 ui,
                 &palette,
-                if french { "Actives" } else { "Active" },
+                if french {
+                    "En utilisation / à reprendre (ou en pause)"
+                } else {
+                    "In use / resume (or paused)"
+                },
                 active.len(),
             );
         }
@@ -253,11 +256,19 @@ impl DesktopApp {
                     {
                         opening = Some(id);
                     }
-                    if ui
-                        .button(self.language_pack.text("ui.sessions_page.018"))
-                        .clicked()
+                    if state == SessionState::Running {
+                        if ui
+                            .button(self.language_pack.text("ui.sessions_page.018"))
+                            .clicked()
+                        {
+                            self.session_action(id, SessionAction::Pause);
+                        }
+                    } else if state == SessionState::Paused
+                        && ui
+                            .button(self.language_pack.text("ui.sessions_page.019"))
+                            .clicked()
                     {
-                        self.session_action(id, SessionAction::Pause);
+                        self.session_action(id, SessionAction::Resume);
                     }
                     if content_loaded && save_states {
                         if ui
