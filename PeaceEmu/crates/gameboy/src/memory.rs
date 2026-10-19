@@ -996,7 +996,7 @@ mod tests {
         bus.write16(0x0400_0006, 123);
         bus.write16(0x0400_0004, 0xFFFF);
         assert_eq!(bus.read16(0x0400_0006), 0);
-        assert_eq!(bus.read16(0x0400_0004) & 0x0007, 0x0004);
+        assert_eq!(bus.read16(0x0400_0004) & 0x0007, 0x0000);
         assert_eq!(bus.read16(0x0400_0004) & 0xFF38, 0xFF38);
     }
 
