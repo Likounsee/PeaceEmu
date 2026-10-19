@@ -105,7 +105,9 @@ impl MemoryBus {
             0x0800_0000..=0x0DFF_FFFF => self
                 .cartridge
                 .read_rom_byte((address as usize - 0x0800_0000) % self.cartridge.len()),
-            0x0E00_0000..=0x0FFF_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
+            // GBA save SRAM occupies the 64 KiB window at 0x0E00_0000.
+            // The following 0x0F region is not another SRAM mirror.
+            0x0E00_0000..=0x0E00_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
             _ => 0,
         }
     }
@@ -234,7 +236,7 @@ impl MemoryBus {
             0x0700_0000..=0x07FF_FFFF => {
                 self.oam[(address as usize - 0x0700_0000) % OAM_SIZE] = value
             }
-            0x0E00_0000..=0x0FFF_FFFF => {
+            0x0E00_0000..=0x0E00_FFFF => {
                 self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE] = value
             }
             _ => {}
@@ -380,12 +382,19 @@ mod tests {
     }
 
     #[test]
-    fn vram_mirror_and_sram_backing_store_are_consistent() {
+    fn vram_mirror_and_sram_address_window_are_consistent() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write8(0x0601_8000, 0x5A);
         assert_eq!(bus.read8(0x0601_0000), 0x5A);
+
+        // SRAM is decoded in the 64 KiB 0x0E window, not in region 0x0F.
         bus.write8(0x0E00_1234, 0xA5);
-        assert_eq!(bus.read8(0x0F00_1234), 0xA5);
+        assert_eq!(bus.read8(0x0E00_1234), 0xA5);
         assert_eq!(bus.read8(0x0E00_0000), 0xFF);
+        assert_eq!(bus.read8(0x0F00_1234), 0);
+
+        bus.write8(0x0F00_1234, 0x3C);
+        assert_eq!(bus.read8(0x0E00_1234), 0xA5);
+        assert_eq!(bus.read8(0x0F00_1234), 0);
     }
 }
