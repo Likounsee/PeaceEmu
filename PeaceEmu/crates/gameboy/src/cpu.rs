@@ -410,8 +410,8 @@ impl Cpu {
         if load {
             let value = match operation {
                 1 => u32::from(bus.read16(effective)),
-                2 => u32::from(bus.read8(effective) as i8 as i32 as u32),
-                3 => u32::from(bus.read16(effective) as i16 as i32 as u32),
+                2 => bus.read8(effective) as i8 as i32 as u32,
+                3 => bus.read16(effective) as i16 as i32 as u32,
                 _ => unreachable!(),
             };
             self.registers[rd] = if rd == 15 { value & !3 } else { value };
