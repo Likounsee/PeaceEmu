@@ -1,8 +1,8 @@
 //! GBA renderer for text/affine background modes 0–2 and bitmap modes 3–5.
 //!
 //! This module renders the current video-memory snapshot, including tiled text
-//! backgrounds, regular OBJ sprites, and bitmap modes. It does not yet advance
-//! scanlines, render affine backgrounds, or generate VBlank/HBlank IRQs.
+//! and affine backgrounds, regular OBJ sprites, and bitmap modes. It does not yet
+//! advance scanlines or generate VBlank/HBlank IRQs.
 
 use crate::MemoryBus;
 
@@ -119,8 +119,8 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     Some(frame)
 }
 
-/// Composites regular text backgrounds from back to front (priority 3 to 0).
-/// Affine backgrounds are not implemented yet.
+/// Composites backgrounds and regular OBJ sprites from back to front.
+/// Modes 1 and 2 use affine backgrounds for BG2 and BG3 as specified by DISPCNT.
 fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame) {
     frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
     for priority in (0..=3).rev() {
@@ -132,7 +132,12 @@ fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut Vi
             if display_control & (1 << (8 + bg)) == 0 || control & 3 != priority as u16 {
                 continue;
             }
-            let mode = display_control & 7;\n            if mode == 0 || bg < 2 {\n                render_text_background(bus, bg, control, frame);\n            } else if bg >= 2 && (mode == 2 || bg == 2) {\n                render_affine_background(bus, bg, control, frame);\n            }
+            let mode = display_control & 7;
+            if mode == 0 || bg < 2 {
+                render_text_background(bus, bg, control, frame);
+            } else if bg >= 2 && (mode == 2 || bg == 2) {
+                render_affine_background(bus, bg, control, frame);
+            }
         }
         // OBJ pixels have precedence over BG pixels at the same priority.
         render_regular_objects(bus, display_control, priority, frame);
