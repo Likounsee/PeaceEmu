@@ -443,7 +443,7 @@ mod tests {
     fn mode2_renders_affine_bg3_from_its_own_registers_and_map() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 2 | (1 << 11)); // mode 2, BG3 enabled
-        bus.write16(0x0400_000E, (1 << 2) | (1 << 8)); // char block 1, screen block 1
+        bus.write16(0x0400_000E, (1 << 2) | (8 << 8)); // char block 1, screen block 8
         // BG3 map at screen block 1 selects tile 1 in character block 1.
         bus.write16(VRAM_BASE + 0x4000, 1);
         bus.write16(VRAM_BASE + 0x4000 + 64, 1);
