@@ -910,6 +910,16 @@ impl Cpu {
         let rd = ((instruction >> 12) & 0xF) as usize;
         let operation = (instruction >> 5) & 3;
 
+        // ARM7TDMI halfword/signed-byte loads do not permit PC as Rd.
+        // Reject this unpredictable destination rather than silently
+        // aligning/truncating the loaded value as if it were an ordinary LDR.
+        if (load && rd == 15) {
+            return Err(CpuError::UnsupportedInstruction {
+                address,
+                instruction,
+            });
+        }
+
         // Operation 00 is multiply/other encoding space, not a halfword
         // transfer. STR supports only the unsigned halfword operation.
         if operation == 0 || (!load && operation != 1) {
@@ -1803,6 +1813,29 @@ mod tests {
                 instruction: 0xE25E_F004,
             })
         );
+    }
+
+    #[test]
+    fn arm_halfword_and_signed_loads_to_pc_are_rejected() {
+        // ARM7TDMI does not define PC as a valid destination for these
+        // halfword/signed-byte transfer encodings.
+        for instruction in [0xE1D1_F0B0_u32, 0xE1D1_F0D0, 0xE1D1_F0F0] {
+            let mut bus = bus_with_program(&[instruction]);
+            let mut cpu = Cpu::new();
+            cpu.reset(0x0200_0000);
+            cpu.set_register(1, 0x0200_0100);
+            bus.write16(0x0200_0100, 0x1234);
+            bus.write8(0x0200_0100, 0x80);
+
+            assert_eq!(
+                cpu.step(&mut bus),
+                Err(CpuError::UnsupportedInstruction {
+                    address: 0x0200_0000,
+                    instruction,
+                }),
+                "instruction 0x{instruction:08X}"
+            );
+        }
     }
 
     #[test]
