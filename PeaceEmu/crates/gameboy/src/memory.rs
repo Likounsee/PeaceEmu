@@ -102,9 +102,18 @@ impl MemoryBus {
                 self.vram[offset % VRAM_SIZE]
             }
             0x0700_0000..=0x07FF_FFFF => self.oam[(address as usize - 0x0700_0000) % OAM_SIZE],
-            0x0800_0000..=0x0DFF_FFFF => self
+            // Each 32 MiB Game Pak wait-state region mirrors the ROM
+            // independently: regions 0x08/0x09, 0x0A/0x0B and 0x0C/0x0D
+            // all begin at ROM offset zero.
+            0x0800_0000..=0x09FF_FFFF => self
                 .cartridge
                 .read_rom_byte((address as usize - 0x0800_0000) % self.cartridge.len()),
+            0x0A00_0000..=0x0BFF_FFFF => self
+                .cartridge
+                .read_rom_byte((address as usize - 0x0A00_0000) % self.cartridge.len()),
+            0x0C00_0000..=0x0DFF_FFFF => self
+                .cartridge
+                .read_rom_byte((address as usize - 0x0C00_0000) % self.cartridge.len()),
             // GBA save SRAM occupies the 64 KiB window at 0x0E00_0000.
             // The following 0x0F region is not another SRAM mirror.
             0x0E00_0000..=0x0E00_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
@@ -340,6 +349,24 @@ mod tests {
         assert_eq!(bus.read8(0x0800_0000), 0xEA);
         bus.write8(0x0800_0000, 0x11);
         assert_eq!(bus.read8(0x0800_0000), 0xEA);
+    }
+
+    #[test]
+    fn rom_mirrors_from_the_start_in_each_game_pak_region() {
+        let mut rom = vec![0; 0xC0];
+        rom[0] = 0xEA;
+        rom[1] = 0x12;
+        rom[0xBD] = rom[0xA0..=0xBC]
+            .iter()
+            .fold(0x19_u8, |sum, byte| sum.wrapping_add(*byte))
+            .wrapping_neg();
+        let cartridge = GbaCartridge::parse(&rom).unwrap();
+        let bus = MemoryBus::new(cartridge);
+
+        for address in [0x0800_0000, 0x0A00_0000, 0x0C00_0000] {
+            assert_eq!(bus.read8(address), 0xEA, "ROM base at {address:#010X}");
+            assert_eq!(bus.read8(address + 1), 0x12, "ROM byte at {:#010X}", address + 1);
+        }
     }
 
     #[test]
