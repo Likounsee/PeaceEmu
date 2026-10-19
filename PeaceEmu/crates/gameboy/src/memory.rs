@@ -297,36 +297,77 @@ impl MemoryBus {
     /// HBlank, VBlank, and FIFO-triggered DMA remain enabled until their event
     /// scheduler is implemented.
     fn write_dma_control(&mut self, channel: usize, value: u16) {
-        if channel >= 4 { return; }
+        if channel >= 4 {
+            return;
+        }
         let base = 0xB0 + channel as u32 * 12;
         let control_offset = (base + 10) as usize;
-        let old = u16::from_le_bytes([self.io[control_offset], self.io[control_offset + 1]]);
+        let old = u16::from_le_bytes([
+            self.io[control_offset],
+            self.io[control_offset + 1],
+        ]);
         let control = value & 0xF7E0;
         self.io[control_offset..control_offset + 2].copy_from_slice(&control.to_le_bytes());
-        if control & 0x8000 == 0 || old & 0x8000 != 0 || (control >> 12) & 3 != 0 { return; }
+        if control & 0x8000 == 0 || old & 0x8000 != 0 || (control >> 12) & 3 != 0 {
+            return;
+        }
 
         let source_offset = base as usize;
         let destination_offset = (base + 4) as usize;
         let count_offset = (base + 8) as usize;
-        let source = u32::from_le_bytes(self.io[source_offset..source_offset + 4].try_into().unwrap());
-        let destination = u32::from_le_bytes(self.io[destination_offset..destination_offset + 4].try_into().unwrap());
-        let raw_count = u16::from_le_bytes([self.io[count_offset], self.io[count_offset + 1]]);
-        let count = if raw_count == 0 { if channel == 3 { 0x1_0000 } else { 0x4000 } } else { u32::from(raw_count) };
+        let source = u32::from_le_bytes(
+            self.io[source_offset..source_offset + 4]
+                .try_into()
+                .unwrap(),
+        );
+        let destination = u32::from_le_bytes(
+            self.io[destination_offset..destination_offset + 4]
+                .try_into()
+                .unwrap(),
+        );
+        let raw_count =
+            u16::from_le_bytes([self.io[count_offset], self.io[count_offset + 1]]);
+        let count = if raw_count == 0 {
+            if channel == 3 {
+                0x1_0000
+            } else {
+                0x4000
+            }
+        } else {
+            u32::from(raw_count)
+        };
         let word = control & (1 << 10) != 0;
         let step = if word { 4_u32 } else { 2_u32 };
         let source_mode = (control >> 7) & 3;
         let destination_mode = (control >> 5) & 3;
         let mut src = source & !(step - 1);
         let mut dst = destination & !(step - 1);
+
         for _ in 0..count {
-            if word { let data = self.read32(src); self.write32(dst, data); }
-            else { let data = self.read16(src); self.write16(dst, data); }
-            src = match source_mode { 1 => src.wrapping_sub(step), 2 => src, _ => src.wrapping_add(step) };
-            dst = match destination_mode { 1 => dst.wrapping_sub(step), 2 | 3 => dst, _ => dst.wrapping_add(step) };
+            if word {
+                let data = self.read32(src);
+                self.write32(dst, data);
+            } else {
+                let data = self.read16(src);
+                self.write16(dst, data);
+            }
+            src = match source_mode {
+                1 => src.wrapping_sub(step),
+                2 => src,
+                _ => src.wrapping_add(step),
+            };
+            dst = match destination_mode {
+                1 => dst.wrapping_sub(step),
+                2 | 3 => dst,
+                _ => dst.wrapping_add(step),
+            };
         }
-        if control & (1 << 14) != 0 { self.request_interrupt(1 << (8 + channel)); }
+        if control & (1 << 14) != 0 {
+            self.request_interrupt(1 << (8 + channel));
+        }
         // Immediate DMA is one-shot, even when the repeat bit is set.
-        self.io[control_offset..control_offset + 2].copy_from_slice(&(control & !(1 << 15)).to_le_bytes());
+        self.io[control_offset..control_offset + 2]
+            .copy_from_slice(&(control & !(1 << 15)).to_le_bytes());
     }
 
     /// Advances the PPU timing state by one CPU cycle.
@@ -1065,7 +1106,6 @@ mod tests {
         assert_eq!(bus.read16(0x0400_0004) & (1 << 2), 1 << 2);
         assert_eq!(bus.read16(0x0400_0202) & (1 << 2), 1 << 2);
     }
-
 
     #[test]
     fn immediate_dma_copies_halfwords_and_raises_optional_irq() {
