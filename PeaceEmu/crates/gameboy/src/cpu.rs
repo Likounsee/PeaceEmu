@@ -1742,10 +1742,10 @@ mod tests {
     #[test]
     fn arm_single_load_to_pc_includes_pipeline_refill_estimate() {
         let cpu = Cpu::new();
-        // LDR r0, [r1] remains a normal single data transfer.
-        assert_eq!(cpu.estimate_cycles(0xE591_0000), 2);
-        // LDR pc, [r1] also refills the pipeline after loading the target.
-        assert_eq!(cpu.estimate_cycles(0xE591_F000), 4);
+        // LDR r0, [r1] includes the instruction fetch and data read cycles.
+        assert_eq!(cpu.estimate_cycles(0xE591_0000), 3);
+        // LDR pc, [r1] also pays the pipeline refill after loading the target.
+        assert_eq!(cpu.estimate_cycles(0xE591_F000), 5);
         // STR pc, [r1] does not redirect execution.
         assert_eq!(cpu.estimate_cycles(0xE581_F000), 2);
     }
