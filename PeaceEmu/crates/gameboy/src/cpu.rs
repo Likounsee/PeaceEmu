@@ -154,10 +154,7 @@ impl Cpu {
         } else if instruction & 0x0FB0_FFF0 == 0x0120_F000
             || instruction & 0x0FB0_F000 == 0x0320_F000
         {
-            // MSR needs a complete CPSR/SPSR model (mode, interrupt masks,
-            // and banked exception state). Reject it rather than decoding it
-            // as an ordinary data-processing instruction.
-            return Err(CpuError::UnsupportedInstruction { address, instruction });
+            self.execute_msr(address, instruction)?;
         } else if instruction & 0x0FB0_0FF0 == 0x0100_0090 {
             self.execute_swap(address, instruction, bus)?;
         } else if instruction & 0x0F80_00F0 == 0x0080_0090 {
@@ -692,6 +689,37 @@ impl Cpu {
         }
         let displacement = (((instruction & 0x00FF_FFFF) << 8) as i32 >> 6) as u32;
         self.registers[15] = address.wrapping_add(8).wrapping_add(displacement) & !3;
+    }
+
+    /// Writes the modeled CPSR condition flags with MSR CPSR_f.
+    /// Control fields and SPSR writes require exception-mode state and remain unsupported.
+    fn execute_msr(&mut self, address: u32, instruction: u32) -> Result<(), CpuError> {
+        let saved_status = instruction & (1 << 22) != 0;
+        let field_mask = (instruction >> 16) & 0xF;
+        let immediate = instruction & (1 << 25) != 0;
+
+        if saved_status || field_mask & !0x8 != 0 {
+            return Err(CpuError::UnsupportedInstruction { address, instruction });
+        }
+        if field_mask == 0 {
+            return Ok(());
+        }
+
+        let value = if immediate {
+            (instruction & 0xFF).rotate_right(((instruction >> 8) & 0xF) * 2)
+        } else {
+            let rm = (instruction & 0xF) as usize;
+            if rm == 15 {
+                return Err(CpuError::UnsupportedInstruction { address, instruction });
+            }
+            self.registers[rm]
+        };
+
+        self.flags.negative = value >> 31 != 0;
+        self.flags.zero = value & (1 << 30) != 0;
+        self.flags.carry = value & (1 << 29) != 0;
+        self.flags.overflow = value & (1 << 28) != 0;
+        Ok(())
     }
 
     /// Executes ARM7TDMI SWP/SWPB. The read and write are performed as
@@ -1391,10 +1419,10 @@ mod tests {
     }
 
     #[test]
-    fn arm_mrs_rejects_spsr_and_msr_is_not_misdecoded_as_data_processing() {
+    fn arm_mrs_rejects_spsr_and_msr_control_fields_without_mutating_flags() {
         let mut bus = bus_with_program(&[
             0xE14F_2000, // MRS r2, SPSR (no SPSR model)
-            0xE129_F000, // MSR CPSR_f, r0
+            0xE121_F000, // MSR CPSR_c, r0 (control field not modeled)
         ]);
         let mut cpu = Cpu::new();
         cpu.reset(0x0200_0000);
@@ -1415,6 +1443,27 @@ mod tests {
         assert_eq!(cpu.flags().zero, true);
         assert_eq!(cpu.flags().carry, false);
         assert_eq!(cpu.flags().overflow, false);
+    }
+
+    #[test]
+    fn arm_msr_updates_cpsr_condition_flags_from_register_and_immediate() {
+        let mut bus = bus_with_program(&[
+            0xE129_F000, // MSR CPSR_f, r0
+            0xE328_FF00, // MSR CPSR_f, #0xF0000000 (rotated immediate)
+        ]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0xA000_0000);
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.flags(), ConditionFlags {
+            negative: true, zero: false, carry: true, overflow: false,
+        });
+
+        cpu.step(&mut bus).unwrap();
+        assert_eq!(cpu.flags(), ConditionFlags {
+            negative: true, zero: true, carry: true, overflow: true,
+        });
     }
 
     #[test]
