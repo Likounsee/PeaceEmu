@@ -310,14 +310,16 @@ impl Cpu {
         {
             return 3;
         }
+        // BX uses the same broad data-processing encoding space and has
+        // bit 4 set with bit 7 clear, but changes instruction state and
+        // refills the pipeline rather than performing a register shift.
+        if instruction & 0x0FFF_FFF0 == 0x012F_FF10 {
+            return 3;
+        }
         // Register-controlled operand shifts need an extra internal cycle
-        // on ARM7TDMI. Handle only ordinary data-processing encodings here;
-        // multiply, SWP, status-register operations and PC writes were matched
-        // above and retain their dedicated estimates.
-        // A register-controlled shift is identified by bit 4 set and bit 7
-        // clear in the register operand encoding. The mask already excludes
-        // multiply/SWP (bit 7 set) and MRS/MSR (bit 4 clear); keep the
-        // destination-PC case above so its pipeline refill remains accounted for.
+        // on ARM7TDMI. Restrict this estimate to encodings that the executor
+        // recognizes as ordinary data-processing operations; special
+        // encodings such as BX must retain their own timing above.
         if instruction & 0x0C00_0090 == 0x0000_0010
             && (instruction >> 12) & 0xF != 15
         {
@@ -2949,6 +2951,21 @@ mod tests {
         store_cpu.step(&mut store_bus).unwrap();
         assert_eq!(store_bus.read32(0x0200_0100), 0x0200_0004);
         assert_eq!(store_cpu.register(0), Some(0x0200_0140));
+    }
+
+    #[test]
+    fn arm_bx_cycle_estimate_includes_pipeline_refill() {
+        // BX r0 enters Thumb state and refills the pipeline.
+        let mut bus = bus_with_program(&[0xE12F_FF10]);
+        let mut cpu = Cpu::new();
+        cpu.reset(0x0200_0000);
+        cpu.set_register(0, 0x0200_0101);
+
+        let (_, cycles) = cpu.step_with_cycles(&mut bus).unwrap();
+
+        assert_eq!(cycles, 3);
+        assert!(cpu.is_thumb());
+        assert_eq!(cpu.register(15), Some(0x0200_0100));
     }
 
     #[test]
