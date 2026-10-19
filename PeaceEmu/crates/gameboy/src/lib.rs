@@ -10,8 +10,11 @@
 
 /// Game Boy Advance cartridge header parsing and validation.
 pub mod cartridge;
+/// Initial ARM7TDMI CPU implementation.
+pub mod cpu;
 /// Initial Game Boy Advance memory-bus implementation.
 pub mod memory;
 
 pub use cartridge::{CartridgeError, GbaCartridge};
+pub use cpu::{ConditionFlags, Cpu, CpuError, StepOutcome};
 pub use memory::MemoryBus;
