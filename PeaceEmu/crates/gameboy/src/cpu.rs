@@ -314,11 +314,12 @@ impl Cpu {
         // on ARM7TDMI. Handle only ordinary data-processing encodings here;
         // multiply, SWP, status-register operations and PC writes were matched
         // above and retain their dedicated estimates.
+        // A register-controlled shift is identified by bit 4 set and bit 7
+        // clear in the register operand encoding. The mask already excludes
+        // multiply/SWP (bit 7 set) and MRS/MSR (bit 4 clear); keep the
+        // destination-PC case above so its pipeline refill remains accounted for.
         if instruction & 0x0C00_0090 == 0x0000_0010
             && (instruction >> 12) & 0xF != 15
-            && instruction & 0x0FBF_0FFF != 0x010F_0000
-            && instruction & 0x0FB0_FFF0 != 0x0120_F000
-            && instruction & 0x0FB0_F000 != 0x0320_F000
         {
             return 2;
         }
