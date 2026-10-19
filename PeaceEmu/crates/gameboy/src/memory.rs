@@ -303,10 +303,7 @@ impl MemoryBus {
         }
         let base = 0xB0 + channel as u32 * 12;
         let control_offset = (base + 10) as usize;
-        let old = u16::from_le_bytes([
-            self.io[control_offset],
-            self.io[control_offset + 1],
-        ]);
+        let old = u16::from_le_bytes([self.io[control_offset], self.io[control_offset + 1]]);
         let control = value & 0xF7E0;
         self.io[control_offset..control_offset + 2].copy_from_slice(&control.to_le_bytes());
         if control & 0x8000 == 0 || old & 0x8000 != 0 {
@@ -347,8 +344,7 @@ impl MemoryBus {
                 .try_into()
                 .unwrap(),
         );
-        let raw_count =
-            u16::from_le_bytes([self.io[count_offset], self.io[count_offset + 1]]);
+        let raw_count = u16::from_le_bytes([self.io[count_offset], self.io[count_offset + 1]]);
         let count = if raw_count == 0 {
             if channel == 3 {
                 0x1_0000
@@ -1183,7 +1179,6 @@ mod tests {
         assert_eq!(bus.read16(0x0300_0000), 0);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
     }
-
 
     #[test]
     fn vblank_dma_transfers_only_when_vblank_begins_and_repeats_when_configured() {
