@@ -1226,7 +1226,7 @@ mod tests {
     #[test]
     fn bitmap_modes_reject_obj_tiles_overlapping_framebuffer_memory() {
         let mut bus = bus();
-        bus.write16(0x0400_0000, 3 | (1 << 12)); // mode 3, OBJ enabled
+        bus.write16(0x0400_0000, 3 | (1 << 10) | (1 << 12)); // mode 3, BG2 and OBJ enabled
         bus.write16(VRAM_BASE, 0x03E0); // BG2 pixel is green
         bus.write16(0x0601_0000, 0x0001); // tile 0 overlaps the bitmap-reserved OBJ area
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
