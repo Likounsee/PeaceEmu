@@ -124,9 +124,7 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             );
             // Palette RAM is unchanged during this snapshot render. Resolve it
             // once rather than issuing another bus read for every framebuffer pixel.
-            let palette: [u32; 256] = std::array::from_fn(|index| {
-                rgb555(bus.read16(PALETTE_BASE + (index as u32) * 2))
-            });
+            let palette = palette_snapshot(bus);
             frame.pixels.fill(palette[0]);
             for y in 0..SCREEN_HEIGHT {
                 for x in 0..SCREEN_WIDTH {
@@ -251,6 +249,7 @@ fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut 
     let mosaic = bus.read16(0x0400_004C);
     let mosaic_width = u32::from((mosaic & 0xF) + 1);
     let mosaic_height = u32::from(((mosaic >> 4) & 0xF) + 1);
+    let palette = palette_snapshot(bus);
 
     for y in 0..SCREEN_HEIGHT {
         let screen_y = if mosaic_enabled {
@@ -293,7 +292,7 @@ fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut 
             let palette_index = u32::from(bus.read8(tile_address));
             if palette_index != 0 {
                 frame.pixels[y * SCREEN_WIDTH + x] =
-                    rgb555(bus.read16(PALETTE_BASE + palette_index * 2));
+                    palette[palette_index as usize];
             }
         }
     }
@@ -301,6 +300,10 @@ fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut 
 
 fn sign_extend_28(value: u32) -> i32 {
     ((value << 4) as i32) >> 4
+}
+
+fn palette_snapshot(bus: &MemoryBus) -> [u32; 256] {
+    std::array::from_fn(|index| rgb555(bus.read16(PALETTE_BASE + (index as u32) * 2)))
 }
 
 fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut VideoFrame) {
@@ -323,6 +326,7 @@ fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut Vi
     let mosaic_width = u32::from((mosaic & 0xF) + 1);
     let mosaic_height = u32::from(((mosaic >> 4) & 0xF) + 1);
     let map_blocks_per_row = map_width / 256;
+    let palette = palette_snapshot(bus);
 
     for y in 0..SCREEN_HEIGHT {
         let screen_y = if mosaic_enabled {
@@ -384,7 +388,7 @@ fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut Vi
             // makes its absolute palette index nonzero.
             if !transparent {
                 frame.pixels[y * SCREEN_WIDTH + x] =
-                    rgb555(bus.read16(PALETTE_BASE + palette_index * 2));
+                    palette[palette_index as usize];
             }
         }
     }
