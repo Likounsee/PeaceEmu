@@ -82,34 +82,35 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             let mosaic = bus.read16(0x0400_004C);
             let mosaic_width = usize::from((mosaic & 0xF) + 1);
             let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
+            frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
             for y in 0..SCREEN_HEIGHT {
-                let source_y = if mosaic_enabled { y / mosaic_height * mosaic_height } else { y };
                 for x in 0..SCREEN_WIDTH {
-                    let source_x = if mosaic_enabled { x / mosaic_width * mosaic_width } else { x };
+                    let Some((source_x, source_y)) = bitmap_source_coordinates(
+                        bus, x, y, SCREEN_WIDTH, SCREEN_HEIGHT, mosaic_enabled,
+                        mosaic_width, mosaic_height, display_control & (1 << 13) != 0,
+                    ) else { continue; };
                     let address = VRAM_BASE + ((source_y * SCREEN_WIDTH + source_x) * 2) as u32;
                     frame.pixels[y * SCREEN_WIDTH + x] = rgb555(bus.read16(address));
                 }
             }
         }
         4 => {
-            let page_offset = if display_control & (1 << 4) != 0 {
-                0xA000
-            } else {
-                0
-            };
+            let page_offset = if display_control & (1 << 4) != 0 { 0xA000 } else { 0 };
             let bg2_control = bus.read16(BG0CNT + 4);
             let mosaic_enabled = bg2_control & (1 << 6) != 0;
             let mosaic = bus.read16(0x0400_004C);
             let mosaic_width = usize::from((mosaic & 0xF) + 1);
             let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
+            frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
             for y in 0..SCREEN_HEIGHT {
-                let source_y = if mosaic_enabled { y / mosaic_height * mosaic_height } else { y };
                 for x in 0..SCREEN_WIDTH {
-                    let source_x = if mosaic_enabled { x / mosaic_width * mosaic_width } else { x };
+                    let Some((source_x, source_y)) = bitmap_source_coordinates(
+                        bus, x, y, SCREEN_WIDTH, SCREEN_HEIGHT, mosaic_enabled,
+                        mosaic_width, mosaic_height, display_control & (1 << 13) != 0,
+                    ) else { continue; };
                     let address = VRAM_BASE + page_offset + (source_y * SCREEN_WIDTH + source_x) as u32;
                     let index = u32::from(bus.read8(address));
-                    let color = bus.read16(PALETTE_BASE + index * 2);
-                    frame.pixels[y * SCREEN_WIDTH + x] = rgb555(color);
+                    frame.pixels[y * SCREEN_WIDTH + x] = rgb555(bus.read16(PALETTE_BASE + index * 2));
                 }
             }
         }
@@ -129,13 +130,14 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             let mosaic_width = usize::from((mosaic & 0xF) + 1);
             let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
             for y in 0..MODE_5_HEIGHT {
-                let source_y = if mosaic_enabled { y / mosaic_height * mosaic_height } else { y };
                 for x in 0..MODE_5_WIDTH {
-                    let source_x = if mosaic_enabled { x / mosaic_width * mosaic_width } else { x };
+                    let Some((source_x, source_y)) = bitmap_source_coordinates(
+                        bus, x, y, MODE_5_WIDTH, MODE_5_HEIGHT, mosaic_enabled,
+                        mosaic_width, mosaic_height, display_control & (1 << 13) != 0,
+                    ) else { continue; };
                     let address = VRAM_BASE + page_offset + ((source_y * MODE_5_WIDTH + source_x) * 2) as u32;
                     let target = (y + (SCREEN_HEIGHT - MODE_5_HEIGHT) / 2) * SCREEN_WIDTH
-                        + x
-                        + (SCREEN_WIDTH - MODE_5_WIDTH) / 2;
+                        + x + (SCREEN_WIDTH - MODE_5_WIDTH) / 2;
                     frame.pixels[target] = rgb555(bus.read16(address));
                 }
             }
@@ -549,6 +551,32 @@ fn render_regular_objects(
     }
 }
 
+/// Maps a screen pixel through BG2's affine matrix into bitmap VRAM.
+fn bitmap_source_coordinates(
+    bus: &MemoryBus, x: usize, y: usize, width: usize, height: usize,
+    mosaic_enabled: bool, mosaic_width: usize, mosaic_height: usize, wrap: bool,
+) -> Option<(usize, usize)> {
+    let x = if mosaic_enabled { x / mosaic_width * mosaic_width } else { x };
+    let y = if mosaic_enabled { y / mosaic_height * mosaic_height } else { y };
+    let pa = i32::from(bus.read16(0x0400_0020) as i16);
+    let pb = i32::from(bus.read16(0x0400_0022) as i16);
+    let pc = i32::from(bus.read16(0x0400_0024) as i16);
+    let pd = i32::from(bus.read16(0x0400_0026) as i16);
+    let reference_x = sign_extend_28(u32::from(bus.read16(0x0400_0028))
+        | (u32::from(bus.read16(0x0400_002A) & 0x0FFF) << 16));
+    let reference_y = sign_extend_28(u32::from(bus.read16(0x0400_002C))
+        | (u32::from(bus.read16(0x0400_002E) & 0x0FFF) << 16));
+    let source_x = (reference_x + pa * x as i32 + pb * y as i32) >> 8;
+    let source_y = (reference_y + pc * x as i32 + pd * y as i32) >> 8;
+    if wrap {
+        Some((source_x.rem_euclid(width as i32) as usize, source_y.rem_euclid(height as i32) as usize))
+    } else if source_x < 0 || source_y < 0 || source_x >= width as i32 || source_y >= height as i32 {
+        None
+    } else {
+        Some((source_x as usize, source_y as usize))
+    }
+}
+
 fn rgb555(color: u16) -> u32 {
     let red = u32::from(color & 0x1F);
     let green = u32::from((color >> 5) & 0x1F);
@@ -628,6 +656,33 @@ mod tests {
         assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
         assert_eq!(frame.pixel(0, 1), Some(0xFFFF_0000));
         assert_eq!(frame.pixel(2, 0), Some(0xFF00_FF00));
+    }
+
+    #[test]
+    fn bitmap_mode3_uses_bg2_affine_matrix() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 3 | (1 << 10));
+        bus.write16(0x0400_0020, 0x0100);
+        bus.write16(0x0400_0026, 0x0100);
+        bus.write16(VRAM_BASE, 0x001F);
+        bus.write16(VRAM_BASE + 2, 0x03E0);
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_FF00));
+    }
+
+    #[test]
+    fn bitmap_mode3_affine_reference_clips_without_overflow_wrap() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 3 | (1 << 10));
+        bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop
+        bus.write16(0x0400_0020, 0x0100);
+        bus.write16(0x0400_0028, 0xFFFF); // source x starts at -1
+        bus.write16(0x0400_002A, 0x0FFF);
+        bus.write16(VRAM_BASE, 0x001F);
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_00FF));
+        assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
     }
 
     #[test]
