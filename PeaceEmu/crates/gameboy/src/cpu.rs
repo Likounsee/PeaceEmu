@@ -2549,10 +2549,7 @@ mod tests {
             Cpu::shift_register(0x8000_0001, 3, 32),
             (0x8000_0001, Some(true))
         );
-        assert_eq!(
-            Cpu::shift_register(0x8000_0001, 0, 0),
-            (0x8000_0001, None)
-        );
+        assert_eq!(Cpu::shift_register(0x8000_0001, 0, 0), (0x8000_0001, None));
     }
 
     #[test]
