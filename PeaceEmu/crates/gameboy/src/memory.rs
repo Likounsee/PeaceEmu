@@ -304,7 +304,9 @@ impl MemoryBus {
         let base = 0xB0 + channel as u32 * 12;
         let control_offset = (base + 10) as usize;
         let old = u16::from_le_bytes([self.io[control_offset], self.io[control_offset + 1]]);
-        let control = value & 0xF7E0;
+        // DMA3 alone implements bit 11 (Game Pak DRQ); it is reserved on DMA0–2.
+        let control_mask = if channel == 3 { 0xFFE0 } else { 0xF7E0 };
+        let control = value & control_mask;
         self.io[control_offset..control_offset + 2].copy_from_slice(&control.to_le_bytes());
         if control & 0x8000 == 0 || old & 0x8000 != 0 {
             return;
@@ -1233,6 +1235,17 @@ mod tests {
         assert_eq!(bus.read32(0x0300_0000), 0x1111_2222);
         assert_eq!(bus.read32(0x0300_0004), 0x3333_4444);
         assert_eq!(bus.read32(0x0400_00B4), 0x0300_0008);
+    }
+
+    #[test]
+    fn dma3_preserves_game_pak_drq_control_bit_but_dma0_masks_it() {
+        let mut bus = MemoryBus::new(cartridge());
+
+        bus.write16(0x0400_00BA, 0x9800); // DMA0: reserved bit 11, VBlank, enabled
+        assert_eq!(bus.read16(0x0400_00BA) & 0x0800, 0);
+
+        bus.write16(0x0400_00DE, 0x9800); // DMA3: Game Pak DRQ, VBlank, enabled
+        assert_eq!(bus.read16(0x0400_00DE) & 0x0800, 0x0800);
     }
 
     #[test]
