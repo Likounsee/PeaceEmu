@@ -847,14 +847,14 @@ mod tests {
         bus.write16(0x0601_4000, 0x0001); // OBJ tile pixel 0: palette index 1
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
         bus.write16(0x0700_0000, 0); // visible, regular 8x8 OBJ
+        bus.write16(0x0700_0002, 0); // regular 8x8 sprite, no flips
         bus.write16(0x0700_0004, 1 << 10); // priority 1, behind bitmap BG2
-        bus.write16(0x0700_0004, 0);
 
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
 
         // Priority zero remains in front of the bitmap framebuffer.
-        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
     }
