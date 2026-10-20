@@ -875,7 +875,7 @@ mod tests {
         bus.write16(0x0601_4002, 0x0000); // next pixels transparent
         bus.write16(0x0700_0000, 0);
         bus.write16(0x0700_0002, 0);
-        bus.write16(0x0700_0004, 0);
+        bus.write16(0x0700_0004, 512); // first valid OBJ tile in bitmap modes
 
         let frame = render_bitmap_frame(&bus).expect("mode 4 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
@@ -891,7 +891,7 @@ mod tests {
         bus.write16(0x0601_4000, 0x0001);
         bus.write16(0x0700_0000, 0);
         bus.write16(0x0700_0002, 0);
-        bus.write16(0x0700_0004, 0);
+        bus.write16(0x0700_0004, 512); // first valid OBJ tile in bitmap modes
 
         let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
