@@ -16,7 +16,7 @@ The CI workflow runs formatting, locked tests, warning-free documentation genera
 
 ## Current test coverage
 
-The core contract crate tests canonical and malformed identifiers (including whitespace, non-ASCII characters and invalid separators), default-false capability declarations, registry lookup and creation, duplicate registration without mutation, deterministic enumeration order, descriptor/key mismatch rejection, stable display messages for every public identifier, core-operation and registry error variant, empty-registry behavior, and explicit unsupported save/load-state behavior. Registry factory tests verify that the factory is invoked on each creation request. The Game Boy crate now tests CPU register/flag primitives (reserved F bits, register-pair ordering, INC/DEC flag behavior and ADD/SUB flags), but has no instruction execution, bus, timing, graphics, audio, controller or console compatibility tests yet.
+The core contract crate tests canonical and malformed identifiers (including whitespace, non-ASCII characters and invalid separators), default-false capability declarations, registry lookup and creation, duplicate registration without mutation, deterministic enumeration order, descriptor/key mismatch rejection, stable display messages for every public identifier, core-operation and registry error variant, empty-registry behavior, and explicit unsupported save/load-state behavior. Registry factory tests verify that the factory is invoked on each creation request. Console-specific test suites live in their respective module repositories. Host CI validates shared contracts and integration behavior; it does not establish console compatibility.
 
 ## Future core tests
 
