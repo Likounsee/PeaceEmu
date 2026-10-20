@@ -254,6 +254,8 @@ mod flash_tests {
         unlock_flash(&mut flash);
         flash.write(0x5555, 0xA0);
         flash.write(0x1234, 0x00);
+        unlock_flash(&mut flash);
+        flash.write(0x5555, 0xA0);
         flash.write(0x2234, 0x00);
 
         unlock_flash(&mut flash);
