@@ -1256,11 +1256,10 @@ mod tests {
     #[test]
     fn dma_control_low_byte_writes_apply_reserved_bit_mask() {
         let mut bus = MemoryBus::new(cartridge());
-        // DMA0 low control byte contains source/destination address modes and
-        // transfer width; reserved bits 3–4 must not survive byte writes.
+        // Only control bits 5–7 are writable in the low byte; bits 0–4
+        // are reserved and must be masked even for STRB writes.
         bus.write8(0x0400_00BA, 0xFF);
-        assert_eq!(bus.read16(0x0400_00BA) & 0x0018, 0);
-        assert_eq!(bus.read16(0x0400_00BA) & 0x00E7, 0x00E7);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x00FF, 0x00E0);
 
         // The low-byte path must preserve the high byte, including enable.
         bus.write8(0x0400_00BB, 0x80);
