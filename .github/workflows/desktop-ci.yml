@@ -8,7 +8,6 @@ on:
       - "PeaceEmu/crates/desktop/**"
       - "PeaceEmu/crates/app/**"
       - "PeaceEmu/crates/core/**"
-      - "PeaceEmu/crates/game-boy/**"
       - "PeaceEmu/crates/windows-durability/**"
       - "PeaceEmu/Cargo.toml"
       - "PeaceEmu/Cargo.lock"
