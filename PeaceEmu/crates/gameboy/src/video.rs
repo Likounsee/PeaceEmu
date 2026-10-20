@@ -634,6 +634,7 @@ mod tests {
         bus.write16(BG0CNT + 4, 1 << 6);
         bus.write16(0x0400_004C, 1 | (1 << 4));
         bus.write16(VRAM_BASE, 0x0201); // index 1 then index 2
+        bus.write16(VRAM_BASE + 2, 0x0002); // index 2 at pixel 2
         bus.write16(PALETTE_BASE + 2, 0x001F); // red
         bus.write16(PALETTE_BASE + 4, 0x03E0); // green
 
