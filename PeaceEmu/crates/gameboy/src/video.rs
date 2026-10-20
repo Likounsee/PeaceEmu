@@ -910,7 +910,8 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 3 | (1 << 12)); // Mode 3, OBJ enabled
         bus.write16(BG0CNT + 4, 2); // BG2 priority 2
-        bus.write16(VRAM_BASE, 0x03E0); // bitmap backdrop pixel green
+        bus.write16(VRAM_BASE, 0x03E0); // bitmap pixel 0 green
+        bus.write16(VRAM_BASE + 8 * 2, 0x03E0); // bitmap pixel 8 green too
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
         bus.write16(PALETTE_BASE + 0x204, 0x7C00); // OBJ index 2: blue
         bus.write16(0x0601_4000, 0x1111); // tile 0: red
