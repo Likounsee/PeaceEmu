@@ -1040,6 +1040,25 @@ mod tests {
     }
 
     #[test]
+    fn regular_obj_8bpp_uses_even_tile_index_and_palette_indices() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
+        bus.write16(PALETTE_BASE + 0x204, 0x03E0); // OBJ index 2: green
+        // An 8bpp tile occupies 64 bytes and its tile number is rounded down
+        // to an even 32-byte slot.
+        bus.write16(0x0601_0000, 0x0201);
+        bus.write16(0x0700_0000, 1 << 13); // 8bpp OBJ
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 1); // odd tile index aliases tile 0
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(2, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
     fn affine_obj_identity_matrix_renders_regular_sprite_coordinates() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled

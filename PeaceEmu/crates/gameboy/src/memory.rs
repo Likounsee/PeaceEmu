@@ -295,8 +295,8 @@ impl MemoryBus {
 
     /// Writes a DMA control register and performs immediate-timing transfers.
     ///
-    /// HBlank, VBlank, and FIFO-triggered DMA remain enabled until their event
-    /// scheduler is implemented.
+    /// HBlank and VBlank requests are driven by video timing. FIFO DMA and the
+    /// external Game Pak DRQ request line are not modeled yet.
     fn write_dma_control(&mut self, channel: usize, value: u16) {
         if channel >= 4 {
             return;
