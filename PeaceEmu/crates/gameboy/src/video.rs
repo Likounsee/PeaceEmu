@@ -1005,8 +1005,8 @@ mod tests {
         bus.write16(0x0700_0000, 1 << 12); // OBJ mosaic enabled
         bus.write16(0x0700_0002, 0);
         bus.write16(0x0700_0004, 0);
-        bus.write8(0x0601_0000, 0x21); // source pixels 1, 2
-        bus.write8(0x0601_0004, 0x43); // next source row: pixels 3, 4
+        bus.write16(0x0601_0000, 0x0021); // source pixels 1, 2; next byte is zero
+        bus.write16(0x0601_0004, 0x0043); // next source row: pixels 3, 4
         bus.write16(PALETTE_BASE + 0x202, 0x001F);
         bus.write16(PALETTE_BASE + 0x204, 0x03E0);
         bus.write16(PALETTE_BASE + 0x206, 0x7C00);
