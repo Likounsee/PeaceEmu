@@ -14,10 +14,13 @@ pub mod cartridge;
 pub mod cpu;
 /// Initial Game Boy Advance memory-bus implementation.
 pub mod memory;
+/// Cartridge backup-device detection from ROM signatures.
+pub mod save;
 
 pub use cartridge::{CartridgeError, GbaCartridge};
 pub use cpu::{ConditionFlags, Cpu, CpuError, StepOutcome};
 pub use memory::{MemoryBus, SramSizeError};
+pub use save::SaveType;
 
 /// Initial bitmap-mode renderer for the Game Boy Advance display.
 pub mod video;
