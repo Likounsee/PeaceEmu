@@ -1334,14 +1334,15 @@ mod tests {
     fn hblank_dma_does_not_trigger_during_vblank_scanlines() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0200_0000, 0xCAFE);
+
+        // Reach VBlank before enabling HBlank DMA so earlier visible-line
+        // HBlank requests cannot consume the one-word transfer.
+        bus.advance_cycles(1232 * 160);
+        assert_eq!(bus.read16(0x0400_0006), 160);
         bus.write32(0x0400_00B0, 0x0200_0000);
         bus.write32(0x0400_00B4, 0x0300_0000);
         bus.write16(0x0400_00B8, 1);
         bus.write16(0x0400_00BA, 0xA000); // enable HBlank DMA
-
-        // Reach the first VBlank scanline without entering HBlank on it.
-        bus.advance_cycles(1232 * 160);
-        assert_eq!(bus.read16(0x0400_0006), 160);
         bus.advance_cycles(960);
 
         assert_eq!(bus.read16(0x0300_0000), 0);
