@@ -66,7 +66,7 @@ The initial module planner is not itself an installer or security boundary. The 
 
 ## Current truth about supported systems
 
-The Game Boy DMG crate currently parses cartridge-header metadata only. It does not run games and must remain marked `in-development` in any user-facing catalogue until the CPU, memory bus, timers, graphics, input and required execution tests are implemented. No placeholder package should be labelled as a working emulator.
+Console-specific code is developed in separate module repositories and is not bundled in the host workspace. A module must remain marked `in-development` until its implementation and reproducible execution tests justify a stronger status. No placeholder package should be labelled as a working emulator.
 
 ## Implementation sequence
 
