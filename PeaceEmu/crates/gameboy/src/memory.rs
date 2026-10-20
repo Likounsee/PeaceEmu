@@ -333,10 +333,7 @@ impl MemoryBus {
             // DRQ line is modeled, leave such transfers pending rather than
             // incorrectly firing them from the video scheduler.
             let game_pak_drq = channel == 3 && control & (1 << 11) != 0;
-            if control & 0x8000 != 0
-                && !game_pak_drq
-                && (control >> 12) & 3 == timing
-            {
+            if control & 0x8000 != 0 && !game_pak_drq && (control >> 12) & 3 == timing {
                 self.perform_dma_transfer(channel as usize, control);
             }
         }
