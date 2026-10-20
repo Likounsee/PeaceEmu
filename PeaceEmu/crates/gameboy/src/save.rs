@@ -143,8 +143,8 @@ impl FlashDevice {
         if self.id_mode {
             // Common Macronix-compatible IDs used by GBA Flash cartridges.
             return match (address, self.data.len()) {
-                (0, 64_000..=65_536) => 0xC2,
-                (1, 64_000..=65_536) => 0x1C,
+                (0, 64 * 1024) => 0xC2,
+                (1, 64 * 1024) => 0x1C,
                 (0, _) => 0x62,
                 (1, _) => 0x13,
                 _ => 0xFF,
