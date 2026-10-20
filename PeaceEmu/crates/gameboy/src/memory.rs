@@ -324,7 +324,15 @@ impl MemoryBus {
                 self.io[control_offset as usize],
                 self.io[control_offset as usize + 1],
             ]);
-            if control & 0x8000 != 0 && (control >> 12) & 3 == timing {
+            // DMA3 Game Pak DRQ selects an external request source, not
+            // the normal VBlank/HBlank/FIFO timing events. Until the cartridge
+            // DRQ line is modeled, leave such transfers pending rather than
+            // incorrectly firing them from the video scheduler.
+            let game_pak_drq = channel == 3 && control & (1 << 11) != 0;
+            if control & 0x8000 != 0
+                && !game_pak_drq
+                && (control >> 12) & 3 == timing
+            {
                 self.perform_dma_transfer(channel as usize, control);
             }
         }
@@ -1251,6 +1259,21 @@ mod tests {
 
         bus.write16(0x0400_00DE, 0x9800); // DMA3: Game Pak DRQ, VBlank, enabled
         assert_eq!(bus.read16(0x0400_00DE) & 0x0800, 0x0800);
+    }
+
+    #[test]
+    fn dma3_game_pak_drq_waits_for_external_request_not_vblank() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0xCAFE);
+        bus.write32(0x0400_00D4, 0x0200_0000);
+        bus.write32(0x0400_00D8, 0x0300_0000);
+        bus.write16(0x0400_00DC, 1);
+        bus.write16(0x0400_00DE, 0x9800); // DMA3 DRQ + VBlank selector + enable
+
+        bus.advance_cycles(1232 * 160);
+
+        assert_eq!(bus.read16(0x0300_0000), 0);
+        assert_eq!(bus.read16(0x0400_00DE) & 0x8000, 0x8000);
     }
 
     #[test]
