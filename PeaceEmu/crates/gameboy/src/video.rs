@@ -325,6 +325,9 @@ fn render_regular_objects(
     let mode = display_control & 7;
     let obj_vram_base: u32 = if mode >= 3 { 0x0601_4000 } else { 0x0601_0000 };
     let one_dimensional = display_control & (1 << 6) != 0;
+    let mosaic = bus.read16(0x0400_004C);
+    let object_mosaic_width = u32::from(((mosaic >> 8) & 0xF) + 1);
+    let object_mosaic_height = u32::from(((mosaic >> 12) & 0xF) + 1);
 
     for index in (0..128_u32).rev() {
         let base = OAM_BASE + index * 8;
@@ -381,6 +384,7 @@ fn render_regular_objects(
         let palette_bank = u32::from((attr2 >> 12) & 0xF);
         let hflip = attr1 & (1 << 12) != 0;
         let vflip = attr1 & (1 << 13) != 0;
+        let mosaic_enabled = attr0 & (1 << 12) != 0;
         let row_stride = if one_dimensional {
             (width / 8) * if color_8bpp { 2 } else { 1 }
         } else {
@@ -392,13 +396,31 @@ fn render_regular_objects(
             if !(0..SCREEN_HEIGHT as i32).contains(&screen_y) {
                 continue;
             }
-            let source_y = if vflip { height - 1 - dy } else { dy };
+            let sampled_y = if mosaic_enabled {
+                (dy / object_mosaic_height) * object_mosaic_height
+            } else {
+                dy
+            };
+            let source_y = if vflip {
+                height - 1 - sampled_y
+            } else {
+                sampled_y
+            };
             for dx in 0..width {
                 let screen_x = origin_x + dx as i32;
                 if !(0..SCREEN_WIDTH as i32).contains(&screen_x) {
                     continue;
                 }
-                let source_x = if hflip { width - 1 - dx } else { dx };
+                let sampled_x = if mosaic_enabled {
+                    (dx / object_mosaic_width) * object_mosaic_width
+                } else {
+                    dx
+                };
+                let source_x = if hflip {
+                    width - 1 - sampled_x
+                } else {
+                    sampled_x
+                };
                 let tile_x = source_x / 8;
                 let tile_y = source_y / 8;
                 let slot =
@@ -892,6 +914,27 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
         assert_eq!(frame.pixel(0, 7), Some(0xFFFF_0000));
+    }
+
+    #[test]
+    fn regular_obj_mosaic_repeats_source_pixels_and_rows() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, (1 << 6) | (1 << 12)); // OBJ enabled, 1D mapping
+        bus.write16(0x0400_004C, 1 << 8 | 1 << 12); // OBJ mosaic 2x2
+        bus.write16(0x0700_0000, 1 << 12); // OBJ mosaic enabled
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+        bus.write8(0x0601_0000, 0x21); // source pixels 1, 2
+        bus.write8(0x0601_0004, 0x43); // next source row: pixels 3, 4
+        bus.write16(PALETTE_BASE + 0x202, 0x001F);
+        bus.write16(PALETTE_BASE + 0x204, 0x03E0);
+        bus.write16(PALETTE_BASE + 0x206, 0x7C00);
+        bus.write16(PALETTE_BASE + 0x208, 0x7FFF);
+
+        let frame = render_bitmap_frame(&bus).unwrap();
+        assert_eq!(frame.pixel(0, 0), frame.pixel(1, 0));
+        assert_eq!(frame.pixel(0, 0), frame.pixel(0, 1));
+        assert_ne!(frame.pixel(0, 0), frame.pixel(2, 0));
     }
 
     #[test]
