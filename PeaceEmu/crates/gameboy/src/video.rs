@@ -64,6 +64,16 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
         return Some(frame);
     }
 
+    // Bitmap modes use BG2 as their framebuffer plane. If BG2 is disabled,
+    // show the backdrop color instead; OBJ pixels can still appear over it.
+    if mode >= 3 && display_control & (1 << 10) == 0 {
+        frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
+        for priority in (0..=3).rev() {
+            render_regular_objects(bus, display_control, priority, &mut frame);
+        }
+        return Some(frame);
+    }
+
     match mode {
         0..=2 => render_text_backgrounds(bus, display_control, &mut frame),
         3 => {
@@ -531,6 +541,18 @@ mod tests {
             bus.write16(0x0700_0000 + index * 8, 1 << 9);
         }
         bus
+    }
+
+    #[test]
+    fn bitmap_modes_show_palette_backdrop_when_bg2_is_disabled() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 3); // Mode 3, BG2 intentionally disabled.
+        bus.write16(PALETTE_BASE, 0x03E0); // backdrop green
+        bus.write16(VRAM_BASE, 0x001F); // framebuffer pixel is red but must be hidden.
+
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(239, 159), Some(0xFF00_FF00));
     }
 
     #[test]
