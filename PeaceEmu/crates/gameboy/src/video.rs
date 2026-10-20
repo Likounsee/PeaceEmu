@@ -599,6 +599,10 @@ mod tests {
             .fold(0x19_u8, |sum, byte| sum.wrapping_add(*byte))
             .wrapping_neg();
         let mut bus = MemoryBus::new(GbaCartridge::parse(&rom).expect("valid test ROM"));
+        // Keep bitmap-mode tests on the default untransformed BG2 plane unless
+        // a test explicitly programs a different affine matrix.
+        bus.write16(0x0400_0020, 0x0100); // BG2 PA = 1.0
+        bus.write16(0x0400_0026, 0x0100); // BG2 PD = 1.0
         // Real software initializes unused OAM entries as disabled. Keeping
         // the test bus deterministic prevents default all-zero entries from
         // aliasing tile 0 and overwriting the sprite under test.
