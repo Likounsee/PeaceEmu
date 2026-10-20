@@ -1526,7 +1526,7 @@ mod tests {
     fn sound_fifo_waits_for_master_enable_and_selected_timer() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write32(0x0400_00A0, 0x4433_2211);
-        bus.write16(0x0400_0082, (1 << 8) | (1 << 10)); // FIFO A uses timer 0.
+        bus.write16(0x0400_0082, 1 << 8); // FIFO A uses timer 0 (select bit clear).
 
         // Timer 1 overflow must not clock a FIFO assigned to timer 0.
         bus.write16(0x0400_0104, 0xFFFF);
@@ -1569,7 +1569,7 @@ mod tests {
     fn sound_timer_overflow_requests_fifo_dma_in_four_word_burst() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0400_0084, 0x0080);
-        bus.write16(0x0400_0082, (1 << 8) | (1 << 10));
+        bus.write16(0x0400_0082, 1 << 8); // FIFO A uses timer 0.
         for i in 0..4_u32 {
             bus.write32(0x0200_0000 + i * 4, 0x1111_1111 * (i + 1));
             bus.write32(0x0400_00A0, 0x8081_8283 + i * 0x0404_0404);
