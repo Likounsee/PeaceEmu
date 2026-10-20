@@ -30,7 +30,7 @@
 
 The shared Rust core crate defines validated system identifiers, capability metadata, a core registry, an independent-session lifecycle controller, bounded execution requests, common media payloads, and host-side input state with duplicate-transition suppression and explicit release recovery. Module selection/state persistence and host performance planning are also present as foundations. Runtime tests cover lifecycle transitions, error recovery, independent session creation, and shared input-state behavior.
 
-The Game Boy module is one unified `game-boy` target with cartridge-header classification for DMG-only, dual-compatible, and CGB-only titles. The core now has an initial LR35902 instruction subset connected to a deliberately limited memory bus for ROM-only (mapper 0) cartridges. It can execute simple instructions from the cartridge entry point, but has no PPU/frame output, timer/interrupt controller, audio, joypad hardware, mapper banking, or complete opcode coverage. This is a development milestone, not playable-game support; no system is currently claimed as supported.
+Console-specific implementations are developed in separate module repositories and are not embedded in this host repository. This repository focuses on the shared runtime, module contracts, desktop application, integration, and packaging. No system is currently claimed as supported.
 
 ## Build and test
 
@@ -55,7 +55,7 @@ Development priority is the **global emulator framework**, not expanding one con
 3. **P1 — Minimal host application:** select content and module, launch/pause/stop sessions, and surface diagnostics.
 4. **P2 — Security and diagnostics:** trusted module/catalogue handling, safe installation and recovery, structured errors, fuzzing, and dependency/package checks.
 5. **P3 — Measured quality:** conformance tests, long-run stability, reproducible benchmarks, and profiling-led optimization.
-6. **P4 — Expand systems:** add independently tested cores only after shared interfaces are stable. Game Boy remains a validation target, not the focus of the global roadmap.
+6. **P4 — Expand systems:** add independently tested cores only after shared interfaces are stable. Console implementations remain separate module repositories, not part of the global host workspace.
 7. **P5 — UI and release:** content library, optional presentation enhancements, legal review, and reproducible packages.
 
 See [the detailed roadmap](PeaceEmu/docs/ROADMAP.md) for current estimates, acceptance criteria and remaining work. Progress is measured against checked-in implementation and verified tests—not planned features or directory names.
