@@ -1522,6 +1522,47 @@ mod tests {
     }
 
     #[test]
+    fn sound_fifo_accepts_word_writes_caps_at_32_bytes_and_resets() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write8(0x0400_00A0, 0xAA);
+        bus.write16(0x0400_00A0, 0xBBBB);
+        assert_eq!(bus.audio_fifo_len(0), Some(0));
+
+        for word in 0..10_u32 {
+            bus.write32(0x0400_00A0, 0x0302_0100 + word * 0x0404_0404);
+        }
+        assert_eq!(bus.audio_fifo_len(0), Some(32));
+        bus.write16(0x0400_0082, (1 << 8) | (1 << 11));
+        assert_eq!(bus.audio_fifo_len(0), Some(0));
+        assert_eq!(bus.read16(0x0400_0082) & (1 << 11), 0);
+    }
+
+    #[test]
+    fn sound_timer_overflow_requests_fifo_dma_in_four_word_burst() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0084, 0x0080);
+        bus.write16(0x0400_0082, (1 << 8) | (1 << 10));
+        for i in 0..4_u32 {
+            bus.write32(0x0200_0000 + i * 4, 0x1111_1111 * (i + 1));
+            bus.write32(0x0400_00A0, 0x8081_8283 + i * 0x0404_0404);
+        }
+        assert_eq!(bus.audio_fifo_len(0), Some(16));
+
+        // DMA1: EWRAM -> FIFO A, fixed destination, 32-bit, repeat, FIFO timing.
+        bus.write32(0x0400_00BC, 0x0200_0000);
+        bus.write32(0x0400_00C0, 0x0400_00A0);
+        bus.write16(0x0400_00C4, 1);
+        bus.write16(0x0400_00C6, 0xB640);
+        bus.write16(0x0400_0100, 0xFFFF);
+        bus.write16(0x0400_0102, 0x0080);
+        bus.advance_cycles(1);
+
+        assert_eq!(bus.audio_fifo_len(0), Some(31));
+        assert_eq!(bus.read32(0x0400_00BC), 0x0200_0010);
+        assert_eq!(bus.read16(0x0400_00C6) & 0x8000, 0x8000);
+    }
+
+    #[test]
     fn vram_mirror_and_sram_address_window_are_consistent() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write8(0x0601_8000, 0x5A);
