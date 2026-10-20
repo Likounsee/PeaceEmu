@@ -215,7 +215,7 @@ impl FlashDevice {
                     self.bank = usize::from(value & 1);
                 }
             }
-            FlashCommand::Unlock2 | FlashCommand::EraseUnlock1 => {}
+            FlashCommand::Unlock2 => {}
         }
     }
 }
