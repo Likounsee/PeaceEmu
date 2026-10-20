@@ -82,20 +82,19 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             let mosaic = bus.read16(0x0400_004C);
             let mosaic_width = usize::from((mosaic & 0xF) + 1);
             let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
+            let transform = BitmapTransform::new(
+                bus,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+                mosaic_enabled,
+                mosaic_width,
+                mosaic_height,
+                display_control & (1 << 13) != 0,
+            );
             frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
             for y in 0..SCREEN_HEIGHT {
                 for x in 0..SCREEN_WIDTH {
-                    let Some((source_x, source_y)) = bitmap_source_coordinates(
-                        bus,
-                        x,
-                        y,
-                        SCREEN_WIDTH,
-                        SCREEN_HEIGHT,
-                        mosaic_enabled,
-                        mosaic_width,
-                        mosaic_height,
-                        display_control & (1 << 13) != 0,
-                    ) else {
+                    let Some((source_x, source_y)) = transform.source_coordinates(x, y) else {
                         continue;
                     };
                     let address = VRAM_BASE + ((source_y * SCREEN_WIDTH + source_x) * 2) as u32;
@@ -114,20 +113,19 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             let mosaic = bus.read16(0x0400_004C);
             let mosaic_width = usize::from((mosaic & 0xF) + 1);
             let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
+            let transform = BitmapTransform::new(
+                bus,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+                mosaic_enabled,
+                mosaic_width,
+                mosaic_height,
+                display_control & (1 << 13) != 0,
+            );
             frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
             for y in 0..SCREEN_HEIGHT {
                 for x in 0..SCREEN_WIDTH {
-                    let Some((source_x, source_y)) = bitmap_source_coordinates(
-                        bus,
-                        x,
-                        y,
-                        SCREEN_WIDTH,
-                        SCREEN_HEIGHT,
-                        mosaic_enabled,
-                        mosaic_width,
-                        mosaic_height,
-                        display_control & (1 << 13) != 0,
-                    ) else {
+                    let Some((source_x, source_y)) = transform.source_coordinates(x, y) else {
                         continue;
                     };
                     let address =
@@ -153,19 +151,18 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             let mosaic = bus.read16(0x0400_004C);
             let mosaic_width = usize::from((mosaic & 0xF) + 1);
             let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
+            let transform = BitmapTransform::new(
+                bus,
+                MODE_5_WIDTH,
+                MODE_5_HEIGHT,
+                mosaic_enabled,
+                mosaic_width,
+                mosaic_height,
+                display_control & (1 << 13) != 0,
+            );
             for y in 0..MODE_5_HEIGHT {
                 for x in 0..MODE_5_WIDTH {
-                    let Some((source_x, source_y)) = bitmap_source_coordinates(
-                        bus,
-                        x,
-                        y,
-                        MODE_5_WIDTH,
-                        MODE_5_HEIGHT,
-                        mosaic_enabled,
-                        mosaic_width,
-                        mosaic_height,
-                        display_control & (1 << 13) != 0,
-                    ) else {
+                    let Some((source_x, source_y)) = transform.source_coordinates(x, y) else {
                         continue;
                     };
                     let address =
@@ -584,49 +581,82 @@ fn render_regular_objects(
 }
 
 /// Maps a screen pixel through BG2's affine matrix into bitmap VRAM.
-fn bitmap_source_coordinates(
-    bus: &MemoryBus,
-    x: usize,
-    y: usize,
+/// Cached affine transform for one bitmap frame. Affine registers are stable
+/// during this snapshot render, so read them once instead of once per pixel.
+struct BitmapTransform {
     width: usize,
     height: usize,
     mosaic_enabled: bool,
     mosaic_width: usize,
     mosaic_height: usize,
     wrap: bool,
-) -> Option<(usize, usize)> {
-    let x = if mosaic_enabled {
-        x / mosaic_width * mosaic_width
-    } else {
-        x
-    };
-    let y = if mosaic_enabled {
-        y / mosaic_height * mosaic_height
-    } else {
-        y
-    };
-    let pa = i32::from(bus.read16(0x0400_0020) as i16);
-    let pb = i32::from(bus.read16(0x0400_0022) as i16);
-    let pc = i32::from(bus.read16(0x0400_0024) as i16);
-    let pd = i32::from(bus.read16(0x0400_0026) as i16);
-    let reference_x = sign_extend_28(
-        u32::from(bus.read16(0x0400_0028)) | (u32::from(bus.read16(0x0400_002A) & 0x0FFF) << 16),
-    );
-    let reference_y = sign_extend_28(
-        u32::from(bus.read16(0x0400_002C)) | (u32::from(bus.read16(0x0400_002E) & 0x0FFF) << 16),
-    );
-    let source_x = (reference_x + pa * x as i32 + pb * y as i32) >> 8;
-    let source_y = (reference_y + pc * x as i32 + pd * y as i32) >> 8;
-    if wrap {
-        Some((
-            source_x.rem_euclid(width as i32) as usize,
-            source_y.rem_euclid(height as i32) as usize,
-        ))
-    } else if source_x < 0 || source_y < 0 || source_x >= width as i32 || source_y >= height as i32
-    {
-        None
-    } else {
-        Some((source_x as usize, source_y as usize))
+    pa: i32,
+    pb: i32,
+    pc: i32,
+    pd: i32,
+    reference_x: i32,
+    reference_y: i32,
+}
+
+impl BitmapTransform {
+    fn new(
+        bus: &MemoryBus,
+        width: usize,
+        height: usize,
+        mosaic_enabled: bool,
+        mosaic_width: usize,
+        mosaic_height: usize,
+        wrap: bool,
+    ) -> Self {
+        Self {
+            width,
+            height,
+            mosaic_enabled,
+            mosaic_width,
+            mosaic_height,
+            wrap,
+            pa: i32::from(bus.read16(0x0400_0020) as i16),
+            pb: i32::from(bus.read16(0x0400_0022) as i16),
+            pc: i32::from(bus.read16(0x0400_0024) as i16),
+            pd: i32::from(bus.read16(0x0400_0026) as i16),
+            reference_x: sign_extend_28(
+                u32::from(bus.read16(0x0400_0028))
+                    | (u32::from(bus.read16(0x0400_002A) & 0x0FFF) << 16),
+            ),
+            reference_y: sign_extend_28(
+                u32::from(bus.read16(0x0400_002C))
+                    | (u32::from(bus.read16(0x0400_002E) & 0x0FFF) << 16),
+            ),
+        }
+    }
+
+    fn source_coordinates(&self, x: usize, y: usize) -> Option<(usize, usize)> {
+        let x = if self.mosaic_enabled {
+            x / self.mosaic_width * self.mosaic_width
+        } else {
+            x
+        };
+        let y = if self.mosaic_enabled {
+            y / self.mosaic_height * self.mosaic_height
+        } else {
+            y
+        };
+        let source_x = (self.reference_x + self.pa * x as i32 + self.pb * y as i32) >> 8;
+        let source_y = (self.reference_y + self.pc * x as i32 + self.pd * y as i32) >> 8;
+        if self.wrap {
+            Some((
+                source_x.rem_euclid(self.width as i32) as usize,
+                source_y.rem_euclid(self.height as i32) as usize,
+            ))
+        } else if source_x < 0
+            || source_y < 0
+            || source_x >= self.width as i32
+            || source_y >= self.height as i32
+        {
+            None
+        } else {
+            Some((source_x as usize, source_y as usize))
+        }
     }
 }
 
