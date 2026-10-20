@@ -1605,7 +1605,7 @@ mod tests {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0400_0084, 0x0080); // Sound master enabled.
         bus.write16(0x0400_0082, 1 << 8); // FIFO A uses timer 0.
-                                                                            // FIFO bytes are little-endian; make the last queued sample nonzero.
+                                              // FIFO bytes are little-endian; make the last queued sample nonzero.
         bus.write32(0x0400_00A0, 0x7F00_0000);
         bus.write16(0x0400_0100, 0xFFFF);
         bus.write16(0x0400_0102, 0x0080); // Timer 0 enabled, divisor 1.
