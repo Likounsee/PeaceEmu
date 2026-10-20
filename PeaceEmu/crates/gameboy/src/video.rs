@@ -732,8 +732,8 @@ mod tests {
     fn bitmap_mode4_uses_affine_coordinates_and_selected_page() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 4 | (1 << 4) | (1 << 10));
-        bus.write16(VRAM_BASE + 0xA000, 1);
-        bus.write16(VRAM_BASE + 0xA001, 2);
+        // VRAM byte stores replicate the value across the addressed halfword.
+        bus.write16(VRAM_BASE + 0xA000, 0x0201);
         bus.write16(PALETTE_BASE + 2, 0x001F);
         bus.write16(PALETTE_BASE + 4, 0x03E0);
         bus.write16(0x0400_0020, 0x0200); // PA = 2.0, skip every other source pixel
@@ -792,6 +792,7 @@ mod tests {
         bus.write16(0x0400_004C, 1 | (1 << 4)); // 2x2 mosaic
         bus.write16(VRAM_BASE, 0x001F); // red at (0,0)
         bus.write16(VRAM_BASE + 2, 0x03E0); // green at (1,0)
+        bus.write16(VRAM_BASE + 4, 0x03E0); // green at (2,0)
         bus.write16(VRAM_BASE + (SCREEN_WIDTH * 2) as u32, 0x7C00); // blue at (0,1)
 
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
@@ -843,7 +844,7 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
         assert_eq!(frame.pixel(39, 15), Some(0xFF00_00FF)); // Outside viewport
         assert_eq!(frame.pixel(40, 16), Some(0xFFFF_0000)); // Viewport origin
-        assert_eq!(frame.pixel(199, 143), Some(0xFF00_00FF)); // Outside viewport
+        assert_eq!(frame.pixel(199, 143), Some(0xFF00_0000)); // Last pixel inside viewport, still zero-filled
     }
 
     #[test]
@@ -1179,7 +1180,7 @@ mod tests {
     #[test]
     fn bitmap_mode_uses_bg2cnt_priority_for_obj_compositing() {
         let mut bus = bus();
-        bus.write16(0x0400_0000, 3 | (1 << 12)); // Mode 3, OBJ enabled
+        bus.write16(0x0400_0000, 3 | (1 << 10) | (1 << 12)); // Mode 3, BG2 and OBJ enabled
         bus.write16(BG0CNT + 4, 2); // BG2 priority 2
         bus.write16(VRAM_BASE, 0x03E0); // bitmap pixel 0 green
         bus.write16(VRAM_BASE + 8 * 2, 0x03E0); // bitmap pixel 8 green too
@@ -1205,7 +1206,7 @@ mod tests {
     #[test]
     fn bitmap_modes_keep_lower_priority_objects_behind_opaque_bg2() {
         let mut bus = bus();
-        bus.write16(0x0400_0000, 3 | (1 << 12)); // mode 3, OBJ enabled
+        bus.write16(0x0400_0000, 3 | (1 << 10) | (1 << 12)); // mode 3, BG2 and OBJ enabled
         bus.write16(VRAM_BASE, 0x03E0); // BG2 framebuffer pixel: green
         bus.write16(0x0601_4000, 0x0001); // OBJ tile pixel 0: palette index 1
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
@@ -1240,7 +1241,7 @@ mod tests {
     #[test]
     fn bitmap_mode4_uses_selected_frame_page_and_palette() {
         let mut bus = bus();
-        bus.write16(0x0400_0000, 4 | (1 << 4)); // mode 4, page 1
+        bus.write16(0x0400_0000, 4 | (1 << 4) | (1 << 10)); // mode 4, BG2 enabled, page 1
         bus.write16(VRAM_BASE + 0xA000, 3);
         bus.write16(PALETTE_BASE + 6, 0x001F); // palette index 3: red
 
@@ -1252,7 +1253,7 @@ mod tests {
     #[test]
     fn bitmap_mode5_is_centered_and_uses_selected_page() {
         let mut bus = bus();
-        bus.write16(0x0400_0000, 5 | (1 << 4)); // mode 5, page 1
+        bus.write16(0x0400_0000, 5 | (1 << 4) | (1 << 10)); // mode 5, BG2 enabled, page 1
         bus.write16(VRAM_BASE + 0xA000, 0x001F); // first visible pixel: red
 
         let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
@@ -1289,7 +1290,7 @@ mod tests {
         bus.write16(PALETTE_BASE, 0x7C00); // blue backdrop
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1 red
         bus.write16(0x0601_0000, 0x0001);
-        bus.write16(0x0700_0000, 1 << 10); // semi-transparent OBJ mode
+        bus.write16(0x0700_0000, 2 << 10); // OBJ-window mode is not drawn as a regular sprite
         bus.write16(0x0700_0002, 0);
         bus.write16(0x0700_0004, 0);
 
