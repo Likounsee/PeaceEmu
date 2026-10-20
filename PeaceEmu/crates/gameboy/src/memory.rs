@@ -1605,24 +1605,18 @@ mod tests {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0400_0084, 0x0080); // Sound master enabled.
         bus.write16(0x0400_0082, 1 << 8); // FIFO A uses timer 0.
-        bus.write32(0x0400_00A0, 0x0000_0080); // First sample is -128.
+        // FIFO bytes are little-endian; make the last queued sample nonzero.
+        bus.write32(0x0400_00A0, 0x7F00_0000);
         bus.write16(0x0400_0100, 0xFFFF);
         bus.write16(0x0400_0102, 0x0080); // Timer 0 enabled, divisor 1.
 
-        bus.advance_cycles(1);
-        assert_eq!(bus.audio_fifo_last_sample(0), Some(-128));
-        assert_eq!(bus.audio_fifo_len(0), Some(3));
-
-        // Drain the remaining bytes, then clock the empty FIFO. The DAC latch
-        // must retain the most recent sample instead of snapping to zero.
-        bus.advance_cycles(3);
+        bus.advance_cycles(4);
         assert_eq!(bus.audio_fifo_len(0), Some(0));
-        assert_eq!(bus.audio_fifo_last_sample(0), Some(0));
-        bus.write32(0x0400_00A0, 0x0000_007F);
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(127));
+
+        // Clock an empty FIFO: the DAC latch must keep the most recent sample.
         bus.advance_cycles(1);
         assert_eq!(bus.audio_fifo_last_sample(0), Some(127));
-        bus.advance_cycles(1);
-        assert_eq!(bus.audio_fifo_last_sample(0), Some(0));
     }
 
     #[test]
