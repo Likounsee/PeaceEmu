@@ -160,10 +160,10 @@ impl MemoryBus {
             {
                 continue;
             }
+            // Direct Sound holds the last DAC sample if the FIFO runs dry;
+            // only a successful pop changes the output latch.
             if let Some(sample) = self.audio_fifos[fifo].pop_front() {
                 self.audio_last_samples[fifo] = sample as i8;
-            } else {
-                self.audio_last_samples[fifo] = 0;
             }
             if self.audio_fifos[fifo].len() <= 16 {
                 self.trigger_audio_fifo_dma(fifo);
@@ -1598,6 +1598,31 @@ mod tests {
         bus.advance_cycles(1);
         assert_eq!(bus.audio_fifo_len(0), Some(3));
         assert_eq!(bus.audio_fifo_last_sample(0), Some(0x11));
+    }
+
+    #[test]
+    fn sound_fifo_underflow_holds_the_last_output_sample() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0084, 0x0080); // Sound master enabled.
+        bus.write16(0x0400_0082, 1 << 8); // FIFO A uses timer 0.
+        bus.write32(0x0400_00A0, 0x0000_0080); // First sample is -128.
+        bus.write16(0x0400_0100, 0xFFFF);
+        bus.write16(0x0400_0102, 0x0080); // Timer 0 enabled, divisor 1.
+
+        bus.advance_cycles(1);
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(-128));
+        assert_eq!(bus.audio_fifo_len(0), Some(3));
+
+        // Drain the remaining bytes, then clock the empty FIFO. The DAC latch
+        // must retain the most recent sample instead of snapping to zero.
+        bus.advance_cycles(3);
+        assert_eq!(bus.audio_fifo_len(0), Some(0));
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(0));
+        bus.write32(0x0400_00A0, 0x0000_007F);
+        bus.advance_cycles(1);
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(127));
+        bus.advance_cycles(1);
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(0));
     }
 
     #[test]
