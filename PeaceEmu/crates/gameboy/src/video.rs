@@ -291,8 +291,7 @@ fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut 
                 VRAM_BASE + char_base + tile_index * 64 + (source_y & 7) * 8 + (source_x & 7);
             let palette_index = u32::from(bus.read8(tile_address));
             if palette_index != 0 {
-                frame.pixels[y * SCREEN_WIDTH + x] =
-                    palette[palette_index as usize];
+                frame.pixels[y * SCREEN_WIDTH + x] = palette[palette_index as usize];
             }
         }
     }
