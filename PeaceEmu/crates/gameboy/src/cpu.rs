@@ -1798,7 +1798,7 @@ mod tests {
 
     #[test]
     fn arm_register_controlled_shifts_include_internal_cycle() {
-        let mut cpu = Cpu::new();
+        let cpu = Cpu::new();
 
         // MOV r0, r1, LSL r2 uses a register-controlled shift and takes
         // one additional internal cycle compared with an immediate shift.
@@ -2065,7 +2065,7 @@ mod tests {
             Err(CpuError::UnsupportedInstruction { .. })
         ));
         assert!(!cpu.flags().negative);
-        assert_eq!(cpu.flags().zero, true);
+        assert!(cpu.flags().zero);
         assert!(!cpu.flags().carry);
         assert!(!cpu.flags().overflow);
     }
