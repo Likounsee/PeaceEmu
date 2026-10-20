@@ -111,9 +111,10 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     if mode >= 3 {
         // Bitmap modes reserve VRAM through 0x06013FFF for the framebuffer;
         // OBJ character data therefore begins at 0x06014000 instead.
-        for priority in (0..=3).rev() {
-            render_regular_objects(bus, display_control, priority, &mut frame);
-        }
+        // In bitmap modes BG2 is the opaque priority-0 backdrop. Only
+        // priority-0 OBJ pixels can appear in front of it; lower-priority
+        // sprites must not be painted over the framebuffer.
+        render_regular_objects(bus, display_control, 0, &mut frame);
     }
 
     Some(frame)
@@ -836,6 +837,26 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
         assert_eq!(frame.pixel(1, 0), Some(rgb555(bus.read16(VRAM_BASE + 2))));
+    }
+
+    #[test]
+    fn bitmap_modes_keep_lower_priority_objects_behind_opaque_bg2() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 3 | (1 << 12)); // mode 3, OBJ enabled
+        bus.write16(VRAM_BASE, 0x03E0); // BG2 framebuffer pixel: green
+        bus.write16(VRAM_BASE + 0x0600, 0x0001); // OBJ tile pixel 0: palette index 1
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
+        bus.write16(0x0700_0000, 0); // visible, regular 8x8 OBJ
+        bus.write16(0x0700_0002, 1 << 10); // priority 1, behind bitmap BG2
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
+
+        // Priority zero remains in front of the bitmap framebuffer.
+        bus.write16(0x0700_0002, 0);
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
     }
 
     #[test]
