@@ -956,7 +956,7 @@ mod tests {
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
 
         // Priority zero remains in front of the bitmap framebuffer.
-        bus.write16(0x0700_0004, 0);
+        bus.write16(0x0700_0004, 512);
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
     }
