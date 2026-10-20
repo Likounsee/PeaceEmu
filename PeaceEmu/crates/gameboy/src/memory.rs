@@ -1592,6 +1592,31 @@ mod tests {
     }
 
     #[test]
+    fn sound_fifo_b_uses_timer_one_and_dma_channel_two() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0084, 0x0080);
+        bus.write16(0x0400_0082, (1 << 12) | (1 << 14)); // FIFO B, timer 1.
+        for i in 0..4_u32 {
+            bus.write32(0x0200_0100 + i * 4, 0xA3A2_A1A0 + i * 0x0404_0404);
+            bus.write32(0x0400_00A4, 0xA3A2_A1A0 + i * 0x0404_0404);
+        }
+
+        // DMA2: EWRAM -> FIFO B, fixed destination, word-sized FIFO burst.
+        bus.write32(0x0400_00C8, 0x0200_0100);
+        bus.write32(0x0400_00CC, 0x0400_00A4);
+        bus.write16(0x0400_00D0, 1);
+        bus.write16(0x0400_00D2, 0xB640);
+        bus.write16(0x0400_0104, 0xFFFF);
+        bus.write16(0x0400_0106, 0x0080);
+        bus.advance_cycles(1);
+
+        assert_eq!(bus.audio_fifo_len(1), Some(31));
+        assert_eq!(bus.audio_fifo_last_sample(1), Some(0xA0_u8 as i8));
+        assert_eq!(bus.read32(0x0400_00C8), 0x0200_0110);
+        assert_eq!(bus.read16(0x0400_00D2) & 0x8000, 0x8000);
+    }
+
+    #[test]
     fn vram_mirror_and_sram_address_window_are_consistent() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write8(0x0601_8000, 0x5A);
