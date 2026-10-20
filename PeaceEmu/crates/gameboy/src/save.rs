@@ -74,7 +74,6 @@ mod tests {
     }
 }
 
-
 /// Flash command-sequencer state for the GBA's byte-wide backup devices.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum FlashCommand {
