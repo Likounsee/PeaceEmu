@@ -962,6 +962,21 @@ mod tests {
     }
 
     #[test]
+    fn bitmap_modes_reject_obj_tiles_overlapping_framebuffer_memory() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 3 | (1 << 12)); // mode 3, OBJ enabled
+        bus.write16(VRAM_BASE, 0x03E0); // BG2 pixel is green
+        bus.write16(0x0601_0000, 0x0001); // tile 0 overlaps the bitmap-reserved OBJ area
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
+        bus.write16(0x0700_0000, 0); // visible regular sprite
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0); // tile index 0 is unavailable in bitmap modes
+
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
+    }
+
+    #[test]
     fn bitmap_mode4_uses_selected_frame_page_and_palette() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 4 | (1 << 4)); // mode 4, page 1
