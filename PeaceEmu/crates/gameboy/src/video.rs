@@ -122,7 +122,12 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
                 mosaic_height,
                 display_control & (1 << 13) != 0,
             );
-            frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
+            // Palette RAM is unchanged during this snapshot render. Resolve it
+            // once rather than issuing another bus read for every framebuffer pixel.
+            let palette: [u32; 256] = std::array::from_fn(|index| {
+                rgb555(bus.read16(PALETTE_BASE + (index as u32) * 2))
+            });
+            frame.pixels.fill(palette[0]);
             for y in 0..SCREEN_HEIGHT {
                 for x in 0..SCREEN_WIDTH {
                     let Some((source_x, source_y)) = transform.source_coordinates(x, y) else {
@@ -130,9 +135,8 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
                     };
                     let address =
                         VRAM_BASE + page_offset + (source_y * SCREEN_WIDTH + source_x) as u32;
-                    let index = u32::from(bus.read8(address));
-                    frame.pixels[y * SCREEN_WIDTH + x] =
-                        rgb555(bus.read16(PALETTE_BASE + index * 2));
+                    let index = usize::from(bus.read8(address));
+                    frame.pixels[y * SCREEN_WIDTH + x] = palette[index];
                 }
             }
         }
