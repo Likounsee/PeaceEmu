@@ -1255,20 +1255,23 @@ mod tests {
         bus.write32(0x0400_00B0, 0x0200_0000);
         bus.write32(0x0400_00B4, 0x0300_0000);
         bus.write16(0x0400_00B8, 1);
-        bus.write16(0x0400_00BA, 0x9200); // enable, repeat, VBlank timing
+        bus.write16(0x0400_00BA, 0x9260); // enable, repeat, VBlank, destination reload
 
         assert_eq!(bus.read16(0x0300_0000), 0);
         bus.advance_cycles(1232 * 159);
         assert_eq!(bus.read16(0x0300_0000), 0);
         bus.advance_cycles(1232);
         assert_eq!(bus.read16(0x0300_0000), 0xCAFE);
+        assert_eq!(bus.read32(0x0400_00B4), 0x0300_0000);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
         assert_eq!(bus.read16(0x0400_0202) & (1 << 8), 0);
 
         // A repeated VBlank transfer reuses the count and continues the source
         // address on the following frame.
         bus.advance_cycles(1232 * 228);
-        assert_eq!(bus.read16(0x0300_0002), 0xFACE);
+        assert_eq!(bus.read16(0x0300_0000), 0xFACE);
+        assert_eq!(bus.read16(0x0300_0002), 0);
+        assert_eq!(bus.read32(0x0400_00B4), 0x0300_0000);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
     }
 
