@@ -158,12 +158,11 @@ impl Cpu {
         let outcome = self.step(bus)?;
         // A condition-failed ARM instruction is skipped without a branch or
         // data access, so it consumes only the sequential instruction cycle.
-        let cycles = if matches!(outcome, StepOutcome::ConditionFailed { .. }) {
-            1
-        } else if was_thumb
-            && instruction & 0xF000 == 0xD000
-            && ((instruction >> 8) & 0xF) < 0xE
-            && !thumb_branch_taken
+        let cycles = if matches!(outcome, StepOutcome::ConditionFailed { .. })
+            || (was_thumb
+                && instruction & 0xF000 == 0xD000
+                && ((instruction >> 8) & 0xF) < 0xE
+                && !thumb_branch_taken)
         {
             1
         } else {
@@ -1228,7 +1227,7 @@ impl Cpu {
             };
             let amount = self.registers[rs] & 0xFF;
             let shift_type = (instruction >> 5) & 3;
-            Self::shift_register(value, shift_type, amount, self.flags.carry)
+            Self::shift_register(value, shift_type, amount)
         } else {
             let rm = (instruction & 0xF) as usize;
             let value = self.read_operand_register(rm, address);
@@ -1647,7 +1646,7 @@ impl Cpu {
     }
 
     /// Applies an ARM register-controlled shift (ARM7TDMI register operand form).
-    fn shift_register(value: u32, kind: u32, amount: u32, old_carry: bool) -> (u32, Option<bool>) {
+    fn shift_register(value: u32, kind: u32, amount: u32) -> (u32, Option<bool>) {
         if amount == 0 {
             return (value, None);
         }
@@ -2059,16 +2058,16 @@ mod tests {
             Err(CpuError::UnsupportedInstruction { .. })
         ));
         assert_eq!(cpu.register(2), Some(0));
-        assert_eq!(cpu.flags().zero, true);
+        assert!(cpu.flags().zero);
 
         assert!(matches!(
             cpu.step(&mut bus),
             Err(CpuError::UnsupportedInstruction { .. })
         ));
-        assert_eq!(cpu.flags().negative, false);
+        assert!(!cpu.flags().negative);
         assert_eq!(cpu.flags().zero, true);
-        assert_eq!(cpu.flags().carry, false);
-        assert_eq!(cpu.flags().overflow, false);
+        assert!(!cpu.flags().carry);
+        assert!(!cpu.flags().overflow);
     }
 
     #[test]
@@ -2532,35 +2531,35 @@ mod tests {
     #[test]
     fn arm_register_controlled_shifts_cover_boundaries_and_carry() {
         assert_eq!(
-            Cpu::shift_register(0x8000_0001, 0, 1, false),
+            Cpu::shift_register(0x8000_0001, 0, 1),
             (0x0000_0002, Some(true))
         );
         assert_eq!(
-            Cpu::shift_register(0x8000_0001, 0, 32, false),
+            Cpu::shift_register(0x8000_0001, 0, 32),
             (0, Some(true))
         );
         assert_eq!(
-            Cpu::shift_register(0x8000_0001, 0, 33, false),
+            Cpu::shift_register(0x8000_0001, 0, 33),
             (0, Some(false))
         );
         assert_eq!(
-            Cpu::shift_register(0x8000_0001, 1, 32, false),
+            Cpu::shift_register(0x8000_0001, 1, 32),
             (0, Some(true))
         );
         assert_eq!(
-            Cpu::shift_register(0x8000_0001, 2, 32, false),
+            Cpu::shift_register(0x8000_0001, 2, 32),
             (u32::MAX, Some(true))
         );
         assert_eq!(
-            Cpu::shift_register(0x8000_0001, 2, 40, false),
+            Cpu::shift_register(0x8000_0001, 2, 40),
             (u32::MAX, Some(true))
         );
         assert_eq!(
-            Cpu::shift_register(0x8000_0001, 3, 32, false),
+            Cpu::shift_register(0x8000_0001, 3, 32),
             (0x8000_0001, Some(true))
         );
         assert_eq!(
-            Cpu::shift_register(0x8000_0001, 0, 0, true),
+            Cpu::shift_register(0x8000_0001, 0, 0),
             (0x8000_0001, None)
         );
     }
