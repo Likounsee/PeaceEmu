@@ -127,25 +127,39 @@ impl MemoryBus {
     fn write_audio_fifo_word(&mut self, fifo: usize, value: u32) {
         if let Some(queue) = self.audio_fifos.get_mut(fifo) {
             for byte in value.to_le_bytes() {
-                if queue.len() == 32 { break; }
+                if queue.len() == 32 {
+                    break;
+                }
                 queue.push_back(byte);
             }
         }
     }
 
     fn clock_audio_fifo(&mut self, timer: usize) {
-        if timer > 1 || self.read16(0x0400_0084) & 0x0080 == 0 { return; }
+        if timer > 1 || self.read16(0x0400_0084) & 0x0080 == 0 {
+            return;
+        }
         let sound_control = self.read16(0x0400_0082);
         for fifo in 0..2 {
-            let route_mask = if fifo == 0 { (1 << 8) | (1 << 9) } else { (1 << 12) | (1 << 13) };
+            let route_mask = if fifo == 0 {
+                (1 << 8) | (1 << 9)
+            } else {
+                (1 << 12) | (1 << 13)
+            };
             let timer_bit = if fifo == 0 { 10 } else { 14 };
-            if sound_control & route_mask == 0 || usize::from((sound_control >> timer_bit) & 1) != timer { continue; }
+            if sound_control & route_mask == 0
+                || usize::from((sound_control >> timer_bit) & 1) != timer
+            {
+                continue;
+            }
             if let Some(sample) = self.audio_fifos[fifo].pop_front() {
                 self.audio_last_samples[fifo] = sample as i8;
             } else {
                 self.audio_last_samples[fifo] = 0;
             }
-            if self.audio_fifos[fifo].len() <= 16 { self.trigger_audio_fifo_dma(fifo); }
+            if self.audio_fifos[fifo].len() <= 16 {
+                self.trigger_audio_fifo_dma(fifo);
+            }
         }
     }
 
@@ -181,7 +195,9 @@ impl MemoryBus {
             self.write_audio_fifo_word(fifo, word);
         }
         self.io[base..base + 4].copy_from_slice(&source.wrapping_add(16).to_le_bytes());
-        if control & (1 << 14) != 0 { self.request_interrupt(1 << (8 + channel)); }
+        if control & (1 << 14) != 0 {
+            self.request_interrupt(1 << (8 + channel));
+        }
     }
 
     /// Returns the SRAM save data for persistence by the frontend.
@@ -705,7 +721,9 @@ impl MemoryBus {
         }
 
         // Sound FIFO ports are write-only and only accept 32-bit pushes.
-        if (0x0400_00A0..=0x0400_00A7).contains(&address) { return; }
+        if (0x0400_00A0..=0x0400_00A7).contains(&address) {
+            return;
+        }
 
         // KEYINPUT is read-only; KEYCNT accepts only key-select, IRQ-enable and
         // condition-mode bits (0..9, 14 and 15).
@@ -818,13 +836,21 @@ impl MemoryBus {
         }
         if address == 0x0400_0082 {
             let mut control = value & 0x770F;
-            if value & (1 << 11) != 0 { self.audio_fifos[0].clear(); self.audio_last_samples[0] = 0; }
-            if value & (1 << 15) != 0 { self.audio_fifos[1].clear(); self.audio_last_samples[1] = 0; }
+            if value & (1 << 11) != 0 {
+                self.audio_fifos[0].clear();
+                self.audio_last_samples[0] = 0;
+            }
+            if value & (1 << 15) != 0 {
+                self.audio_fifos[1].clear();
+                self.audio_last_samples[1] = 0;
+            }
             control &= !((1 << 11) | (1 << 15));
             self.io[0x82..0x84].copy_from_slice(&control.to_le_bytes());
             return;
         }
-        if (0x0400_00A0..=0x0400_00A7).contains(&address) { return; }
+        if (0x0400_00A0..=0x0400_00A7).contains(&address) {
+            return;
+        }
         // SRAM is byte-wide. The bus selects the addressed byte lane, so an
         // odd-address halfword store presents the source's high byte.
         if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
