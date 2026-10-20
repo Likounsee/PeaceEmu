@@ -384,7 +384,11 @@ impl MemoryBus {
         }
 
         self.io[source_offset..source_offset + 4].copy_from_slice(&src.to_le_bytes());
-        let next_destination = if destination_mode == 3 {
+        let timing = (control >> 12) & 3;
+        let repeat = control & (1 << 9) != 0 && timing != 0;
+        // Increment/reload only reloads the destination between repeated
+        // timed transfers. An immediate transfer leaves the advanced address.
+        let next_destination = if destination_mode == 3 && repeat {
             destination & !(step - 1)
         } else {
             dst
@@ -395,8 +399,6 @@ impl MemoryBus {
         if control & (1 << 14) != 0 {
             self.request_interrupt(1 << (8 + channel));
         }
-        let timing = (control >> 12) & 3;
-        let repeat = control & (1 << 9) != 0 && timing != 0;
         if !repeat {
             let control_offset = (base + 10) as usize;
             self.io[control_offset..control_offset + 2]
@@ -1219,7 +1221,7 @@ mod tests {
     }
 
     #[test]
-    fn destination_reload_mode_increments_during_transfer_then_reloads() {
+    fn immediate_dma_increment_reload_mode_keeps_advanced_destination() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write32(0x0200_0000, 0x1111_2222);
         bus.write32(0x0200_0004, 0x3333_4444);
@@ -1230,7 +1232,7 @@ mod tests {
 
         assert_eq!(bus.read32(0x0300_0000), 0x1111_2222);
         assert_eq!(bus.read32(0x0300_0004), 0x3333_4444);
-        assert_eq!(bus.read32(0x0400_00B4), 0x0300_0000);
+        assert_eq!(bus.read32(0x0400_00B4), 0x0300_0008);
     }
 
     #[test]
