@@ -1,9 +1,9 @@
 //! Initial memory map for the Game Boy Advance.
 //!
-//! This models address decoding, backing storage, timer progression, and the initial
-//! scanline/DISPSTAT timing signals, and immediate/HBlank/VBlank DMA transfers.
-//! Open-bus behavior, BIOS protection, FIFO DMA, and further peripheral side effects
-//! remain in development.
+//! This models address decoding, backing storage, timer progression, scanline/DISPSTAT
+//! timing, immediate/HBlank/VBlank DMA, and timer-triggered sound FIFO DMA.
+//! Open-bus behavior, BIOS protection, and additional peripheral side effects remain
+//! in development.
 
 use std::collections::VecDeque;
 
@@ -1558,6 +1558,7 @@ mod tests {
         bus.advance_cycles(1);
 
         assert_eq!(bus.audio_fifo_len(0), Some(31));
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(0x83_u8 as i8));
         assert_eq!(bus.read32(0x0400_00BC), 0x0200_0010);
         assert_eq!(bus.read16(0x0400_00C6) & 0x8000, 0x8000);
     }
