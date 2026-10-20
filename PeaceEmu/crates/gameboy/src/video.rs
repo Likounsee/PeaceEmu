@@ -614,7 +614,7 @@ mod tests {
     fn regular_obj_mosaic_repeats_pixels_and_rows() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
-        bus.write16(0x0400_004C, 1 | (1 << 4)); // OBJ mosaic: 2x2
+        bus.write16(0x0400_004C, (1 << 8) | (1 << 12)); // OBJ mosaic: 2x2
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette 1: red
         bus.write16(PALETTE_BASE + 0x204, 0x03E0); // OBJ palette 2: green
         bus.write16(VRAM_BASE + 0x10000, 0x2121); // 1,2,1,2 in low/high nibbles
