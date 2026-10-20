@@ -481,7 +481,7 @@ mod tests {
     #[test]
     fn affine_background_mosaic_repeats_source_pixels_and_rows() {
         let mut bus = bus();
-        bus.write16(0x0400_0000, (2 << 8) | (1 << 10)); // Mode 2, BG2 enabled
+        bus.write16(0x0400_0000, 2 | (1 << 10)); // Mode 2, BG2 enabled
         bus.write16(BG0CNT + 4, (1 << 6) | (1 << 13)); // BG2 mosaic and wrap
         bus.write16(0x0400_0020, 0x0100); // PA = 1.0
         bus.write16(0x0400_0026, 0x0100); // PD = 1.0
