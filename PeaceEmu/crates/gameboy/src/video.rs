@@ -77,9 +77,16 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     match mode {
         0..=2 => render_text_backgrounds(bus, display_control, &mut frame),
         3 => {
+            let bg2_control = bus.read16(BG0CNT + 4);
+            let mosaic_enabled = bg2_control & (1 << 6) != 0;
+            let mosaic = bus.read16(0x0400_004C);
+            let mosaic_width = usize::from((mosaic & 0xF) + 1);
+            let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
             for y in 0..SCREEN_HEIGHT {
+                let source_y = if mosaic_enabled { y / mosaic_height * mosaic_height } else { y };
                 for x in 0..SCREEN_WIDTH {
-                    let address = VRAM_BASE + ((y * SCREEN_WIDTH + x) * 2) as u32;
+                    let source_x = if mosaic_enabled { x / mosaic_width * mosaic_width } else { x };
+                    let address = VRAM_BASE + ((source_y * SCREEN_WIDTH + source_x) * 2) as u32;
                     frame.pixels[y * SCREEN_WIDTH + x] = rgb555(bus.read16(address));
                 }
             }
@@ -90,9 +97,16 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             } else {
                 0
             };
+            let bg2_control = bus.read16(BG0CNT + 4);
+            let mosaic_enabled = bg2_control & (1 << 6) != 0;
+            let mosaic = bus.read16(0x0400_004C);
+            let mosaic_width = usize::from((mosaic & 0xF) + 1);
+            let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
             for y in 0..SCREEN_HEIGHT {
+                let source_y = if mosaic_enabled { y / mosaic_height * mosaic_height } else { y };
                 for x in 0..SCREEN_WIDTH {
-                    let address = VRAM_BASE + page_offset + (y * SCREEN_WIDTH + x) as u32;
+                    let source_x = if mosaic_enabled { x / mosaic_width * mosaic_width } else { x };
+                    let address = VRAM_BASE + page_offset + (source_y * SCREEN_WIDTH + source_x) as u32;
                     let index = u32::from(bus.read8(address));
                     let color = bus.read16(PALETTE_BASE + index * 2);
                     frame.pixels[y * SCREEN_WIDTH + x] = rgb555(color);
@@ -109,9 +123,16 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             // that viewport show the backdrop color (palette entry zero), not
             // an unconditional black fill.
             frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
+            let bg2_control = bus.read16(BG0CNT + 4);
+            let mosaic_enabled = bg2_control & (1 << 6) != 0;
+            let mosaic = bus.read16(0x0400_004C);
+            let mosaic_width = usize::from((mosaic & 0xF) + 1);
+            let mosaic_height = usize::from(((mosaic >> 4) & 0xF) + 1);
             for y in 0..MODE_5_HEIGHT {
+                let source_y = if mosaic_enabled { y / mosaic_height * mosaic_height } else { y };
                 for x in 0..MODE_5_WIDTH {
-                    let address = VRAM_BASE + page_offset + ((y * MODE_5_WIDTH + x) * 2) as u32;
+                    let source_x = if mosaic_enabled { x / mosaic_width * mosaic_width } else { x };
+                    let address = VRAM_BASE + page_offset + ((source_y * MODE_5_WIDTH + source_x) * 2) as u32;
                     let target = (y + (SCREEN_HEIGHT - MODE_5_HEIGHT) / 2) * SCREEN_WIDTH
                         + x
                         + (SCREEN_WIDTH - MODE_5_WIDTH) / 2;
@@ -587,6 +608,23 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
         assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn bitmap_mode3_applies_bg2_mosaic_to_source_pixels() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 3 | (1 << 10)); // Mode 3, BG2 enabled
+        bus.write16(BG0CNT + 4, 1 << 6); // BG2 mosaic
+        bus.write16(0x0400_004C, 1 | (1 << 4)); // 2x2 mosaic
+        bus.write16(VRAM_BASE, 0x001F); // red at (0,0)
+        bus.write16(VRAM_BASE + 2, 0x03E0); // green at (1,0)
+        bus.write16(VRAM_BASE + SCREEN_WIDTH * 2, 0x7C00); // blue at (0,1)
+
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(0, 1), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(2, 0), Some(0xFF00_FF00));
     }
 
     #[test]
