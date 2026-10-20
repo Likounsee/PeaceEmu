@@ -78,7 +78,7 @@ impl core::fmt::Display for SramSizeError {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             formatter,
-            "invalid SRAM save size: expected {} bytes, got {}",
+            "invalid save image size: expected {} bytes, got {}",
             self.expected, self.actual
         )
     }
