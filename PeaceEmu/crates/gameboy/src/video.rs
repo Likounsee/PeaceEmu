@@ -847,7 +847,7 @@ mod tests {
         bus.write16(0x0601_4000, 0x0001); // OBJ tile pixel 0: palette index 1
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
         bus.write16(0x0700_0000, 0); // visible, regular 8x8 OBJ
-        bus.write16(0x0700_0002, 1 << 10); // priority 1, behind bitmap BG2
+        bus.write16(0x0700_0004, 1 << 10); // priority 1, behind bitmap BG2
         bus.write16(0x0700_0004, 0);
 
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
