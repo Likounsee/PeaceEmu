@@ -28,6 +28,8 @@ pub const SRAM_SIZE: usize = 32 * 1024;
 #[derive(Clone, Debug)]
 pub struct MemoryBus {
     cartridge: GbaCartridge,
+    save_type: Option<crate::SaveType>,
+    flash: Option<crate::save::FlashDevice>,
     ewram: Vec<u8>,
     iwram: Vec<u8>,
     io: Vec<u8>,
@@ -87,8 +89,12 @@ impl std::error::Error for SramSizeError {}
 impl MemoryBus {
     /// Creates a fresh bus with zeroed RAM and the supplied validated cartridge.
     pub fn new(cartridge: GbaCartridge) -> Self {
+        let save_type = cartridge.save_type();
+        let flash = save_type.and_then(crate::save::FlashDevice::new);
         Self {
             cartridge,
+            save_type,
+            flash,
             ewram: vec![0; EWRAM_SIZE],
             iwram: vec![0; IWRAM_SIZE],
             io: vec![0; IO_SIZE],
@@ -208,6 +214,22 @@ impl MemoryBus {
         }
     }
 
+    /// Returns the Flash save image for persistence, when the cartridge uses Flash.
+    pub fn flash_data(&self) -> Option<&[u8]> {
+        self.flash.as_ref().map(crate::save::FlashDevice::data)
+    }
+
+    /// Loads a complete Flash save image; returns false when this cartridge is not Flash.
+    pub fn load_flash_data(&mut self, data: &[u8]) -> Result<bool, SramSizeError> {
+        match self.flash.as_mut() {
+            Some(flash) => {
+                flash.load_data(data)?;
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
     /// Returns the SRAM save data for persistence by the frontend.
     ///
     /// The returned slice is the complete 32 KiB backing store, including
@@ -309,7 +331,15 @@ impl MemoryBus {
                 .read_rom_byte((address as usize - 0x0C00_0000) % self.cartridge.len()),
             // GBA save SRAM is mapped only in the first 64 KiB of region 0x0E.
             // The rest of regions 0x0E/0x0F are not SRAM aliases.
-            0x0E00_0000..=0x0E00_FFFF => self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE],
+            0x0E00_0000..=0x0E00_FFFF => {
+                if let Some(flash) = &self.flash {
+                    flash.read(address as u16)
+                } else if self.save_type == Some(crate::SaveType::Eeprom) {
+                    0xFF
+                } else {
+                    self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE]
+                }
+            }
             _ => 0,
         }
     }
@@ -783,7 +813,11 @@ impl MemoryBus {
             // OAM does not support byte writes on GBA hardware.
             0x0700_0000..=0x07FF_FFFF => {}
             0x0E00_0000..=0x0E00_FFFF => {
-                self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE] = value
+                if let Some(flash) = &mut self.flash {
+                    flash.write(address as u16, value);
+                } else if self.save_type != Some(crate::SaveType::Eeprom) {
+                    self.sram[(address as usize - 0x0E00_0000) % SRAM_SIZE] = value;
+                }
             }
             _ => {}
         }
