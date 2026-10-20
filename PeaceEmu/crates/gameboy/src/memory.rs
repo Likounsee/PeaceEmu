@@ -114,6 +114,14 @@ impl MemoryBus {
         }
     }
 
+    /// Returns the backup-device type inferred from the loaded cartridge ROM.
+    ///
+    /// This is signature-based metadata only; Flash and EEPROM command protocols
+    /// are not implemented by the current SRAM bus path.
+    pub fn cartridge_save_type(&self) -> Option<crate::SaveType> {
+        self.cartridge.save_type()
+    }
+
     /// Returns the most recently latched signed PCM sample for FIFO A (0) or B (1).
     pub fn audio_fifo_last_sample(&self, fifo: usize) -> Option<i8> {
         self.audio_last_samples.get(fifo).copied()
@@ -202,7 +210,7 @@ impl MemoryBus {
 
     /// Returns the SRAM save data for persistence by the frontend.
     ///
-    /// The returned slice is the complete 64 KiB backing store, including
+    /// The returned slice is the complete 32 KiB backing store, including
     /// mirrored address regions only once. The slice is read-only so callers
     /// cannot bypass the bus's memory semantics.
     pub fn sram_data(&self) -> &[u8] {
