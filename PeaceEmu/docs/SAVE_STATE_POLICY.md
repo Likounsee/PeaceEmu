@@ -18,4 +18,4 @@ Frontend preferences (such as interface behavior and paths) belong to applicatio
 
 ## Current implementation boundary
 
-The terminal frontend can invoke the generic emulator save-state storage path, but the current Game Boy core does not advertise save-state or persistent-game-save support. Its capability flags remain authoritative; the frontend must display the unsupported result instead of implying that saving is available. The current envelope checksum is an integrity check, not a security boundary.
+The host provides generic save-state storage, but no console core is bundled in this repository. A module must explicitly advertise save-state and persistent-game-save support before the host enables those operations. Its capability flags remain authoritative; the frontend must display the unsupported result instead of implying that saving is available. The current envelope checksum is an integrity check, not a security boundary.
