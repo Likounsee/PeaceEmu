@@ -68,8 +68,9 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
     // show the backdrop color instead; OBJ pixels can still appear over it.
     if mode >= 3 && display_control & (1 << 10) == 0 {
         frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
+        let obj_palette = obj_palette_snapshot(bus);
         for priority in (0..=3).rev() {
-            render_regular_objects(bus, display_control, priority, &mut frame);
+            render_regular_objects(bus, display_control, priority, &obj_palette, &mut frame);
         }
         return Some(frame);
     }
@@ -185,8 +186,9 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
         // still controlled by BG2CNT, so only OBJ priorities numerically less
         // than or equal to BG2's priority may cover the bitmap.
         let bg2_priority = bus.read16(BG0CNT + 4) & 3;
+        let obj_palette = obj_palette_snapshot(bus);
         for priority in (0..=bg2_priority).rev() {
-            render_regular_objects(bus, display_control, priority, &mut frame);
+            render_regular_objects(bus, display_control, priority, &obj_palette, &mut frame);
         }
     }
 
@@ -196,7 +198,9 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
 /// Composites backgrounds and regular OBJ sprites from back to front.
 /// Modes 1 and 2 use affine backgrounds for BG2 and BG3 as specified by DISPCNT.
 fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut VideoFrame) {
-    frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
+    let palette = palette_snapshot(bus);
+    let obj_palette = obj_palette_snapshot(bus);
+    frame.pixels.fill(palette[0]);
     for priority in (0..=3).rev() {
         // On equal priorities BG0 wins over BG1, then BG2, then BG3.
         // Draw the lower-numbered background last so it remains in front.
@@ -213,13 +217,13 @@ fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut Vi
                 continue;
             }
             if mode == 0 || bg < 2 {
-                render_text_background(bus, bg, control, frame);
+                render_text_background(bus, bg, control, &palette, frame);
             } else if bg >= 2 && (mode == 2 || bg == 2) {
-                render_affine_background(bus, bg, control, frame);
+                render_affine_background(bus, bg, control, &palette, frame);
             }
         }
         // OBJ pixels have precedence over BG pixels at the same priority.
-        render_regular_objects(bus, display_control, priority, frame);
+        render_regular_objects(bus, display_control, priority, &obj_palette, frame);
     }
 }
 
@@ -227,7 +231,13 @@ fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut Vi
 /// Reference coordinates are signed 28-bit 8.8 fixed-point values; PA/PB/PC/PD
 /// are signed 8.8 coefficients. The overflow bit controls wraparound outside
 /// the affine background's square map.
-fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut VideoFrame) {
+fn render_affine_background(
+    bus: &MemoryBus,
+    bg: u32,
+    control: u16,
+    palette: &[u32; 256],
+    frame: &mut VideoFrame,
+) {
     let register_base = 0x0400_0020 + (bg - 2) * 0x10;
     let pa = i32::from(bus.read16(register_base) as i16);
     let pb = i32::from(bus.read16(register_base + 2) as i16);
@@ -249,8 +259,6 @@ fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut 
     let mosaic = bus.read16(0x0400_004C);
     let mosaic_width = u32::from((mosaic & 0xF) + 1);
     let mosaic_height = u32::from(((mosaic >> 4) & 0xF) + 1);
-    let palette = palette_snapshot(bus);
-
     for y in 0..SCREEN_HEIGHT {
         let screen_y = if mosaic_enabled {
             (y as u32 / mosaic_height) * mosaic_height
@@ -309,7 +317,13 @@ fn obj_palette_snapshot(bus: &MemoryBus) -> [u32; 256] {
     std::array::from_fn(|index| rgb555(bus.read16(PALETTE_BASE + 0x200 + (index as u32) * 2)))
 }
 
-fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut VideoFrame) {
+fn render_text_background(
+    bus: &MemoryBus,
+    bg: u32,
+    control: u16,
+    palette: &[u32; 256],
+    frame: &mut VideoFrame,
+) {
     let hofs_address = BG0HOFS + bg * 4;
     let vofs_address = BG0VOFS + bg * 4;
     let char_base = u32::from((control >> 2) & 0x3) * 0x4000;
@@ -329,7 +343,6 @@ fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut Vi
     let mosaic_width = u32::from((mosaic & 0xF) + 1);
     let mosaic_height = u32::from(((mosaic >> 4) & 0xF) + 1);
     let map_blocks_per_row = map_width / 256;
-    let palette = palette_snapshot(bus);
 
     for y in 0..SCREEN_HEIGHT {
         let screen_y = if mosaic_enabled {
@@ -404,6 +417,7 @@ fn render_regular_objects(
     bus: &MemoryBus,
     display_control: u16,
     priority: u16,
+    palette: &[u32; 256],
     frame: &mut VideoFrame,
 ) {
     if display_control & (1 << 12) == 0 {
@@ -420,7 +434,6 @@ fn render_regular_objects(
     let mosaic = bus.read16(0x0400_004C);
     let object_mosaic_width = u32::from(((mosaic >> 8) & 0xF) + 1);
     let object_mosaic_height = u32::from(((mosaic >> 12) & 0xF) + 1);
-    let palette = obj_palette_snapshot(bus);
 
     for index in (0..128_u32).rev() {
         let base = OAM_BASE + index * 8;
