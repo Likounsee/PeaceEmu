@@ -289,8 +289,7 @@ mod flash_tests {
         assert_eq!(flash.read(1), 0x1C);
         flash.write(0, 0xF0);
         assert_eq!(flash.read(0), 0xFF);
-        assert!(flash.load_data(&vec![0; 32]).is_err());
+        assert!(flash.load_data(&[0; 32]).is_err());
         assert_eq!(flash.data().len(), 64 * 1024);
     }
-
 }
