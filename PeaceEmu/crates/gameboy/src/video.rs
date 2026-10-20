@@ -335,12 +335,11 @@ fn render_regular_objects(
         let attr1 = bus.read16(base + 2);
         let attr2 = bus.read16(base + 4);
 
-        // Affine sprites need matrix transforms and are deliberately skipped
-        // until that part of the PPU is implemented. Disabled regular sprites
-        // and prohibited shape 3 are likewise not drawable.
-        if attr0 & (1 << 8) != 0
-            || attr0 & (1 << 9) != 0
-            || attr0 & (3 << 10) != 0
+        // Bit 8 selects affine transformation. Bit 9 disables a regular
+        // sprite, but doubles the affine sprite's destination bounding box.
+        let affine = attr0 & (1 << 8) != 0;
+        if (!affine && attr0 & (1 << 9) != 0)
+            || (attr0 >> 10) & 3 != 0
             || (attr0 >> 14) & 3 == 3
         {
             continue;
@@ -366,24 +365,30 @@ fn render_regular_objects(
             (2, 3) => (32, 64),
             _ => continue,
         };
+        let bounding_width = if affine && attr0 & (1 << 9) != 0 { width * 2 } else { width };
+        let bounding_height = if affine && attr0 & (1 << 9) != 0 { height * 2 } else { height };
 
         let raw_x = u32::from(attr1 & 0x01FF);
-        let origin_x = if raw_x >= 256 {
-            raw_x as i32 - 512
-        } else {
-            raw_x as i32
-        };
+        let origin_x = if raw_x >= 256 { raw_x as i32 - 512 } else { raw_x as i32 };
         let raw_y = u32::from(attr0 & 0x00FF);
-        let origin_y = if raw_y >= 256 - height {
-            raw_y as i32 - 256
-        } else {
-            raw_y as i32
-        };
+        let origin_y = if raw_y >= 256 - bounding_height { raw_y as i32 - 256 } else { raw_y as i32 };
         let color_8bpp = attr0 & (1 << 13) != 0;
         let tile_index = u32::from(attr2 & 0x03FF) & if color_8bpp { !1 } else { !0 };
         let palette_bank = u32::from((attr2 >> 12) & 0xF);
-        let hflip = attr1 & (1 << 12) != 0;
-        let vflip = attr1 & (1 << 13) != 0;
+        let matrix_index = u32::from((attr1 >> 9) & 0x1F);
+        let matrix_address = OAM_BASE + matrix_index * 32 + 6;
+        let (pa, pb, pc, pd) = if affine {
+            (
+                i32::from(bus.read16(matrix_address) as i16),
+                i32::from(bus.read16(matrix_address + 8) as i16),
+                i32::from(bus.read16(matrix_address + 16) as i16),
+                i32::from(bus.read16(matrix_address + 24) as i16),
+            )
+        } else {
+            (0x100, 0, 0, 0x100)
+        };
+        let hflip = !affine && attr1 & (1 << 12) != 0;
+        let vflip = !affine && attr1 & (1 << 13) != 0;
         let mosaic_enabled = attr0 & (1 << 12) != 0;
         let row_stride = if one_dimensional {
             (width / 8) * if color_8bpp { 2 } else { 1 }
@@ -391,36 +396,36 @@ fn render_regular_objects(
             32
         };
 
-        for dy in 0..height {
+        for dy in 0..bounding_height {
             let screen_y = origin_y + dy as i32;
             if !(0..SCREEN_HEIGHT as i32).contains(&screen_y) {
                 continue;
             }
-            let sampled_y = if mosaic_enabled {
-                (dy / object_mosaic_height) * object_mosaic_height
-            } else {
-                dy
-            };
-            let source_y = if vflip {
-                height - 1 - sampled_y
-            } else {
-                sampled_y
-            };
-            for dx in 0..width {
+            let sampled_y = if mosaic_enabled { (dy / object_mosaic_height) * object_mosaic_height } else { dy };
+            for dx in 0..bounding_width {
                 let screen_x = origin_x + dx as i32;
                 if !(0..SCREEN_WIDTH as i32).contains(&screen_x) {
                     continue;
                 }
-                let sampled_x = if mosaic_enabled {
-                    (dx / object_mosaic_width) * object_mosaic_width
+                let sampled_x = if mosaic_enabled { (dx / object_mosaic_width) * object_mosaic_width } else { dx };
+                let (source_x, source_y) = if affine {
+                    let centered_x = sampled_x as i32 - bounding_width as i32 / 2;
+                    let centered_y = sampled_y as i32 - bounding_height as i32 / 2;
+                    (
+                        ((pa * centered_x + pb * centered_y) >> 8) + width as i32 / 2,
+                        ((pc * centered_x + pd * centered_y) >> 8) + height as i32 / 2,
+                    )
                 } else {
-                    dx
+                    (
+                        (if hflip { width - 1 - sampled_x } else { sampled_x }) as i32,
+                        (if vflip { height - 1 - sampled_y } else { sampled_y }) as i32,
+                    )
                 };
-                let source_x = if hflip {
-                    width - 1 - sampled_x
-                } else {
-                    sampled_x
-                };
+                if source_x < 0 || source_y < 0 || source_x >= width as i32 || source_y >= height as i32 {
+                    continue;
+                }
+                let source_x = source_x as u32;
+                let source_y = source_y as u32;
                 let tile_x = source_x / 8;
                 let tile_y = source_y / 8;
                 let slot =
