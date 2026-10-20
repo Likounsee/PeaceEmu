@@ -157,7 +157,24 @@ impl MemoryBus {
         let control = u16::from_le_bytes([self.io[control_offset], self.io[control_offset + 1]]);
         let destination = u32::from_le_bytes(self.io[base + 4..base + 8].try_into().unwrap());
         let fifo_address = if fifo == 0 { 0x0400_00A0 } else { 0x0400_00A4 };
-        if control & 0x8000 == 0 || (control >> 12) & 3 != 3 || destination != fifo_address { return; }
+        // Sound FIFO DMA is supported only on DMA1/2, with word-sized
+        // transfers, repeat enabled, incrementing source and fixed FIFO target.
+        // Reject malformed configurations instead of silently applying FIFO
+        // semantics to a channel programmed for an incompatible transfer.
+        let source_mode = (control >> 7) & 3;
+        let destination_mode = (control >> 5) & 3;
+        let word_transfer = control & (1 << 10) != 0;
+        let repeat = control & (1 << 9) != 0;
+        if control & 0x8000 == 0
+            || (control >> 12) & 3 != 3
+            || !word_transfer
+            || !repeat
+            || source_mode != 0
+            || destination_mode != 2
+            || destination != fifo_address
+        {
+            return;
+        }
         let source = u32::from_le_bytes(self.io[base..base + 4].try_into().unwrap()) & !3;
         for index in 0..4 {
             let word = self.read32(source.wrapping_add(index * 4));
@@ -1588,6 +1605,30 @@ mod tests {
         assert_eq!(bus.audio_fifo_len(0), Some(31));
         assert_eq!(bus.audio_fifo_last_sample(0), Some(0x83_u8 as i8));
         assert_eq!(bus.read32(0x0400_00BC), 0x0200_0010);
+        assert_eq!(bus.read16(0x0400_00C6) & 0x8000, 0x8000);
+    }
+
+    #[test]
+    fn sound_fifo_dma_rejects_incompatible_channel_configuration() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0084, 0x0080);
+        bus.write16(0x0400_0082, 1 << 8);
+        bus.write32(0x0200_0000, 0x4433_2211);
+        bus.write32(0x0400_00A0, 0x8877_6655);
+
+        // DMA1 has the FIFO destination and special timing, but no word/repeat
+        // configuration. It must not perform a forced four-word FIFO burst.
+        bus.write32(0x0400_00BC, 0x0200_0000);
+        bus.write32(0x0400_00C0, 0x0400_00A0);
+        bus.write16(0x0400_00C4, 1);
+        bus.write16(0x0400_00C6, 0xB000);
+        bus.write16(0x0400_0100, 0xFFFF);
+        bus.write16(0x0400_0102, 0x0080);
+        bus.advance_cycles(1);
+
+        assert_eq!(bus.audio_fifo_len(0), Some(3));
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(0x55));
+        assert_eq!(bus.read32(0x0400_00BC), 0x0200_0000);
         assert_eq!(bus.read16(0x0400_00C6) & 0x8000, 0x8000);
     }
 
