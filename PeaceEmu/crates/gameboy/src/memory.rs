@@ -21,8 +21,8 @@ pub const VRAM_SIZE: usize = 96 * 1024;
 pub const OAM_SIZE: usize = 1024;
 /// I/O register window size (1 KiB).
 pub const IO_SIZE: usize = 1024;
-/// SRAM backing-store size for the initial save-memory model (64 KiB).
-pub const SRAM_SIZE: usize = 64 * 1024;
+/// SRAM backup-device capacity (32 KiB); the 64 KiB bus window mirrors it.
+pub const SRAM_SIZE: usize = 32 * 1024;
 
 /// GBA bus and writable memory regions.
 #[derive(Clone, Debug)]
@@ -1526,7 +1526,7 @@ mod tests {
 
         let mut save = vec![0xFF; SRAM_SIZE];
         save[0x1234] = 0x5A;
-        save[0xFFFF] = 0xA5;
+        save[0x7FFF] = 0xA5;
         bus.load_sram_data(&save).unwrap();
         assert_eq!(bus.read8(0x0E00_1234), 0x5A);
         assert_eq!(bus.read8(0x0E00_FFFF), 0xA5);
