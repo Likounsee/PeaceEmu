@@ -676,6 +676,35 @@ mod tests {
     }
 
     #[test]
+    fn bitmap_mode4_uses_affine_coordinates_and_selected_page() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 4 | (1 << 4) | (1 << 10));
+        bus.write16(VRAM_BASE + 0xA000, 1);
+        bus.write16(VRAM_BASE + 0xA001, 2);
+        bus.write16(PALETTE_BASE + 2, 0x001F);
+        bus.write16(PALETTE_BASE + 4, 0x03E0);
+        bus.write16(0x0400_0020, 0x0200); // PA = 2.0, skip every other source pixel
+
+        let frame = render_bitmap_frame(&bus).expect("mode 4 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn bitmap_mode5_affine_reference_moves_centered_viewport_source() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 5 | (1 << 10));
+        bus.write16(VRAM_BASE, 0x001F);
+        bus.write16(VRAM_BASE + 2, 0x03E0);
+        bus.write16(VRAM_BASE + 4, 0x7C00);
+        bus.write16(0x0400_0028, 0x0100); // Start from source x = 1
+
+        let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
+        assert_eq!(frame.pixel(40, 16), Some(0xFF00_FF00));
+        assert_eq!(frame.pixel(41, 16), Some(0xFF00_00FF));
+    }
+
+    #[test]
     fn bitmap_mode3_affine_reference_wraps_when_overflow_is_enabled() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 3 | (1 << 10) | (1 << 13));
