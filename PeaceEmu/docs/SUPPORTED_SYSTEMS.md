@@ -2,11 +2,10 @@
 
 ## Current verified status
 
-**No console is currently emulated or supported.** The Game Boy crate currently parses a limited set of cartridge header fields only; it has no CPU, memory bus, peripherals, renderer, audio, or input implementation.
+**No console is currently emulated or supported by the host repository.** Console cores are developed in separate repositories and must demonstrate compatibility with reproducible tests before being listed as supported.
 
 | System | Status | Evidence |
 | --- | --- | --- |
-| Nintendo Game Boy (DMG) | Planned / cartridge-header parser experimental | Header parser unit tests only; no instruction execution or game compatibility |
 
 ## Status definitions
 
