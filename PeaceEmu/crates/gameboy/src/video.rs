@@ -120,11 +120,13 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
 
     if mode >= 3 {
         // Bitmap modes reserve VRAM through 0x06013FFF for the framebuffer;
-        // OBJ character data therefore begins at 0x06014000 instead.
-        // In bitmap modes BG2 is the opaque priority-0 backdrop. Only
-        // priority-0 OBJ pixels can appear in front of it; lower-priority
-        // sprites must not be painted over the framebuffer.
-        render_regular_objects(bus, display_control, 0, &mut frame);
+        // OBJ character data therefore begins at 0x06014000. BG2 priority is
+        // still controlled by BG2CNT, so only OBJ priorities numerically less
+        // than or equal to BG2's priority may cover the bitmap.
+        let bg2_priority = bus.read16(BG0CNT + 4) & 3;
+        for priority in (0..=bg2_priority).rev() {
+            render_regular_objects(bus, display_control, priority, &mut frame);
+        }
     }
 
     Some(frame)
@@ -901,6 +903,31 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
         assert_eq!(frame.pixel(1, 0), Some(rgb555(bus.read16(VRAM_BASE + 2))));
+    }
+
+    #[test]
+    fn bitmap_mode_uses_bg2cnt_priority_for_obj_compositing() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 3 | (1 << 12)); // Mode 3, OBJ enabled
+        bus.write16(BG0CNT + 4, 2); // BG2 priority 2
+        bus.write16(VRAM_BASE, 0x03E0); // bitmap backdrop pixel green
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
+        bus.write16(PALETTE_BASE + 0x204, 0x7C00); // OBJ index 2: blue
+        bus.write16(0x0601_4000, 0x1111); // tile 0: red
+        bus.write16(0x0601_4020, 0x2222); // tile 1: blue
+
+        // Priority 1 is in front of BG2 priority 2.
+        bus.write16(0x0700_0000, 0);
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 1 << 10);
+        // Priority 3 is behind BG2 and must not cover the bitmap.
+        bus.write16(0x0700_0008, 0);
+        bus.write16(0x0700_000A, 8);
+        bus.write16(0x0700_000C, 1 | (3 << 10));
+
+        let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(8, 0), Some(0xFF00_FF00));
     }
 
     #[test]
