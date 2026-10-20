@@ -166,13 +166,27 @@ fn render_affine_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut 
     let screen_base = u32::from((control >> 8) & 0x1F) * 0x800;
     let size = 128_u32 << ((control >> 14) & 3);
     let wrap = control & (1 << 13) != 0;
+    let mosaic_enabled = control & (1 << 6) != 0;
+    let mosaic = bus.read16(0x0400_004C);
+    let mosaic_width = u32::from((mosaic & 0xF) + 1);
+    let mosaic_height = u32::from(((mosaic >> 4) & 0xF) + 1);
 
     for y in 0..SCREEN_HEIGHT {
-        let source_x_base = reference_x + pb * y as i32;
-        let source_y_base = reference_y + pd * y as i32;
+        let screen_y = if mosaic_enabled {
+            (y as u32 / mosaic_height) * mosaic_height
+        } else {
+            y as u32
+        };
+        let source_x_base = reference_x + pb * screen_y as i32;
+        let source_y_base = reference_y + pd * screen_y as i32;
         for x in 0..SCREEN_WIDTH {
-            let source_x = (source_x_base + pa * x as i32) >> 8;
-            let source_y = (source_y_base + pc * x as i32) >> 8;
+            let screen_x = if mosaic_enabled {
+                (x as u32 / mosaic_width) * mosaic_width
+            } else {
+                x as u32
+            };
+            let source_x = (source_x_base + pa * screen_x as i32) >> 8;
+            let source_y = (source_y_base + pc * screen_x as i32) >> 8;
             let (source_x, source_y) = if wrap {
                 (
                     source_x.rem_euclid(size as i32) as u32,
@@ -462,6 +476,26 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
         assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn affine_background_mosaic_repeats_source_pixels_and_rows() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, (2 << 8) | (1 << 10)); // Mode 2, BG2 enabled
+        bus.write16(BG0CNT + 4, (1 << 6) | (1 << 13)); // BG2 mosaic and wrap
+        bus.write16(0x0400_0020, 0x0100); // PA = 1.0
+        bus.write16(0x0400_0026, 0x0100); // PD = 1.0
+        bus.write16(0x0400_004C, 1 | (1 << 4)); // 2x2 mosaic
+        bus.write8(VRAM_BASE, 0);
+        bus.write8(VRAM_BASE + 1, 1);
+        bus.write8(VRAM_BASE + 8, 2);
+        bus.write16(PALETTE_BASE + 2, 0x001F);
+        bus.write16(PALETTE_BASE + 4, 0x03E0);
+
+        let frame = render_bitmap_frame(&bus).unwrap();
+        assert_eq!(frame.pixel(0, 0), frame.pixel(1, 0));
+        assert_eq!(frame.pixel(0, 0), frame.pixel(0, 1));
+        assert_eq!(frame.pixel(2, 0), frame.pixel(2, 1));
     }
 
     #[test]
