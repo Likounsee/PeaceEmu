@@ -403,8 +403,7 @@ fn render_text_background(
             // Color index zero is transparent even when a 4bpp palette bank
             // makes its absolute palette index nonzero.
             if !transparent {
-                frame.pixels[y * SCREEN_WIDTH + x] =
-                    palette[palette_index as usize];
+                frame.pixels[y * SCREEN_WIDTH + x] = palette[palette_index as usize];
             }
         }
     }
