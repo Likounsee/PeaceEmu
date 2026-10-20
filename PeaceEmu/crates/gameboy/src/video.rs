@@ -341,7 +341,11 @@ fn render_regular_objects(
     }
     const OAM_BASE: u32 = 0x0700_0000;
     let mode = display_control & 7;
-    let obj_vram_base: u32 = if mode >= 3 { 0x0601_4000 } else { 0x0601_0000 };
+    // OBJ tile indices remain relative to 0x06010000 in every display mode.
+    // Bitmap modes reserve the first 16 KiB of OBJ VRAM, so indices below 512
+    // are unavailable there; adding 0x06014000 as a new base would double-offset
+    // valid bitmap-mode tile indices.
+    let obj_vram_base: u32 = 0x0601_0000;
     let one_dimensional = display_control & (1 << 6) != 0;
     let mosaic = bus.read16(0x0400_004C);
     let object_mosaic_width = u32::from(((mosaic >> 8) & 0xF) + 1);
@@ -411,7 +415,13 @@ fn render_regular_objects(
             raw_y as i32
         };
         let color_8bpp = attr0 & (1 << 13) != 0;
-        let tile_index = u32::from(attr2 & 0x03FF) & if color_8bpp { !1 } else { !0 };
+        let raw_tile_index = u32::from(attr2 & 0x03FF);
+        // In bitmap modes OBJ VRAM starts at tile index 512 (0x06014000).
+        // Lower indices overlap the framebuffer and cannot be used as OBJ data.
+        if mode >= 3 && raw_tile_index < 512 {
+            continue;
+        }
+        let tile_index = raw_tile_index & if color_8bpp { !1 } else { !0 };
         let palette_bank = u32::from((attr2 >> 12) & 0xF);
         let matrix_index = u32::from((attr1 >> 9) & 0x1F);
         let matrix_address = OAM_BASE + matrix_index * 32 + 6;
@@ -898,7 +908,7 @@ mod tests {
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
         bus.write16(0x0700_0000, 0);
         bus.write16(0x0700_0002, 0);
-        bus.write16(0x0700_0004, 0);
+        bus.write16(0x0700_0004, 512);
 
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
@@ -920,11 +930,11 @@ mod tests {
         // Priority 1 is in front of BG2 priority 2.
         bus.write16(0x0700_0000, 0);
         bus.write16(0x0700_0002, 0);
-        bus.write16(0x0700_0004, 1 << 10);
+        bus.write16(0x0700_0004, 512 | (1 << 10));
         // Priority 3 is behind BG2 and must not cover the bitmap.
         bus.write16(0x0700_0008, 0);
         bus.write16(0x0700_000A, 8);
-        bus.write16(0x0700_000C, 1 | (3 << 10));
+        bus.write16(0x0700_000C, 513 | (3 << 10));
 
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
@@ -940,7 +950,7 @@ mod tests {
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
         bus.write16(0x0700_0000, 0); // visible, regular 8x8 OBJ
         bus.write16(0x0700_0002, 0); // regular 8x8 sprite, no flips
-        bus.write16(0x0700_0004, 1 << 10); // priority 1, behind bitmap BG2
+        bus.write16(0x0700_0004, 512 | (1 << 10)); // tile 512, priority 1, behind BG2
 
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
