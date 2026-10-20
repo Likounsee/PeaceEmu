@@ -130,10 +130,15 @@ fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut Vi
         for bg in (0..4).rev() {
             let control_address = BG0CNT + bg * 2;
             let control = bus.read16(control_address);
-            if display_control & (1 << (8 + bg)) == 0 || control & 3 != priority {
+            let mode = display_control & 7;
+            // Mode 2 exposes only affine BG2/BG3. BG0 and BG1 are not
+            // available in this mode even if software leaves their enable bits set.
+            if (mode == 2 && bg < 2)
+                || display_control & (1 << (8 + bg)) == 0
+                || control & 3 != priority
+            {
                 continue;
             }
-            let mode = display_control & 7;
             if mode == 0 || bg < 2 {
                 render_text_background(bus, bg, control, frame);
             } else if bg >= 2 && (mode == 2 || bg == 2) {
@@ -339,7 +344,14 @@ fn render_regular_objects(
         // Bit 8 selects affine transformation. Bit 9 disables a regular
         // sprite, but doubles the affine sprite's destination bounding box.
         let affine = attr0 & (1 << 8) != 0;
-        if (!affine && attr0 & (1 << 9) != 0) || (attr0 >> 10) & 3 != 0 || (attr0 >> 14) & 3 == 3 {
+        let object_mode = (attr0 >> 10) & 3;
+        // OBJ-window entries and prohibited OBJ modes do not draw regular
+        // sprite pixels. Semi-transparent OBJ mode (1) still draws its source
+        // pixels; alpha blending is handled by the compositor when available.
+        if (!affine && attr0 & (1 << 9) != 0)
+            || object_mode >= 2
+            || (attr0 >> 14) & 3 == 3
+        {
             continue;
         }
         if ((attr2 >> 10) & 3) != priority {
@@ -537,6 +549,36 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
         assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn mode2_ignores_text_background_enable_bits() {
+        let mut bus = bus();
+        // BG0 is unavailable in mode 2, even when DISPCNT bit 8 is set.
+        bus.write16(0x0400_0000, 2 | (1 << 8));
+        bus.write16(BG0CNT, 0);
+        bus.write16(VRAM_BASE, 1);
+        bus.write16(VRAM_BASE + 0x4000, 1);
+        bus.write16(PALETTE_BASE + 2, 0x001F); // palette 1: red
+
+        let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn semi_transparent_obj_mode_keeps_sprite_visible_without_blending() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
+        bus.write16(0x0601_0000, 0x1111);
+        bus.write16(0x0700_0000, 1 << 10); // semi-transparent 8x8 OBJ
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        // Full alpha-effect composition is not implemented yet, but mode 1
+        // must not make the OBJ disappear entirely.
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
     }
 
     #[test]
