@@ -338,10 +338,7 @@ fn render_regular_objects(
         // Bit 8 selects affine transformation. Bit 9 disables a regular
         // sprite, but doubles the affine sprite's destination bounding box.
         let affine = attr0 & (1 << 8) != 0;
-        if (!affine && attr0 & (1 << 9) != 0)
-            || (attr0 >> 10) & 3 != 0
-            || (attr0 >> 14) & 3 == 3
-        {
+        if (!affine && attr0 & (1 << 9) != 0) || (attr0 >> 10) & 3 != 0 || (attr0 >> 14) & 3 == 3 {
             continue;
         }
         if ((attr2 >> 10) & 3) != priority {
@@ -441,8 +438,16 @@ fn render_regular_objects(
                     )
                 } else {
                     (
-                        (if hflip { width - 1 - sampled_x } else { sampled_x }) as i32,
-                        (if vflip { height - 1 - sampled_y } else { sampled_y }) as i32,
+                        (if hflip {
+                            width - 1 - sampled_x
+                        } else {
+                            sampled_x
+                        }) as i32,
+                        (if vflip {
+                            height - 1 - sampled_y
+                        } else {
+                            sampled_y
+                        }) as i32,
                     )
                 };
                 if source_x < 0
@@ -958,7 +963,6 @@ mod tests {
         bus.write16(0x0700_0000, 1 << 8); // affine 8x8 OBJ
         bus.write16(0x0700_0002, 0); // matrix 0, position (0,0)
         bus.write16(0x0700_0004, 0); // tile 0, priority 0
-        // Affine matrix 0 lives in the attribute-3 halfwords of OAM entries 0..3.
         bus.write16(0x0700_0006, 0x0100); // PA = 1.0
         bus.write16(0x0700_000E, 0); // PB = 0
         bus.write16(0x0700_0016, 0); // PC = 0
@@ -974,7 +978,6 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
-        // Fill the 8x8 source with palette index 1.
         for y in 0..8_u32 {
             for x in 0..4_u32 {
                 bus.write8(0x0601_0000 + y * 4 + x, 0x11);
