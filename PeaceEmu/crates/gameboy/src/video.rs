@@ -922,6 +922,51 @@ mod tests {
     }
 
     #[test]
+    fn affine_obj_identity_matrix_renders_regular_sprite_coordinates() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
+        bus.write16(0x0601_0000, 0x0021); // source pixels 1, 2
+        bus.write16(0x0700_0000, 1 << 8); // affine 8x8 OBJ
+        bus.write16(0x0700_0002, 0); // matrix 0, position (0,0)
+        bus.write16(0x0700_0004, 0); // tile 0, priority 0
+        // Affine matrix 0 lives in the attribute-3 halfwords of OAM entries 0..3.
+        bus.write16(0x0700_0006, 0x0100); // PA = 1.0
+        bus.write16(0x0700_000E, 0); // PB = 0
+        bus.write16(0x0700_0016, 0); // PC = 0
+        bus.write16(0x0700_001E, 0x0100); // PD = 1.0
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
+    }
+
+    #[test]
+    fn affine_obj_double_size_expands_destination_bounds() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
+        // Fill the 8x8 source with palette index 1.
+        for y in 0..8_u32 {
+            for x in 0..4_u32 {
+                bus.write8(0x0601_0000 + y * 32 + x, 0x11);
+            }
+        }
+        bus.write16(0x0700_0000, (1 << 8) | (1 << 9)); // affine + double-size
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+        bus.write16(0x0700_0006, 0x0100);
+        bus.write16(0x0700_000E, 0);
+        bus.write16(0x0700_0016, 0);
+        bus.write16(0x0700_001E, 0x0100);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        // The doubled 16x16 box centers the original 8x8 image at (4,4).
+        assert_eq!(frame.pixel(4, 4), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(0, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
     fn regular_obj_mosaic_repeats_source_pixels_and_rows() {
         let mut bus = bus();
         bus.write16(0x0400_0000, (1 << 6) | (1 << 12)); // OBJ enabled, 1D mapping
