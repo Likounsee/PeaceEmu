@@ -86,16 +86,29 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             for y in 0..SCREEN_HEIGHT {
                 for x in 0..SCREEN_WIDTH {
                     let Some((source_x, source_y)) = bitmap_source_coordinates(
-                        bus, x, y, SCREEN_WIDTH, SCREEN_HEIGHT, mosaic_enabled,
-                        mosaic_width, mosaic_height, display_control & (1 << 13) != 0,
-                    ) else { continue; };
+                        bus,
+                        x,
+                        y,
+                        SCREEN_WIDTH,
+                        SCREEN_HEIGHT,
+                        mosaic_enabled,
+                        mosaic_width,
+                        mosaic_height,
+                        display_control & (1 << 13) != 0,
+                    ) else {
+                        continue;
+                    };
                     let address = VRAM_BASE + ((source_y * SCREEN_WIDTH + source_x) * 2) as u32;
                     frame.pixels[y * SCREEN_WIDTH + x] = rgb555(bus.read16(address));
                 }
             }
         }
         4 => {
-            let page_offset = if display_control & (1 << 4) != 0 { 0xA000 } else { 0 };
+            let page_offset = if display_control & (1 << 4) != 0 {
+                0xA000
+            } else {
+                0
+            };
             let bg2_control = bus.read16(BG0CNT + 4);
             let mosaic_enabled = bg2_control & (1 << 6) != 0;
             let mosaic = bus.read16(0x0400_004C);
@@ -105,12 +118,23 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             for y in 0..SCREEN_HEIGHT {
                 for x in 0..SCREEN_WIDTH {
                     let Some((source_x, source_y)) = bitmap_source_coordinates(
-                        bus, x, y, SCREEN_WIDTH, SCREEN_HEIGHT, mosaic_enabled,
-                        mosaic_width, mosaic_height, display_control & (1 << 13) != 0,
-                    ) else { continue; };
-                    let address = VRAM_BASE + page_offset + (source_y * SCREEN_WIDTH + source_x) as u32;
+                        bus,
+                        x,
+                        y,
+                        SCREEN_WIDTH,
+                        SCREEN_HEIGHT,
+                        mosaic_enabled,
+                        mosaic_width,
+                        mosaic_height,
+                        display_control & (1 << 13) != 0,
+                    ) else {
+                        continue;
+                    };
+                    let address =
+                        VRAM_BASE + page_offset + (source_y * SCREEN_WIDTH + source_x) as u32;
                     let index = u32::from(bus.read8(address));
-                    frame.pixels[y * SCREEN_WIDTH + x] = rgb555(bus.read16(PALETTE_BASE + index * 2));
+                    frame.pixels[y * SCREEN_WIDTH + x] =
+                        rgb555(bus.read16(PALETTE_BASE + index * 2));
                 }
             }
         }
@@ -132,12 +156,23 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             for y in 0..MODE_5_HEIGHT {
                 for x in 0..MODE_5_WIDTH {
                     let Some((source_x, source_y)) = bitmap_source_coordinates(
-                        bus, x, y, MODE_5_WIDTH, MODE_5_HEIGHT, mosaic_enabled,
-                        mosaic_width, mosaic_height, display_control & (1 << 13) != 0,
-                    ) else { continue; };
-                    let address = VRAM_BASE + page_offset + ((source_y * MODE_5_WIDTH + source_x) * 2) as u32;
+                        bus,
+                        x,
+                        y,
+                        MODE_5_WIDTH,
+                        MODE_5_HEIGHT,
+                        mosaic_enabled,
+                        mosaic_width,
+                        mosaic_height,
+                        display_control & (1 << 13) != 0,
+                    ) else {
+                        continue;
+                    };
+                    let address =
+                        VRAM_BASE + page_offset + ((source_y * MODE_5_WIDTH + source_x) * 2) as u32;
                     let target = (y + (SCREEN_HEIGHT - MODE_5_HEIGHT) / 2) * SCREEN_WIDTH
-                        + x + (SCREEN_WIDTH - MODE_5_WIDTH) / 2;
+                        + x
+                        + (SCREEN_WIDTH - MODE_5_WIDTH) / 2;
                     frame.pixels[target] = rgb555(bus.read16(address));
                 }
             }
@@ -391,10 +426,7 @@ fn render_regular_objects(
         // OBJ-window entries and prohibited OBJ modes do not draw regular
         // sprite pixels. Semi-transparent OBJ mode (1) still draws its source
         // pixels; alpha blending is handled by the compositor when available.
-        if (!affine && attr0 & (1 << 9) != 0)
-            || object_mode >= 2
-            || (attr0 >> 14) & 3 == 3
-        {
+        if (!affine && attr0 & (1 << 9) != 0) || object_mode >= 2 || (attr0 >> 14) & 3 == 3 {
             continue;
         }
         if ((attr2 >> 10) & 3) != priority {
@@ -553,24 +585,45 @@ fn render_regular_objects(
 
 /// Maps a screen pixel through BG2's affine matrix into bitmap VRAM.
 fn bitmap_source_coordinates(
-    bus: &MemoryBus, x: usize, y: usize, width: usize, height: usize,
-    mosaic_enabled: bool, mosaic_width: usize, mosaic_height: usize, wrap: bool,
+    bus: &MemoryBus,
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+    mosaic_enabled: bool,
+    mosaic_width: usize,
+    mosaic_height: usize,
+    wrap: bool,
 ) -> Option<(usize, usize)> {
-    let x = if mosaic_enabled { x / mosaic_width * mosaic_width } else { x };
-    let y = if mosaic_enabled { y / mosaic_height * mosaic_height } else { y };
+    let x = if mosaic_enabled {
+        x / mosaic_width * mosaic_width
+    } else {
+        x
+    };
+    let y = if mosaic_enabled {
+        y / mosaic_height * mosaic_height
+    } else {
+        y
+    };
     let pa = i32::from(bus.read16(0x0400_0020) as i16);
     let pb = i32::from(bus.read16(0x0400_0022) as i16);
     let pc = i32::from(bus.read16(0x0400_0024) as i16);
     let pd = i32::from(bus.read16(0x0400_0026) as i16);
-    let reference_x = sign_extend_28(u32::from(bus.read16(0x0400_0028))
-        | (u32::from(bus.read16(0x0400_002A) & 0x0FFF) << 16));
-    let reference_y = sign_extend_28(u32::from(bus.read16(0x0400_002C))
-        | (u32::from(bus.read16(0x0400_002E) & 0x0FFF) << 16));
+    let reference_x = sign_extend_28(
+        u32::from(bus.read16(0x0400_0028)) | (u32::from(bus.read16(0x0400_002A) & 0x0FFF) << 16),
+    );
+    let reference_y = sign_extend_28(
+        u32::from(bus.read16(0x0400_002C)) | (u32::from(bus.read16(0x0400_002E) & 0x0FFF) << 16),
+    );
     let source_x = (reference_x + pa * x as i32 + pb * y as i32) >> 8;
     let source_y = (reference_y + pc * x as i32 + pd * y as i32) >> 8;
     if wrap {
-        Some((source_x.rem_euclid(width as i32) as usize, source_y.rem_euclid(height as i32) as usize))
-    } else if source_x < 0 || source_y < 0 || source_x >= width as i32 || source_y >= height as i32 {
+        Some((
+            source_x.rem_euclid(width as i32) as usize,
+            source_y.rem_euclid(height as i32) as usize,
+        ))
+    } else if source_x < 0 || source_y < 0 || source_x >= width as i32 || source_y >= height as i32
+    {
         None
     } else {
         Some((source_x as usize, source_y as usize))
@@ -603,9 +656,9 @@ mod tests {
         // a test explicitly programs a different affine matrix.
         bus.write16(0x0400_0020, 0x0100); // BG2 PA = 1.0
         bus.write16(0x0400_0026, 0x0100); // BG2 PD = 1.0
-        // Real software initializes unused OAM entries as disabled. Keeping
-        // the test bus deterministic prevents default all-zero entries from
-        // aliasing tile 0 and overwriting the sprite under test.
+                                          // Real software initializes unused OAM entries as disabled. Keeping
+                                          // the test bus deterministic prevents default all-zero entries from
+                                          // aliasing tile 0 and overwriting the sprite under test.
         for index in 0..128_u32 {
             bus.write16(0x0700_0000 + index * 8, 1 << 9);
         }
@@ -1306,8 +1359,8 @@ mod tests {
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
         bus.write16(PALETTE_BASE + 0x204, 0x03E0); // OBJ index 2: green
-        // An 8bpp tile occupies 64 bytes and its tile number is rounded down
-        // to an even 32-byte slot.
+                                                   // An 8bpp tile occupies 64 bytes and its tile number is rounded down
+                                                   // to an even 32-byte slot.
         bus.write16(0x0601_0000, 0x0201);
         bus.write16(0x0700_0000, 1 << 13); // 8bpp OBJ
         bus.write16(0x0700_0002, 0);
