@@ -1279,6 +1279,17 @@ mod tests {
     }
 
     #[test]
+    fn dma_control_high_byte_masks_drq_by_channel() {
+        let mut bus = MemoryBus::new(cartridge());
+        // A high-byte STRB write must preserve DMA3's DRQ selector but mask
+        // the reserved bit on DMA0. VBlank timing avoids an immediate transfer.
+        bus.write8(0x0400_00BB, 0x98);
+        bus.write8(0x0400_00DF, 0x98);
+        assert_eq!(bus.read16(0x0400_00BA), 0x9000);
+        assert_eq!(bus.read16(0x0400_00DE), 0x9800);
+    }
+
+    #[test]
     fn dma3_game_pak_drq_waits_for_external_request_not_vblank() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0200_0000, 0xCAFE);
