@@ -1,4 +1,6 @@
-//! Cartridge backup-device identification.
+//! Cartridge backup-device identification and Flash command emulation.
+
+use crate::memory::SramSizeError;
 
 /// Backup-device type inferred from ROM signatures.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
