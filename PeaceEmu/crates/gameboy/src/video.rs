@@ -306,6 +306,10 @@ fn palette_snapshot(bus: &MemoryBus) -> [u32; 256] {
     std::array::from_fn(|index| rgb555(bus.read16(PALETTE_BASE + (index as u32) * 2)))
 }
 
+fn obj_palette_snapshot(bus: &MemoryBus) -> [u32; 256] {
+    std::array::from_fn(|index| rgb555(bus.read16(PALETTE_BASE + 0x200 + (index as u32) * 2)))
+}
+
 fn render_text_background(bus: &MemoryBus, bg: u32, control: u16, frame: &mut VideoFrame) {
     let hofs_address = BG0HOFS + bg * 4;
     let vofs_address = BG0VOFS + bg * 4;
@@ -417,6 +421,7 @@ fn render_regular_objects(
     let mosaic = bus.read16(0x0400_004C);
     let object_mosaic_width = u32::from(((mosaic >> 8) & 0xF) + 1);
     let object_mosaic_height = u32::from(((mosaic >> 12) & 0xF) + 1);
+    let palette = obj_palette_snapshot(bus);
 
     for index in (0..128_u32).rev() {
         let base = OAM_BASE + index * 8;
