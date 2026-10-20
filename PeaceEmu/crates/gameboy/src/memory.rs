@@ -357,8 +357,9 @@ impl MemoryBus {
 
     /// Writes a DMA control register and performs immediate-timing transfers.
     ///
-    /// HBlank and VBlank requests are driven by video timing. FIFO DMA and the
-    /// external Game Pak DRQ request line are not modeled yet.
+    /// HBlank and VBlank requests are driven by video timing; sound FIFO
+    /// requests are serviced by the timer-overflow path. The external Game Pak
+    /// DRQ request line is not modeled yet.
     fn write_dma_control(&mut self, channel: usize, value: u16) {
         if channel >= 4 {
             return;
@@ -1519,6 +1520,33 @@ mod tests {
         assert_eq!(bus.read8(0x0E00_0001), 0xAB);
         bus.write32(0x0E00_0003, 0x7654_3210);
         assert_eq!(bus.read8(0x0E00_0003), 0x76);
+    }
+
+    #[test]
+    fn sound_fifo_waits_for_master_enable_and_selected_timer() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write32(0x0400_00A0, 0x4433_2211);
+        bus.write16(0x0400_0082, (1 << 8) | (1 << 10)); // FIFO A uses timer 0.
+
+        // Timer 1 overflow must not clock a FIFO assigned to timer 0.
+        bus.write16(0x0400_0104, 0xFFFF);
+        bus.write16(0x0400_0106, 0x0080);
+        bus.advance_cycles(1);
+        assert_eq!(bus.audio_fifo_len(0), Some(4));
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(0));
+
+        // Timer 0 is selected, but FIFO playback is still gated by SOUNDCNT_X.
+        bus.write16(0x0400_0100, 0xFFFF);
+        bus.write16(0x0400_0102, 0x0080);
+        bus.advance_cycles(1);
+        assert_eq!(bus.audio_fifo_len(0), Some(4));
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(0));
+
+        // Enabling the sound master allows the selected timer to consume one byte.
+        bus.write16(0x0400_0084, 0x0080);
+        bus.advance_cycles(1);
+        assert_eq!(bus.audio_fifo_len(0), Some(3));
+        assert_eq!(bus.audio_fifo_last_sample(0), Some(0x11));
     }
 
     #[test]
