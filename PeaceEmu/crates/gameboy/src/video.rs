@@ -105,6 +105,10 @@ pub fn render_bitmap_frame(bus: &MemoryBus) -> Option<VideoFrame> {
             } else {
                 0
             };
+            // Mode 5 displays only a centered 160×128 bitmap. Pixels outside
+            // that viewport show the backdrop color (palette entry zero), not
+            // an unconditional black fill.
+            frame.pixels.fill(rgb555(bus.read16(PALETTE_BASE)));
             for y in 0..MODE_5_HEIGHT {
                 for x in 0..MODE_5_WIDTH {
                     let address = VRAM_BASE + page_offset + ((y * MODE_5_WIDTH + x) * 2) as u32;
@@ -583,6 +587,19 @@ mod tests {
         let frame = render_bitmap_frame(&bus).expect("mode 2 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFF00_FF00));
         assert_eq!(frame.pixel(1, 0), Some(0xFF00_0000));
+    }
+
+    #[test]
+    fn mode5_uses_backdrop_color_outside_centered_bitmap() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 5 | (1 << 10)); // Mode 5, BG2 enabled
+        bus.write16(PALETTE_BASE, 0x7C00); // Blue backdrop
+        bus.write16(VRAM_BASE, 0x001F); // Red first bitmap pixel
+
+        let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
+        assert_eq!(frame.pixel(39, 15), Some(0xFF00_00FF)); // Outside viewport
+        assert_eq!(frame.pixel(40, 16), Some(0xFFFF_0000)); // Viewport origin
+        assert_eq!(frame.pixel(199, 143), Some(0xFF00_00FF)); // Outside viewport
     }
 
     #[test]
