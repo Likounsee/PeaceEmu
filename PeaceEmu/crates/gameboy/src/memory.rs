@@ -417,7 +417,12 @@ impl MemoryBus {
         self.video_cycles_in_line += 1;
         if self.video_cycles_in_line == 960 {
             self.dispstat |= 1 << 1;
-            self.trigger_dma_timing(2);
+            // HBlank DMA transfers are for visible scanlines only. HBlank
+            // status and its IRQ still occur during VBlank, but the DMA
+            // request must not start another display transfer there.
+            if self.vcount < 160 {
+                self.trigger_dma_timing(2);
+            }
             if self.dispstat & (1 << 4) != 0 {
                 self.request_interrupt(1 << 1);
             }
@@ -1260,6 +1265,26 @@ mod tests {
         assert_eq!(bus.read16(0x0300_0000), 0);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
     }
+    #[test]
+    fn hblank_dma_does_not_trigger_during_vblank_scanlines() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0xCAFE);
+        bus.write32(0x0400_00B0, 0x0200_0000);
+        bus.write32(0x0400_00B4, 0x0300_0000);
+        bus.write16(0x0400_00B8, 1);
+        bus.write16(0x0400_00BA, 0xA000); // enable HBlank DMA
+
+        // Reach the first VBlank scanline without entering HBlank on it.
+        bus.advance_cycles(1232 * 160);
+        assert_eq!(bus.read16(0x0400_0006), 160);
+        bus.advance_cycles(960);
+
+        assert_eq!(bus.read16(0x0300_0000), 0);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
+        // DISPSTAT still reports HBlank during VBlank.
+        assert_eq!(bus.read16(0x0400_0004) & 2, 2);
+    }
+
     #[test]
     fn vblank_dma_transfers_only_when_vblank_begins_and_repeats_when_configured() {
         let mut bus = MemoryBus::new(cartridge());
