@@ -13,7 +13,7 @@ The native desktop application uses eframe/egui and the shared `ApplicationContr
 - Semantic keyboard input with duplicate key-down suppression and release recovery when focus/page changes.
 - Explicit per-session core errors and declared audio/video capability states.
 
-Importing a file does not prove that it is valid or playable. The current Game Boy core is incomplete and does not provide a playable-game experience. Audio playback is not yet integrated.
+Importing a file does not prove that it is valid or playable. Console cores are maintained in separate repositories; this host repository does not bundle a console implementation. Audio playback is not yet integrated.
 
 ## Boundaries
 
