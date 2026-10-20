@@ -311,7 +311,11 @@ impl MemoryBus {
         if control & 0x8000 == 0 || old & 0x8000 != 0 {
             return;
         }
-        if (control >> 12) & 3 == 0 {
+        // DMA3's Game Pak DRQ bit selects an external request line regardless
+        // of the timing-selector bits. Do not mistake selector 0 for an
+        // immediate request while DRQ mode is enabled.
+        let game_pak_drq = channel == 3 && control & (1 << 11) != 0;
+        if !game_pak_drq && (control >> 12) & 3 == 0 {
             self.perform_dma_transfer(channel, control);
         }
     }
@@ -1300,6 +1304,19 @@ mod tests {
 
         bus.advance_cycles(1232 * 160);
 
+        assert_eq!(bus.read16(0x0300_0000), 0);
+        assert_eq!(bus.read16(0x0400_00DE) & 0x8000, 0x8000);
+    }
+
+    #[test]
+    fn dma3_game_pak_drq_does_not_start_as_immediate_dma() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0200_0000, 0xCAFE);
+        bus.write32(0x0400_00D4, 0x0200_0000);
+        bus.write32(0x0400_00D8, 0x0300_0000);
+        bus.write16(0x0400_00DC, 1);
+        // DRQ is an external request source; selector 0 must not override it.
+        bus.write16(0x0400_00DE, 0x8800);
         assert_eq!(bus.read16(0x0300_0000), 0);
         assert_eq!(bus.read16(0x0400_00DE) & 0x8000, 0x8000);
     }
