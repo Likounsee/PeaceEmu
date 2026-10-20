@@ -142,12 +142,18 @@ impl FlashDevice {
     pub fn read(&self, address: u16) -> u8 {
         if self.id_mode {
             // Common Macronix-compatible IDs used by GBA Flash cartridges.
-            return match (address, self.data.len()) {
-                (0, 64 * 1024) => 0xC2,
-                (1, 64 * 1024) => 0x1C,
-                (0, _) => 0x62,
-                (1, _) => 0x13,
-                _ => 0xFF,
+            return if self.data.len() == 64 * 1024 {
+                match address {
+                    0 => 0xC2,
+                    1 => 0x1C,
+                    _ => 0xFF,
+                }
+            } else {
+                match address {
+                    0 => 0x62,
+                    1 => 0x13,
+                    _ => 0xFF,
+                }
             };
         }
         self.data[self.bank * 0x1_0000 + usize::from(address)]
