@@ -65,10 +65,10 @@ pub struct MemoryBus {
     audio_last_samples: [i8; 2],
 }
 
-/// Error returned when loading save data whose size does not match the SRAM backing store.
+/// Error returned when loading save data whose size does not match the device capacity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SramSizeError {
-    /// Number of bytes required by this SRAM model.
+    /// Number of bytes required by the save device.
     pub expected: usize,
     /// Number of bytes supplied by the caller.
     pub actual: usize,
@@ -122,8 +122,8 @@ impl MemoryBus {
 
     /// Returns the backup-device type inferred from the loaded cartridge ROM.
     ///
-    /// This is signature-based metadata only; Flash and EEPROM command protocols
-    /// are not implemented by the current SRAM bus path.
+    /// This is signature-based metadata; SRAM and Flash are mapped to their
+    /// respective devices, while EEPROM serial transactions remain unsupported.
     pub fn cartridge_save_type(&self) -> Option<crate::SaveType> {
         self.cartridge.save_type()
     }
