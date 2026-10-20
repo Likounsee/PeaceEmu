@@ -20,7 +20,7 @@ pub mod save;
 pub use cartridge::{CartridgeError, GbaCartridge};
 pub use cpu::{ConditionFlags, Cpu, CpuError, StepOutcome};
 pub use memory::{MemoryBus, SramSizeError};
-pub use save::SaveType;
+pub use save::{FlashDevice, SaveType};
 
 /// Initial bitmap-mode renderer for the Game Boy Advance display.
 pub mod video;
