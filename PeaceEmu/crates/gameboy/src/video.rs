@@ -628,6 +628,37 @@ mod tests {
     }
 
     #[test]
+    fn bitmap_mode4_applies_bg2_mosaic_to_palette_indices() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 4 | (1 << 10));
+        bus.write16(BG0CNT + 4, 1 << 6);
+        bus.write16(0x0400_004C, 1 | (1 << 4));
+        bus.write16(VRAM_BASE, 0x0201); // index 1 then index 2
+        bus.write16(PALETTE_BASE + 2, 0x001F); // red
+        bus.write16(PALETTE_BASE + 4, 0x03E0); // green
+
+        let frame = render_bitmap_frame(&bus).expect("mode 4 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(0, 1), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(2, 0), Some(0xFF00_FF00));
+    }
+
+    #[test]
+    fn bitmap_mode5_applies_bg2_mosaic_inside_centered_viewport() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 5 | (1 << 10));
+        bus.write16(BG0CNT + 4, 1 << 6);
+        bus.write16(0x0400_004C, 1 | (1 << 4));
+        bus.write16(VRAM_BASE, 0x001F); // red at local (0,0)
+        bus.write16(VRAM_BASE + 2, 0x03E0); // green at local (1,0)
+
+        let frame = render_bitmap_frame(&bus).expect("mode 5 should render");
+        assert_eq!(frame.pixel(40, 16), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(41, 16), Some(0xFFFF_0000));
+    }
+
+    #[test]
     fn mode5_uses_backdrop_color_outside_centered_bitmap() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 5 | (1 << 10)); // Mode 5, BG2 enabled
