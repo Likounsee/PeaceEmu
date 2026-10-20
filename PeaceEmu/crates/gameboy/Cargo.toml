@@ -1,8 +1,0 @@
-[package]
-name = "gameboy"
-version = "0.1.0"
-description = "Game Boy Advance hardware implementation for PeaceEmu (internal codename: gameboy)"
-edition.workspace = true
-license.workspace = true
-rust-version.workspace = true
-repository.workspace = true
