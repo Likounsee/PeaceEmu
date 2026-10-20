@@ -129,7 +129,7 @@ fn render_text_backgrounds(bus: &MemoryBus, display_control: u16, frame: &mut Vi
         for bg in (0..4).rev() {
             let control_address = BG0CNT + bg * 2;
             let control = bus.read16(control_address);
-            if display_control & (1 << (8 + bg)) == 0 || control & 3 != priority as u16 {
+            if display_control & (1 << (8 + bg)) == 0 || control & 3 != priority {
                 continue;
             }
             let mode = display_control & 7;
@@ -328,7 +328,7 @@ fn render_regular_objects(
         {
             continue;
         }
-        if u16::from((attr2 >> 10) & 3) != priority {
+        if ((attr2 >> 10) & 3) != priority {
             continue;
         }
 
@@ -637,7 +637,7 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, (1 << 8) | (1 << 9));
         bus.write16(BG0CNT, 0); // BG0 priority 0
-        bus.write16(BG0CNT + 2, 0 | (1 << 8)); // BG1 priority 0, screen block 1
+        bus.write16(BG0CNT + 2, 1 << 8); // BG1 priority 0, screen block 1
         bus.write16(VRAM_BASE, 1);
         bus.write8(VRAM_BASE + 32, 1);
         bus.write16(VRAM_BASE + 0x800, 2);
