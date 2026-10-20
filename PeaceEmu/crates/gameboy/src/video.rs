@@ -926,7 +926,7 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ index 1: red
-        bus.write16(0x0601_0000, 0x0021); // source pixels 1, 2
+        bus.write16(0x0601_0000, 0x1111); // source pixels use palette index 1
         bus.write16(0x0700_0000, 1 << 8); // affine 8x8 OBJ
         bus.write16(0x0700_0002, 0); // matrix 0, position (0,0)
         bus.write16(0x0700_0004, 0); // tile 0, priority 0
@@ -949,7 +949,7 @@ mod tests {
         // Fill the 8x8 source with palette index 1.
         for y in 0..8_u32 {
             for x in 0..4_u32 {
-                bus.write8(0x0601_0000 + y * 32 + x, 0x11);
+                bus.write8(0x0601_0000 + y * 4 + x, 0x11);
             }
         }
         bus.write16(0x0700_0000, (1 << 8) | (1 << 9)); // affine + double-size
