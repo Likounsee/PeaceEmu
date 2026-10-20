@@ -1262,7 +1262,7 @@ mod tests {
         assert_eq!(bus.read16(0x0400_00BA) & 0x00FF, 0x00E0);
 
         // The low-byte path must preserve the high byte, including enable.
-        bus.write8(0x0400_00BB, 0x80);
+        bus.write8(0x0400_00BB, 0x90); // enable on VBlank, not immediate
         bus.write8(0x0400_00BA, 0x00);
         assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
     }
