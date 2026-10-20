@@ -64,7 +64,10 @@ mod tests {
     }
 
     #[test]
-    fn does_not_guess_eeprom_capacity() {
+    fn reports_only_capacities_known_from_the_save_type() {
+        assert_eq!(SaveType::Sram.capacity_bytes(), Some(32 * 1024));
+        assert_eq!(SaveType::Flash64K.capacity_bytes(), Some(64 * 1024));
+        assert_eq!(SaveType::Flash128K.capacity_bytes(), Some(128 * 1024));
         assert_eq!(SaveType::Eeprom.capacity_bytes(), None);
     }
 }
