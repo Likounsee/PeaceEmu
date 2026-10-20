@@ -5,6 +5,8 @@
 //! Open-bus behavior, BIOS protection, FIFO DMA, and further peripheral side effects
 //! remain in development.
 
+use std::collections::VecDeque;
+
 use crate::GbaCartridge;
 
 /// EWRAM backing-store size (256 KiB).
@@ -55,6 +57,10 @@ pub struct MemoryBus {
     vcount: u16,
     /// DISPSTAT writable controls plus live VBlank/HBlank/VCOUNT-match status.
     dispstat: u16,
+    /// Sound FIFO A/B byte queues (hardware capacity: 32 bytes each).
+    audio_fifos: [VecDeque<u8>; 2],
+    /// Last signed PCM sample held when a sound FIFO underflows.
+    audio_last_samples: [i8; 2],
 }
 
 /// Error returned when loading save data whose size does not match the SRAM backing store.
@@ -103,7 +109,62 @@ impl MemoryBus {
             video_cycles_in_line: 0,
             vcount: 0,
             dispstat: 0,
+            audio_fifos: std::array::from_fn(|_| VecDeque::with_capacity(32)),
+            audio_last_samples: [0; 2],
         }
+    }
+
+    /// Returns the most recently latched signed PCM sample for FIFO A (0) or B (1).
+    pub fn audio_fifo_last_sample(&self, fifo: usize) -> Option<i8> {
+        self.audio_last_samples.get(fifo).copied()
+    }
+
+    /// Returns the number of queued bytes in FIFO A (0) or B (1).
+    pub fn audio_fifo_len(&self, fifo: usize) -> Option<usize> {
+        self.audio_fifos.get(fifo).map(VecDeque::len)
+    }
+
+    fn write_audio_fifo_word(&mut self, fifo: usize, value: u32) {
+        if let Some(queue) = self.audio_fifos.get_mut(fifo) {
+            for byte in value.to_le_bytes() {
+                if queue.len() == 32 { break; }
+                queue.push_back(byte);
+            }
+        }
+    }
+
+    fn clock_audio_fifo(&mut self, timer: usize) {
+        if timer > 1 || self.read16(0x0400_0084) & 0x0080 == 0 { return; }
+        let sound_control = self.read16(0x0400_0082);
+        for fifo in 0..2 {
+            let route_mask = if fifo == 0 { (1 << 8) | (1 << 9) } else { (1 << 12) | (1 << 13) };
+            let timer_bit = if fifo == 0 { 10 } else { 14 };
+            if sound_control & route_mask == 0 || usize::from((sound_control >> timer_bit) & 1) != timer { continue; }
+            if let Some(sample) = self.audio_fifos[fifo].pop_front() {
+                self.audio_last_samples[fifo] = sample as i8;
+            } else {
+                self.audio_last_samples[fifo] = 0;
+            }
+            if self.audio_fifos[fifo].len() <= 16 { self.trigger_audio_fifo_dma(fifo); }
+        }
+    }
+
+    fn trigger_audio_fifo_dma(&mut self, fifo: usize) {
+        // FIFO A is serviced by DMA1, FIFO B by DMA2; each request transfers four words.
+        let channel = fifo + 1;
+        let base = 0xB0 + channel * 12;
+        let control_offset = base + 10;
+        let control = u16::from_le_bytes([self.io[control_offset], self.io[control_offset + 1]]);
+        let destination = u32::from_le_bytes(self.io[base + 4..base + 8].try_into().unwrap());
+        let fifo_address = if fifo == 0 { 0x0400_00A0 } else { 0x0400_00A4 };
+        if control & 0x8000 == 0 || (control >> 12) & 3 != 3 || destination != fifo_address { return; }
+        let source = u32::from_le_bytes(self.io[base..base + 4].try_into().unwrap()) & !3;
+        for index in 0..4 {
+            let word = self.read32(source.wrapping_add(index * 4));
+            self.write_audio_fifo_word(fifo, word);
+        }
+        self.io[base..base + 4].copy_from_slice(&source.wrapping_add(16).to_le_bytes());
+        if control & (1 << 14) != 0 { self.request_interrupt(1 << (8 + channel)); }
     }
 
     /// Returns the SRAM save data for persistence by the frontend.
@@ -284,6 +345,7 @@ impl MemoryBus {
                         if control & 0x0040 != 0 {
                             self.request_interrupt(1 << (3 + timer));
                         }
+                        self.clock_audio_fifo(timer);
                         previous_overflow = true;
                     } else {
                         self.timer_counter[timer] = next;
@@ -624,6 +686,9 @@ impl MemoryBus {
             return;
         }
 
+        // Sound FIFO ports are write-only and only accept 32-bit pushes.
+        if (0x0400_00A0..=0x0400_00A7).contains(&address) { return; }
+
         // KEYINPUT is read-only; KEYCNT accepts only key-select, IRQ-enable and
         // condition-mode bits (0..9, 14 and 15).
         if (0x0400_0130..=0x0400_0131).contains(&address) {
@@ -733,6 +798,15 @@ impl MemoryBus {
             self.wait_control = value & 0x7FFB;
             return;
         }
+        if address == 0x0400_0082 {
+            let mut control = value & 0x770F;
+            if value & (1 << 11) != 0 { self.audio_fifos[0].clear(); self.audio_last_samples[0] = 0; }
+            if value & (1 << 15) != 0 { self.audio_fifos[1].clear(); self.audio_last_samples[1] = 0; }
+            control &= !((1 << 11) | (1 << 15));
+            self.io[0x82..0x84].copy_from_slice(&control.to_le_bytes());
+            return;
+        }
+        if (0x0400_00A0..=0x0400_00A7).contains(&address) { return; }
         // SRAM is byte-wide. The bus selects the addressed byte lane, so an
         // odd-address halfword store presents the source's high byte.
         if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
@@ -785,6 +859,11 @@ impl MemoryBus {
 
     /// Writes a little-endian word, aligned down to a four-byte boundary.
     pub fn write32(&mut self, address: u32, value: u32) {
+        if (0x0400_00A0..=0x0400_00A7).contains(&address) {
+            let fifo = usize::from(address >= 0x0400_00A4);
+            self.write_audio_fifo_word(fifo, value);
+            return;
+        }
         // SRAM is byte-wide. Rotate by the original address so the selected
         // byte lane reaches SRAM, and perform only one physical byte write.
         if (0x0E00_0000..=0x0E00_FFFF).contains(&address) {
