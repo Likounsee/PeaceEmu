@@ -844,7 +844,7 @@ mod tests {
         let mut bus = bus();
         bus.write16(0x0400_0000, 3 | (1 << 12)); // mode 3, OBJ enabled
         bus.write16(VRAM_BASE, 0x03E0); // BG2 framebuffer pixel: green
-        bus.write16(VRAM_BASE + 0x0600, 0x0001); // OBJ tile pixel 0: palette index 1
+        bus.write16(0x0601_4000, 0x0001); // OBJ tile pixel 0: palette index 1
         bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette index 1: red
         bus.write16(0x0700_0000, 0); // visible, regular 8x8 OBJ
         bus.write16(0x0700_0002, 1 << 10); // priority 1, behind bitmap BG2
