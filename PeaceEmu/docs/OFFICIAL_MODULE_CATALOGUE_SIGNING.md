@@ -43,7 +43,7 @@ Do not publish a production module catalogue or advertise dynamic module install
 - A verified package installer and recovery tests.
 - A worker-process launcher with complete message schemas, hard timeouts/resource limits, OS-level isolation, and executable isolation tests for external cores.
 
-The built-in Game Boy core remains optional through the `game-boy-core` Cargo feature. A build without that feature must report that no Game Boy core is bundled rather than implying that an external core can already be installed.
+Console cores are not bundled in the host workspace. Each module repository is responsible for its implementation and validation; the host must report unavailable modules honestly until a verified package is installed.
 
 ## Worker IPC payload schemas
 
