@@ -527,26 +527,6 @@ impl MemoryBus {
 
     /// Writes one byte to writable memory. Cartridge ROM and BIOS writes are ignored.
     pub fn write8(&mut self, address: u32, value: u8) {
-        // Timer registers have side effects that a raw I/O-byte write would
-        // miss. Merge the addressed byte into the live halfword and reuse the
-        // canonical halfword path so reload, enable-edge and prescaler state
-        // remain coherent for STRB as well as STRH/STR.
-        if (0x0400_0100..=0x0400_010F).contains(&address) {
-            let aligned = address & !1;
-            let offset = aligned - 0x0400_0100;
-            let timer = (offset / 4) as usize;
-            let register_offset = offset % 4;
-            let current = if register_offset == 0 {
-                self.timer_reload[timer]
-            } else {
-                self.timer_control[timer]
-            };
-            let shift = (address & 1) * 8;
-            let merged = (current & !(0xFF_u16 << shift))
-                | (u16::from(value) << shift);
-            self.write16(aligned, merged);
-            return;
-        }
         // DMA control's high byte contains the enable bit; support STRB writes.
         if (0x0400_00B0..=0x0400_00DF).contains(&address) {
             let offset = address - 0x0400_0000;
