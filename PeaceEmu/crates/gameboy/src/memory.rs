@@ -529,11 +529,14 @@ impl MemoryBus {
         // DMA control's high byte contains the enable bit; support STRB writes.
         if (0x0400_00B0..=0x0400_00DF).contains(&address) {
             let offset = address - 0x0400_0000;
-            if (offset - 0x00B0) % 12 == 11 {
+            let register_offset = offset - 0x00B0;
+            if register_offset % 12 == 10 || register_offset % 12 == 11 {
                 let control_address = address & !1;
                 let current = self.read16(control_address);
-                let next = (current & 0x00FF) | (u16::from(value) << 8);
-                self.write_dma_control(((offset - 0x00B0) / 12) as usize, next);
+                let shift = (address & 1) * 8;
+                let byte_mask = 0x00FF_u16 << shift;
+                let next = (current & !byte_mask) | (u16::from(value) << shift);
+                self.write_dma_control((register_offset / 12) as usize, next);
                 return;
             }
         }
@@ -1248,6 +1251,21 @@ mod tests {
         assert_eq!(bus.read32(0x0300_0000), 0x1111_2222);
         assert_eq!(bus.read32(0x0300_0004), 0x3333_4444);
         assert_eq!(bus.read32(0x0400_00B4), 0x0300_0008);
+    }
+
+    #[test]
+    fn dma_control_low_byte_writes_apply_reserved_bit_mask() {
+        let mut bus = MemoryBus::new(cartridge());
+        // DMA0 low control byte contains source/destination address modes and
+        // transfer width; reserved bits 3–4 must not survive byte writes.
+        bus.write8(0x0400_00BA, 0xFF);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x0018, 0);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x00E7, 0x00E7);
+
+        // The low-byte path must preserve the high byte, including enable.
+        bus.write8(0x0400_00BB, 0x80);
+        bus.write8(0x0400_00BA, 0x00);
+        assert_eq!(bus.read16(0x0400_00BA) & 0x8000, 0x8000);
     }
 
     #[test]
