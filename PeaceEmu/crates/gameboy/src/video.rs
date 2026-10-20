@@ -611,6 +611,25 @@ mod tests {
     }
 
     #[test]
+    fn regular_obj_mosaic_repeats_pixels_and_rows() {
+        let mut bus = bus();
+        bus.write16(0x0400_0000, 1 << 12); // OBJ enabled
+        bus.write16(0x0400_004C, 1 | (1 << 4)); // OBJ mosaic: 2x2
+        bus.write16(PALETTE_BASE + 0x202, 0x001F); // OBJ palette 1: red
+        bus.write16(PALETTE_BASE + 0x204, 0x03E0); // OBJ palette 2: green
+        bus.write16(VRAM_BASE + 0x10000, 0x2121); // 1,2,1,2 in low/high nibbles
+        bus.write16(0x0700_0000, (1 << 12) | (1 << 13)); // Mosaic, 4bpp, 8x8 OBJ
+        bus.write16(0x0700_0002, 0);
+        bus.write16(0x0700_0004, 0);
+
+        let frame = render_bitmap_frame(&bus).expect("mode 0 should render");
+        assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(1, 0), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(0, 1), Some(0xFFFF_0000));
+        assert_eq!(frame.pixel(2, 0), Some(0xFF00_FF00));
+    }
+
+    #[test]
     fn bitmap_mode3_applies_bg2_mosaic_to_source_pixels() {
         let mut bus = bus();
         bus.write16(0x0400_0000, 3 | (1 << 10)); // Mode 3, BG2 enabled
