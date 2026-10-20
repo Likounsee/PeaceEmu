@@ -1782,4 +1782,54 @@ mod tests {
         assert_eq!(bus.read8(0x0E00_1234), 0xA5);
         assert_eq!(bus.read8(0x0F00_1234), 0);
     }
+
+    fn cartridge_with_save_signature(signature: &[u8]) -> GbaCartridge {
+        let mut rom = vec![0; 0xC0 + signature.len()];
+        rom[0xC0..].copy_from_slice(signature);
+        let checksum = rom[0xA0..=0xBC]
+            .iter()
+            .fold(0x19_u8, |sum, byte| sum.wrapping_add(*byte))
+            .wrapping_neg();
+        rom[0xBD] = checksum;
+        GbaCartridge::parse(&rom).expect("test ROM header should validate")
+    }
+
+    #[test]
+    fn flash_cartridge_bus_executes_program_and_sector_erase_commands() {
+        let cart = cartridge_with_save_signature(b"FLASH_V");
+        let mut bus = MemoryBus::new(cart);
+        assert_eq!(bus.cartridge_save_type(), Some(crate::SaveType::Flash64K));
+        assert_eq!(bus.flash_data().map(<[u8]>::len), Some(64 * 1024));
+
+        bus.write8(0x0E00_5555, 0xAA);
+        bus.write8(0x0E00_2AAA, 0x55);
+        bus.write8(0x0E00_5555, 0xA0);
+        bus.write8(0x0E00_1234, 0x35);
+        assert_eq!(bus.read8(0x0E00_1234), 0x35);
+        assert_eq!(bus.read16(0x0E00_1234), 0x3535);
+
+        bus.write8(0x0E00_5555, 0xAA);
+        bus.write8(0x0E00_2AAA, 0x55);
+        bus.write8(0x0E00_5555, 0x80);
+        bus.write8(0x0E00_5555, 0xAA);
+        bus.write8(0x0E00_2AAA, 0x55);
+        bus.write8(0x0E00_1234, 0x30);
+        assert_eq!(bus.read8(0x0E00_1234), 0xFF);
+    }
+
+    #[test]
+    fn flash_save_image_round_trips_and_eeprom_is_not_mapped_as_sram() {
+        let mut flash_bus = MemoryBus::new(cartridge_with_save_signature(b"FLASH1M_V"));
+        let image = vec![0xA5; 128 * 1024];
+        assert_eq!(flash_bus.load_flash_data(&image), Ok(true));
+        assert_eq!(flash_bus.flash_data().unwrap()[0], 0xA5);
+        assert_eq!(flash_bus.load_flash_data(&[0; 4]).unwrap_err().expected, 128 * 1024);
+        assert_eq!(flash_bus.flash_data().unwrap()[0], 0xA5);
+
+        let mut eeprom_bus = MemoryBus::new(cartridge_with_save_signature(b"EEPROM_V"));
+        eeprom_bus.write8(0x0E00_0000, 0x12);
+        assert_eq!(eeprom_bus.read8(0x0E00_0000), 0xFF);
+        assert_eq!(eeprom_bus.flash_data(), None);
+    }
+
 }
