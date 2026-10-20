@@ -2,7 +2,7 @@
 
 ## Current state
 
-The repository contains a Rust workspace with a shared core contract, a native eframe/egui desktop application, and an experimental Game Boy module. The desktop provides library management, session controls, semantic keyboard input, preferences and a bounded video-frame presentation path. Audio playback is not yet integrated, and the Game Boy core is incomplete and not a playable emulator. Contracts and successful CI checks are not proof of console compatibility.
+The repository contains a Rust workspace with a shared core contract and a native eframe/egui desktop application. Console-specific implementations are developed and versioned in separate module repositories. The desktop provides library management, session controls, semantic keyboard input, preferences and a bounded video-frame presentation path. Audio playback is not yet integrated, and the Game Boy core is incomplete and not a playable emulator. Contracts and successful CI checks are not proof of console compatibility.
 
 ## Intended layers
 
@@ -43,9 +43,9 @@ Before selecting a first console, inspect reliable public specifications and leg
 
 ## Console implementations are modules
 
-Every console implementation must be an independently testable workspace crate that depends on the shared core contract, not code embedded directly in the frontend. The host discovers modules through stable system IDs and registers factories in `CoreRegistry`; a selected module instance then implements `EmulationCore`. Console-specific CPU, bus, mapper, peripherals and hardware timing stay inside that module. Shared services and presentation remain outside it and communicate through explicit contracts.
+Every console implementation must live in its own independently testable repository and expose an adapter for the shared core contract, not code embedded directly in the frontend. The host discovers modules through stable system IDs and registers factories in `CoreRegistry`; a selected module instance then implements `EmulationCore`. Console-specific CPU, bus, mapper, peripherals and hardware timing stay inside that module. Shared services and presentation remain outside it and communicate through explicit contracts.
 
-The first target follows this rule: `game-boy` is one crate and registers one stable `game-boy` system ID through `register_game_boy`. The user-facing label is `Game Boy / Game Boy Color`; it must not be split into separate DMG and CGB emulator entries. Cartridge metadata classifies flag values `0x00` (DMG-only), `0x80` (DMG and CGB compatible), and `0xC0` (CGB-only), with reserved values kept explicit. This chooses the intended hardware mode inside the same emulator; it is not a claim that either mode can already execute games. The module now has an initial LR35902 interpreter subset and a limited bus for cartridge ROM, work RAM/echo RAM, and high RAM. The reset path initializes a documented post-boot-like register state for the selected mode and currently permits execution only for ROM-only mapper 0 cartridges. This is not a complete machine: video, audio, I/O devices, timers, interrupts, controller input, mapper banking, and most opcodes remain unimplemented, so no playable compatibility is claimed.
+The host repository defines generic module contracts and integration boundaries only. A console-specific repository owns its CPU, bus, peripherals, timing, test fixtures, and module-specific development. No console is considered supported merely because its repository exists or its module can be compiled.
 
 Future consoles should use the same integration shape without forcing their hardware into Game Boy-specific abstractions. Optional console-specific system interfaces and graphics enhancements should be exposed through host presentation contracts or explicit module capabilities, not hardwired into the shared core.
 
