@@ -160,7 +160,7 @@ impl FlashDevice {
 
     /// Feeds a byte write into the Flash command protocol.
     pub fn write(&mut self, address: u16, value: u8) {
-        if value == 0xF0 {
+        if value == 0xF0 && self.command != FlashCommand::Program {
             self.id_mode = false;
             self.command = FlashCommand::Ready;
             return;
@@ -236,6 +236,11 @@ mod flash_tests {
         flash.write(0x5555, 0xA0);
         flash.write(0x0123, 0x5A);
         assert_eq!(flash.read(0x0123), 0x5A);
+
+        unlock_flash(&mut flash);
+        flash.write(0x5555, 0xA0);
+        flash.write(0x0124, 0xF0);
+        assert_eq!(flash.read(0x0124), 0xF0);
 
         unlock_flash(&mut flash);
         flash.write(0x5555, 0xA0);
