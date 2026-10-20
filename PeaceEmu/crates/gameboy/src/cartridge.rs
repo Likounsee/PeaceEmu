@@ -84,6 +84,15 @@ impl GbaCartridge {
         self.rom.is_empty()
     }
 
+    /// Detects the cartridge backup device from common ROM signatures.
+    ///
+    /// The result is only a hint: homebrew may omit signatures, and ROM hacks
+    /// may preserve stale ones. Unknown signatures return `None` rather than
+    /// silently assuming SRAM or another device.
+    pub fn save_type(&self) -> Option<crate::save::SaveType> {
+        crate::save::SaveType::detect(&self.rom)
+    }
+
     pub(crate) fn read_rom_byte(&self, offset: usize) -> u8 {
         self.rom[offset % self.rom.len()]
     }
@@ -173,6 +182,20 @@ mod tests {
         assert_eq!(cartridge.game_code(), "TGME");
         assert_eq!(cartridge.maker_code(), "01");
         assert_eq!(cartridge.len(), GBA_HEADER_SIZE);
+    }
+
+    #[test]
+    fn detects_save_type_from_rom_signature() {
+        let mut rom = valid_rom(GBA_HEADER_SIZE + 16);
+        rom[GBA_HEADER_SIZE..GBA_HEADER_SIZE + 7].copy_from_slice(b"SRAM_V1");
+        let cartridge = GbaCartridge::parse(&rom).unwrap();
+        assert_eq!(cartridge.save_type(), Some(crate::save::SaveType::Sram));
+    }
+
+    #[test]
+    fn unknown_save_type_is_not_guessed() {
+        let cartridge = GbaCartridge::parse(&valid_rom(GBA_HEADER_SIZE)).unwrap();
+        assert_eq!(cartridge.save_type(), None);
     }
 
     #[test]
