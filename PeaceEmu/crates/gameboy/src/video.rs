@@ -792,7 +792,7 @@ mod tests {
         bus.write16(0x0400_004C, 1 | (1 << 4)); // 2x2 mosaic
         bus.write16(VRAM_BASE, 0x001F); // red at (0,0)
         bus.write16(VRAM_BASE + 2, 0x03E0); // green at (1,0)
-        bus.write16(VRAM_BASE + SCREEN_WIDTH * 2, 0x7C00); // blue at (0,1)
+        bus.write16(VRAM_BASE + (SCREEN_WIDTH * 2) as u32, 0x7C00); // blue at (0,1)
 
         let frame = render_bitmap_frame(&bus).expect("mode 3 should render");
         assert_eq!(frame.pixel(0, 0), Some(0xFFFF_0000));
