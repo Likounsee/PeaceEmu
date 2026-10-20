@@ -1609,6 +1609,27 @@ mod tests {
     }
 
     #[test]
+    fn sound_fifo_dma_requests_the_matching_channel_interrupt() {
+        let mut bus = MemoryBus::new(cartridge());
+        bus.write16(0x0400_0084, 0x0080);
+        bus.write16(0x0400_0082, 1 << 8);
+        for i in 0..4_u32 {
+            bus.write32(0x0200_0200 + i * 4, 0x1111_1111 * (i + 1));
+            bus.write32(0x0400_00A0, 0x0101_0101 * (i + 1));
+        }
+        bus.write32(0x0400_00BC, 0x0200_0200);
+        bus.write32(0x0400_00C0, 0x0400_00A0);
+        bus.write16(0x0400_00C4, 1);
+        bus.write16(0x0400_00C6, 0xF640); // DMA1 FIFO mode with IRQ enabled.
+        bus.write16(0x0400_0100, 0xFFFF);
+        bus.write16(0x0400_0102, 0x0080);
+        bus.advance_cycles(1);
+
+        assert_eq!(bus.read16(0x0400_0202) & (1 << 9), 1 << 9);
+        assert_eq!(bus.read32(0x0400_00BC), 0x0200_0210);
+    }
+
+    #[test]
     fn sound_fifo_dma_rejects_incompatible_channel_configuration() {
         let mut bus = MemoryBus::new(cartridge());
         bus.write16(0x0400_0084, 0x0080);
