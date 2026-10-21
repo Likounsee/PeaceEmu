@@ -74,7 +74,7 @@ pub(crate) fn fetch_manifest() -> Result<UpdateManifest, String> {
         .timeout_recv_body(Some(Duration::from_secs(5)))
         .build()
         .into();
-    let response = agent
+    let mut response = agent
         .get(MANIFEST_URL)
         .call()
         .map_err(|error| format!("Could not reach the official update manifest: {error}"))?;
