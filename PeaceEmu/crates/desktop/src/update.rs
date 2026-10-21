@@ -68,17 +68,19 @@ impl UpdateManifest {
 }
 
 pub(crate) fn fetch_manifest() -> Result<UpdateManifest, String> {
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_secs(5))
-        .timeout_read(Duration::from_secs(5))
-        .build();
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(5)))
+        .timeout_recv_body(Some(Duration::from_secs(5)))
+        .build()
+        .into();
     let response = agent
         .get(MANIFEST_URL)
         .call()
         .map_err(|error| format!("Could not reach the official update manifest: {error}"))?;
     let mut body = String::new();
     response
-        .into_reader()
+        .body_mut()
+        .as_reader()
         .take(MAX_MANIFEST_BYTES + 1)
         .read_to_string(&mut body)
         .map_err(|error| format!("Could not read update manifest: {error}"))?;
@@ -139,11 +141,12 @@ pub(crate) fn download_and_verify(
     let mut partial_created = false;
     let mut verified_created = false;
     let result = (|| {
-        let agent = ureq::AgentBuilder::new()
-            .timeout_connect(Duration::from_secs(10))
-            .timeout_read(Duration::from_secs(30))
-            .build();
-        let response = agent
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_connect(Some(Duration::from_secs(10)))
+            .timeout_recv_body(Some(Duration::from_secs(30)))
+            .build()
+            .into();
+        let mut response = agent
             .get(&download.url)
             .call()
             .map_err(|error| format!("Could not download the update artifact: {error}"))?;
@@ -151,7 +154,7 @@ pub(crate) fn download_and_verify(
         // Validate the final destination too, rather than trusting only the manifest URL.
         validate_download_url(response.get_url())?;
         validate_content_length(response.header("Content-Length"), download.size_bytes)?;
-        let mut reader = response.into_reader();
+        let mut reader = response.body_mut().as_reader();
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
