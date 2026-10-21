@@ -11,6 +11,7 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "Transitive zvariant dependency from rfd 0.14.1 via ashpd/zbus 4; advisory reports no safe upgrade until the upstream stack migrates to zbus 6." },
     { id = "RUSTSEC-2026-0371", reason = "Transitive zbus_names dependency from rfd 0.14.1 via ashpd/zbus 4; advisory reports no safe upgrade until the upstream stack migrates to zbus 6." },
     { id = "RUSTSEC-2026-0372", reason = "Transitive zvariant_derive dependency from rfd 0.14.1 via ashpd/zbus 4; advisory reports no safe upgrade until the upstream stack migrates to zbus 6." },
+    { id = "RUSTSEC-2026-0381", reason = "Temporary exception: ureq 2.x pins webpki-roots to the affected 0.26 line; migrate the updater to ureq 3 before removing this exception. Keep this explicit so the dependency audit remains visible and tracked." },
 ]
 
 [licenses]
