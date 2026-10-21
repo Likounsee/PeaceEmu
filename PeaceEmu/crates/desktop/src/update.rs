@@ -10,6 +10,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use ureq::ResponseExt;
 
 pub(crate) const MANIFEST_URL: &str =
     "https://raw.githubusercontent.com/Likounsee/PeaceEmu/PeaceEmu/PeaceEmu/update/stable.json";
@@ -152,8 +153,14 @@ pub(crate) fn download_and_verify(
             .map_err(|error| format!("Could not download the update artifact: {error}"))?;
         // GitHub release URLs commonly redirect to release-assets.githubusercontent.com.
         // Validate the final destination too, rather than trusting only the manifest URL.
-        validate_download_url(response.get_url())?;
-        validate_content_length(response.header("Content-Length"), download.size_bytes)?;
+        validate_download_url(&response.get_uri().to_string())?;
+        validate_content_length(
+            response
+                .headers()
+                .get("Content-Length")
+                .and_then(|value| value.to_str().ok()),
+            download.size_bytes,
+        )?;
         let mut reader = response.body_mut().as_reader();
         let mut file = OpenOptions::new()
             .write(true)
