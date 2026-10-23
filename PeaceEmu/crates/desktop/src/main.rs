@@ -189,7 +189,6 @@ struct DesktopApp {
     last_game_save: Instant,
     frame_cadence: FrameCadence,
     frame_texture: Option<egui::TextureHandle>,
-    video_size: Option<[u32; 2]>,
     media_status: String,
     audio_output: AudioOutput,
     last_tick_errors: Vec<(SessionId, String)>,
@@ -396,7 +395,6 @@ impl DesktopApp {
             last_game_save: Instant::now(),
             frame_cadence: FrameCadence::new(60, 3)?,
             frame_texture: None,
-            video_size: None,
             media_status: "No active session.".to_owned(),
             audio_output: AudioOutput::new(),
             last_tick_errors: Vec::new(),
@@ -745,7 +743,6 @@ impl DesktopApp {
                 };
                 self.frame_cadence.reset();
                 self.frame_texture = None;
-                self.video_size = None;
                 self.last_tick = Instant::now();
                 self.active_page = DesktopPage::Game;
                 self.game_viewport_open = true;
@@ -995,7 +992,6 @@ impl DesktopApp {
                     self.audio_output.clear();
                     self.frame_cadence.reset();
                     self.frame_texture = None;
-                    self.video_size = None;
                     self.last_tick = Instant::now();
                     self.media_status = if self.language == "fr" {
                         "État restauré ; attente de la prochaine trame.".to_owned()
@@ -1110,7 +1106,6 @@ impl DesktopApp {
                     self.audio_output.clear();
                     self.frame_cadence.reset();
                     self.frame_texture = None;
-                    self.video_size = None;
                     self.media_status = if self.language == "fr" {
                         "Session active arrêtée après la sauvegarde de son état.".to_owned()
                     } else {
@@ -1121,7 +1116,6 @@ impl DesktopApp {
                     self.audio_output.clear();
                     self.frame_cadence.reset();
                     self.frame_texture = None;
-                    self.video_size = None;
                     self.last_tick = Instant::now();
                     self.media_status = if self.language == "fr" {
                         "Session active réinitialisée ; en attente d’une nouvelle image.".to_owned()
@@ -1555,7 +1549,6 @@ impl DesktopApp {
         let Some(id) = self.controller.active_session() else {
             self.frame_cadence.reset();
             self.frame_texture = None;
-            self.video_size = None;
             self.media_status =
                 "No active session. Launch a ROM to receive core-provided frames.".to_owned();
             return;
@@ -1582,7 +1575,6 @@ impl DesktopApp {
                     .retain(|(error_id, _)| *error_id != id);
                 self.last_tick_errors.push((id, self.media_status.clone()));
                 self.frame_texture = None;
-                self.video_size = None;
                 return;
             }
         };
@@ -1600,8 +1592,6 @@ impl DesktopApp {
         if let Some(frame) = newest_frame {
             match video_frame_to_image(&frame) {
                 Ok(image) => {
-                    let [width, height] = image.size;
-                    self.video_size = Some([width as u32, height as u32]);
                     if let Some(texture) = self.frame_texture.as_mut() {
                         texture.set(image, egui::TextureOptions::NEAREST);
                     } else {
@@ -1627,7 +1617,6 @@ impl DesktopApp {
                 .retain(|(error_id, _)| *error_id != id);
             self.last_tick_errors.push((id, diagnostic));
             self.frame_texture = None;
-            self.video_size = None;
         } else {
             self.last_tick_errors
                 .retain(|(error_id, _)| *error_id != id);
