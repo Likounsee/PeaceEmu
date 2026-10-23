@@ -880,7 +880,6 @@ impl DesktopApp {
         }
     }
 
-    #[cfg(any())]
     fn load_game_data_for_session(&mut self, id: SessionId) -> Result<bool, String> {
         let summary = self
             .controller
