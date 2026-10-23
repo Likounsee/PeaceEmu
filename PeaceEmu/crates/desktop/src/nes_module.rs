@@ -43,7 +43,6 @@ pub struct NesCoreAdapter {
     save_dirty: bool,
 }
 
-
 impl NesCoreAdapter {
     /// Constructs an unloaded NES core instance for registration with PeaceEmu.
     pub fn new() -> Self {
