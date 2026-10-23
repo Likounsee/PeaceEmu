@@ -197,7 +197,9 @@ impl EmulationCore for NesCoreAdapter {
     fn load_game_data(&mut self, data: &[u8]) -> Result<(), CoreError> {
         let session = self.session_mut()?;
         if !session.has_battery_backed_ram() {
-            return Err(CoreError::Unsupported("this NES cartridge has no battery-backed RAM"));
+            return Err(CoreError::Unsupported(
+                "this NES cartridge has no battery-backed RAM",
+            ));
         }
         session
             .load_battery_ram(data)
