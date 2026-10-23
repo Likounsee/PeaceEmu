@@ -343,6 +343,27 @@ mod tests {
     }
 
     #[test]
+    fn library_launch_pipeline_selects_and_starts_the_registered_nes_core() {
+        let mut registry = CoreRegistry::new();
+        register_nes(&mut registry).unwrap();
+        let probe = NesCartridgeProbe;
+        let probes: [&dyn ContentFormatProbe; 1] = [&probe];
+        let session = emulation_core::runtime::launch_content(
+            &looping_rom(),
+            emulation_core::content::ContentLimits::new(32 * 1024 * 1024),
+            &probes,
+            &registry,
+        )
+        .unwrap();
+
+        assert_eq!(session.descriptor().system_id.as_str(), "nes");
+        assert_eq!(
+            session.state(),
+            emulation_core::runtime::SessionState::Running
+        );
+    }
+
+    #[test]
     fn adapter_maps_host_input_to_nes_controller_bits() {
         let mut core = NesCoreAdapter::new();
         core.load_content(&looping_rom()).unwrap();
