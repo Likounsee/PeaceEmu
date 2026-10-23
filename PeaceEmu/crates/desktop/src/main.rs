@@ -1470,7 +1470,7 @@ impl DesktopApp {
                 .frame(
                     egui::Frame::none()
                         .fill(egui::Color32::BLACK)
-                        .inner_margin(0.0),
+                        .inner_margin(egui::Margin::same(0.0)),
                 )
                 .show(viewport_context, |ui| {
                     ui.painter().rect_filled(
@@ -1506,6 +1506,7 @@ impl DesktopApp {
             if let Some(id) = self.controller.active_session() {
                 self.session_action(id, SessionAction::Pause);
             }
+            self.active_page = DesktopPage::Library;
         }
     }
 
