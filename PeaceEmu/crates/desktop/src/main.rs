@@ -182,6 +182,7 @@ struct DesktopApp {
     last_game_save: Instant,
     frame_cadence: FrameCadence,
     frame_texture: Option<egui::TextureHandle>,
+    game_window_open: bool,
     video_size: Option<[u32; 2]>,
     media_status: String,
     audio_output: AudioOutput,
@@ -387,6 +388,7 @@ impl DesktopApp {
             last_game_save: Instant::now(),
             frame_cadence: FrameCadence::new(60, 3)?,
             frame_texture: None,
+            game_window_open: false,
             video_size: None,
             media_status: "No active session.".to_owned(),
             audio_output: AudioOutput::new(),
@@ -739,6 +741,7 @@ impl DesktopApp {
                 };
                 self.frame_cadence.reset();
                 self.frame_texture = None;
+                self.game_window_open = true;
                 self.video_size = None;
                 self.last_tick = Instant::now();
                 self.active_page = DesktopPage::Game;
@@ -1320,6 +1323,7 @@ impl eframe::App for DesktopApp {
             context.request_repaint_after(Duration::from_millis(250));
         }
         self.advance_emulation(context);
+        self.show_game_window(context);
         let previous_dark_mode = self.dark_mode;
         let previous_accent_color = self.accent_color;
         let previous_language = self.language.clone();
@@ -1410,6 +1414,101 @@ impl DesktopApp {
         }
     }
 
+    /// Presents the active game in a dedicated borderless-content window.
+    ///
+    /// PeaceEmu still owns the session and controls; this viewport contains only
+    /// the game's rendered pixels, with no emulator toolbar or added HUD.
+    fn show_game_window(&mut self, context: &egui::Context) {
+        let viewport_id = egui::ViewportId::from_hash_of("peaceemu-nes-game-window");
+        if !self.game_window_open {
+            return;
+        }
+        if self.controller.active_session().is_none() {
+            self.game_window_open = false;
+            context.send_viewport_cmd_to(viewport_id, egui::ViewportCommand::Close);
+            return;
+        }
+
+        let texture = self.frame_texture.clone();
+        let video_size = self.video_size;
+        let mut close_requested = false;
+        let mut lost_focus = false;
+        let mut input_events = Vec::new();
+        let builder = egui::ViewportBuilder::default()
+            .with_title("NES")
+            .with_inner_size([768.0, 720.0])
+            .with_min_inner_size([256.0, 240.0])
+            .with_resizable(true);
+
+        context.show_viewport_immediate(viewport_id, builder, |viewport_context, _class| {
+            if viewport_context.input(|input| input.viewport().close_requested()) {
+                close_requested = true;
+                return;
+            }
+            let events = viewport_context.input(|input| input.events.clone());
+            for event in events {
+                match event {
+                    egui::Event::Key {
+                        key,
+                        pressed,
+                        repeat,
+                        ..
+                    } => {
+                        if repeat && pressed {
+                            continue;
+                        }
+                        if let Some(control) = map_key_to_control(key) {
+                            input_events.push((control, pressed));
+                        }
+                    }
+                    egui::Event::WindowFocused(false) => lost_focus = true,
+                    _ => {}
+                }
+            }
+
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(egui::Color32::BLACK)
+                        .inner_margin(0.0),
+                )
+                .show(viewport_context, |ui| {
+                    ui.painter().rect_filled(
+                        ui.max_rect(),
+                        0.0,
+                        egui::Color32::BLACK,
+                    );
+                    if let (Some(texture), Some([width, height])) =
+                        (texture.as_ref(), video_size)
+                    {
+                        let available = ui.available_size();
+                        let scale = (available.x.max(1.0) / width as f32)
+                            .min(available.y.max(1.0) / height as f32);
+                        let size = egui::vec2(width as f32 * scale, height as f32 * scale);
+                        ui.centered_and_justified(|ui| {
+                            ui.image((texture.id(), size));
+                        });
+                    }
+                });
+        });
+
+        if lost_focus || close_requested {
+            if let Err(error) = self.release_game_inputs() {
+                self.message = format!("Could not release game inputs: {error}");
+            }
+        } else {
+            for (control, pressed) in input_events {
+                self.send_game_input(control, pressed);
+            }
+        }
+        if close_requested {
+            self.game_window_open = false;
+            if let Some(id) = self.controller.active_session() {
+                self.session_action(id, SessionAction::Pause);
+            }
+        }
+    }
+
     fn advance_emulation(&mut self, context: &egui::Context) {
         // Flush a previous tick's dirty battery RAM even if the next tick errors or
         // the active session has since been deselected.
@@ -1418,7 +1517,7 @@ impl DesktopApp {
         let elapsed = now.saturating_duration_since(self.last_tick);
         self.last_tick = now;
 
-        if self.active_page == DesktopPage::Game {
+        if self.active_page == DesktopPage::Game && !self.game_window_open {
             let events = context.input(|input| input.events.clone());
             for event in events {
                 match event {
