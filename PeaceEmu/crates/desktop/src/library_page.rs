@@ -383,7 +383,7 @@ impl DesktopApp {
             egui::ComboBox::from_id_source("library_format_filter")
                 .selected_text(self.library_format.label(french))
                 .show_ui(ui, |ui| {
-                    for format in [LibraryFormat::All, LibraryFormat::GameBoy] {
+                    for format in [LibraryFormat::All, LibraryFormat::Nes, LibraryFormat::GameBoy] {
                         ui.selectable_value(&mut self.library_format, format, format.label(french));
                     }
                 });
@@ -454,11 +454,11 @@ impl DesktopApp {
             let (heading, hint) = match (total == 0, french) {
                 (true, true) => (
                     "Votre bibliothèque est vide",
-                    "Importez des jeux Game Boy (.gb), Game Boy Color (.gbc) ou Game Boy Advance (.gba) pour constituer votre collection.",
+                    "Importez des ROMs Nintendo NES (.nes) dans votre bibliothèque. Les autres systèmes restent en développement.",
                 ),
                 (true, false) => (
                     "Your library is empty",
-                    "Import Game Boy (.gb), Game Boy Color (.gbc), or Game Boy Advance (.gba) games to build your collection.",
+                    "Import Nintendo NES (.nes) ROMs into your library. Other systems are still in development.",
                 ),
                 (false, true) => (
                     "Aucun jeu ne correspond",
