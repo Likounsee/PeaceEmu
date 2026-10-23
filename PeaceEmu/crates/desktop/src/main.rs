@@ -1427,10 +1427,7 @@ impl DesktopApp {
                         warnings.join("; ")
                     )
                 } else {
-                    format!(
-                        "Game window closed with warnings: {}",
-                        warnings.join("; ")
-                    )
+                    format!("Game window closed with warnings: {}", warnings.join("; "))
                 };
             }
         }
