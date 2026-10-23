@@ -189,6 +189,7 @@ struct DesktopApp {
     last_game_save: Instant,
     frame_cadence: FrameCadence,
     frame_texture: Option<egui::TextureHandle>,
+    video_size: Option<[u32; 2]>,
     media_status: String,
     audio_output: AudioOutput,
     last_tick_errors: Vec<(SessionId, String)>,
@@ -399,6 +400,7 @@ impl DesktopApp {
             last_game_save: Instant::now(),
             frame_cadence: FrameCadence::new(60, 3)?,
             frame_texture: None,
+            video_size: None,
             media_status: "No active session.".to_owned(),
             audio_output: AudioOutput::new(),
             last_tick_errors: Vec::new(),
@@ -691,7 +693,7 @@ impl DesktopApp {
     }
 
     fn launch_content(&mut self) {
-        let path = self.content_path.trim();
+        let path = self.content_path.trim().to_owned();
         if path.is_empty() {
             self.message = if self.language == "fr" {
                 "Sélectionnez d’abord un jeu dans la bibliothèque.".to_owned()
@@ -712,7 +714,7 @@ impl DesktopApp {
 
         let probes: [&dyn ContentFormatProbe; 1] = [&self.probe];
         match self.controller.launch_content_path(
-            Path::new(path),
+            Path::new(&path),
             ContentLimits::new(MAX_CONTENT_BYTES),
             &probes,
             &self.registry,
@@ -720,7 +722,7 @@ impl DesktopApp {
             Ok(id) => {
                 self.audio_output.clear();
                 let launched_path =
-                    std::fs::canonicalize(Path::new(path)).unwrap_or_else(|_| PathBuf::from(path));
+                    std::fs::canonicalize(Path::new(&path)).unwrap_or_else(|_| PathBuf::from(&path));
                 self.session_content_paths
                     .retain(|(session_id, _)| *session_id != id);
                 self.session_content_paths.push((id, launched_path));
@@ -749,6 +751,7 @@ impl DesktopApp {
                 };
                 self.frame_cadence.reset();
                 self.frame_texture = None;
+                self.video_size = None;
                 self.last_tick = Instant::now();
                 self.active_page = DesktopPage::Game;
                 self.game_viewport_open = true;
@@ -1436,6 +1439,7 @@ impl DesktopApp {
         }
 
         let texture = self.frame_texture.clone();
+        let video_size = self.video_size;
         let inputs = Arc::clone(&self.game_viewport_inputs);
         let closed = Arc::clone(&self.game_viewport_closed);
         let builder = egui::ViewportBuilder::default()
@@ -1511,7 +1515,9 @@ impl DesktopApp {
                     .show(viewport_context, |ui| {
                         if let Some(texture) = texture.as_ref() {
                             let available = ui.available_size();
-                            let source = egui::vec2(256.0, 240.0);
+                            let source = video_size
+                                .map(|[width, height]| egui::vec2(width as f32, height as f32))
+                                .unwrap_or_else(|| egui::vec2(256.0, 240.0));
                             let scale = (available.x / source.x)
                                 .min(available.y / source.y)
                                 .max(0.01);
@@ -1640,6 +1646,7 @@ impl DesktopApp {
         if let Some(frame) = newest_frame {
             match video_frame_to_image(&frame) {
                 Ok(image) => {
+                    self.video_size = Some([image.size[0] as u32, image.size[1] as u32]);
                     if let Some(texture) = self.frame_texture.as_mut() {
                         texture.set(image, egui::TextureOptions::NEAREST);
                     } else {
