@@ -111,8 +111,7 @@ fn palette_rgba(index: u8) -> [u8; 4] {
     [r, g, b, 255]
 }
 
-fn core_error(error: impl std::fmt::Display) -> CoreError {
-    let _ = error;
+fn core_error(_error: impl std::fmt::Display) -> CoreError {
     CoreError::Execution("NES module failed to execute the current game")
 }
 
