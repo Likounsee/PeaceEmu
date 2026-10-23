@@ -680,7 +680,7 @@ impl DesktopApp {
     }
 
     fn launch_content(&mut self) {
-        let path = self.content_path.trim();
+        let path = self.content_path.trim().to_owned();
         if path.is_empty() {
             self.message = if self.language == "fr" {
                 "Saisissez d’abord le chemin du contenu.".to_owned()
@@ -704,7 +704,7 @@ impl DesktopApp {
 
         let probes: [&dyn ContentFormatProbe; 1] = [&self.probe];
         match self.controller.launch_content_path(
-            Path::new(path),
+            Path::new(&path),
             ContentLimits::new(MAX_CONTENT_BYTES),
             &probes,
             &self.registry,
@@ -712,7 +712,7 @@ impl DesktopApp {
             Ok(id) => {
                 self.audio_output.clear();
                 let launched_path =
-                    std::fs::canonicalize(Path::new(path)).unwrap_or_else(|_| PathBuf::from(path));
+                    std::fs::canonicalize(Path::new(&path)).unwrap_or_else(|_| PathBuf::from(path));
                 self.session_content_paths
                     .retain(|(session_id, _)| *session_id != id);
                 self.session_content_paths.push((id, launched_path));
