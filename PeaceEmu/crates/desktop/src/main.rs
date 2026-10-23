@@ -1404,7 +1404,8 @@ impl DesktopApp {
                 }
                 self.session_content_paths
                     .retain(|(session_id, _)| *session_id != id);
-                self.last_tick_errors.retain(|(session_id, _)| *session_id != id);
+                self.last_tick_errors
+                    .retain(|(session_id, _)| *session_id != id);
                 self.frame_texture = None;
                 self.audio_output.clear();
                 self.active_page = DesktopPage::Library;
@@ -1415,9 +1416,15 @@ impl DesktopApp {
                         "Game window closed. Launch the game again from the library.".to_owned()
                     }
                 } else if self.language == "fr" {
-                    format!("Fenêtre fermée avec avertissements : {}", warnings.join("; "))
+                    format!(
+                        "Fenêtre fermée avec avertissements : {}",
+                        warnings.join("; ")
+                    )
                 } else {
-                    format!("Game window closed with warnings: {}", warnings.join("; "))
+                    format!(
+                        "Game window closed with warnings: {}",
+                        warnings.join("; ")
+                    )
                 };
             }
         }
