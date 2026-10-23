@@ -319,7 +319,7 @@ mod tests {
         use emulation_core::{CoreRegistry, SystemId};
 
         let mut rom = vec![0; 16 + 16 * 1024];
-        rom[..4].copy_from_slice(b"NES\\x1a");
+        rom[..4].copy_from_slice(b"NES\x1a");
         rom[4] = 1;
         rom[16] = 0x4c;
         rom[17] = 0;
