@@ -1679,7 +1679,7 @@ impl DesktopApp {
             self.last_tick_errors.push((id, diagnostic));
             self.frame_texture = None;
             self.video_size = None;
-            } else {
+        } else {
             self.last_tick_errors
                 .retain(|(error_id, _)| *error_id != id);
         }
