@@ -9,6 +9,10 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::time::{Duration, Instant};
 
 use audio_output::AudioOutput;
@@ -166,6 +170,9 @@ struct DesktopApp {
     controller: ApplicationController,
     registry: CoreRegistry,
     probe: NesCartridgeProbe,
+    game_viewport_open: bool,
+    game_viewport_closed: Arc<AtomicBool>,
+    game_viewport_inputs: Arc<Mutex<Vec<InputEvent>>>,
     content_path: String,
     library_filter: String,
     library_format: LibraryFormat,
@@ -367,6 +374,9 @@ impl DesktopApp {
             controller,
             registry,
             probe: NesCartridgeProbe,
+            game_viewport_open: false,
+            game_viewport_closed: Arc::new(AtomicBool::new(false)),
+            game_viewport_inputs: Arc::new(Mutex::new(Vec::new())),
             content_path: selected_content
                 .as_ref()
                 .map(|path| path.display().to_string())
@@ -738,6 +748,8 @@ impl DesktopApp {
                 self.video_size = None;
                 self.last_tick = Instant::now();
                 self.active_page = DesktopPage::Game;
+                self.game_viewport_open = true;
+                self.game_viewport_closed.store(false, Ordering::Release);
             }
             Err(error) => {
                 self.message = if self.language == "fr" {
@@ -1315,6 +1327,7 @@ impl eframe::App for DesktopApp {
             context.request_repaint_after(Duration::from_millis(250));
         }
         self.advance_emulation(context);
+        self.show_game_viewport(context);
         let previous_dark_mode = self.dark_mode;
         let previous_accent_color = self.accent_color;
         let previous_language = self.language.clone();
@@ -1382,6 +1395,96 @@ impl eframe::App for DesktopApp {
 }
 
 impl DesktopApp {
+    /// Opens a detached, image-only viewport for the active game.
+    fn show_game_viewport(&mut self, context: &egui::Context) {
+        if self.game_viewport_closed.swap(false, Ordering::AcqRel) {
+            self.game_viewport_open = false;
+        }
+        if !self.game_viewport_open {
+            return;
+        }
+
+        let texture = self.frame_texture.clone();
+        let inputs = Arc::clone(&self.game_viewport_inputs);
+        let closed = Arc::clone(&self.game_viewport_closed);
+        let builder = egui::ViewportBuilder::default()
+            .with_title("PeaceEmu — NES")
+            .with_inner_size([768.0, 720.0])
+            .with_min_inner_size([256.0, 240.0])
+            .with_resizable(true);
+
+        context.show_viewport_deferred(
+            egui::ViewportId::from_hash_of("peaceemu-nes-game"),
+            builder,
+            move |viewport_context, _class| {
+                if viewport_context.input(|input| input.viewport().close_requested()) {
+                    if let Ok(mut queue) = inputs.lock() {
+                        for control in [
+                            InputControl::Action1,
+                            InputControl::Action2,
+                            InputControl::Select,
+                            InputControl::Start,
+                            InputControl::Up,
+                            InputControl::Down,
+                            InputControl::Left,
+                            InputControl::Right,
+                        ] {
+                            queue.push(InputEvent { control, pressed: false });
+                        }
+                    }
+                    closed.store(true, Ordering::Release);
+                    return;
+                }
+
+                let events = viewport_context.input(|input| input.events.clone());
+                if let Ok(mut queue) = inputs.lock() {
+                    for event in events {
+                        match event {
+                            egui::Event::Key { key, pressed, repeat, .. } if !(repeat && pressed) => {
+                                if let Some(control) = map_key_to_control(key) {
+                                    queue.push(InputEvent { control, pressed });
+                                }
+                            }
+                            egui::Event::WindowFocused(false) => {
+                                for control in [
+                                    InputControl::Action1,
+                                    InputControl::Action2,
+                                    InputControl::Select,
+                                    InputControl::Start,
+                                    InputControl::Up,
+                                    InputControl::Down,
+                                    InputControl::Left,
+                                    InputControl::Right,
+                                ] {
+                                    queue.push(InputEvent { control, pressed: false });
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::none().fill(egui::Color32::BLACK))
+                    .show(viewport_context, |ui| {
+                        if let Some(texture) = texture.as_ref() {
+                            let available = ui.available_size();
+                            let source = egui::vec2(256.0, 240.0);
+                            let scale = (available.x / source.x)
+                                .min(available.y / source.y)
+                                .max(0.01);
+                            let size = source * scale;
+                            ui.vertical_centered(|ui| {
+                                ui.add_space(((available.y - size.y) * 0.5).max(0.0));
+                                ui.image((texture.id(), size));
+                            });
+                        }
+                    });
+                viewport_context.request_repaint_after(Duration::from_millis(16));
+            },
+        );
+    }
+
     /// Shows the import failure dialog until the user dismisses it.
     ///
     /// The dialog is a compact box centered in the window, drawn over a dimmed
@@ -1413,7 +1516,16 @@ impl DesktopApp {
         let elapsed = now.saturating_duration_since(self.last_tick);
         self.last_tick = now;
 
-        if self.active_page == DesktopPage::Game {
+        let viewport_events = self
+            .game_viewport_inputs
+            .lock()
+            .map(|mut events| std::mem::take(&mut *events))
+            .unwrap_or_default();
+        for event in viewport_events {
+            self.send_game_input(event.control, event.pressed);
+        }
+
+        if self.active_page == DesktopPage::Game && !self.game_viewport_open {
             let events = context.input(|input| input.events.clone());
             for event in events {
                 match event {
