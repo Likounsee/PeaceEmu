@@ -277,7 +277,8 @@ impl EmulationCore for NesCoreAdapter {
             } else {
                 self.buttons &= !(1 << bit);
             }
-            self.session_mut()?.set_controller_state(0, self.buttons);
+            let buttons = self.buttons;
+            self.session_mut()?.set_controller_state(0, buttons);
         } else {
             let _ = self.session()?;
         }
