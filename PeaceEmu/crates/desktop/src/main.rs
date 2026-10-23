@@ -1423,7 +1423,10 @@ impl DesktopApp {
                             InputControl::Left,
                             InputControl::Right,
                         ] {
-                            queue.push(InputEvent { control, pressed: false });
+                            queue.push(InputEvent {
+                                control,
+                                pressed: false,
+                            });
                         }
                     }
                     closed.store(true, Ordering::Release);
@@ -1434,7 +1437,12 @@ impl DesktopApp {
                 if let Ok(mut queue) = inputs.lock() {
                     for event in events {
                         match event {
-                            egui::Event::Key { key, pressed, repeat, .. } if !(repeat && pressed) => {
+                            egui::Event::Key {
+                                key,
+                                pressed,
+                                repeat,
+                                ..
+                            } if !(repeat && pressed) => {
                                 if let Some(control) = map_key_to_control(key) {
                                     queue.push(InputEvent { control, pressed });
                                 }
@@ -1450,7 +1458,10 @@ impl DesktopApp {
                                     InputControl::Left,
                                     InputControl::Right,
                                 ] {
-                                    queue.push(InputEvent { control, pressed: false });
+                                    queue.push(InputEvent {
+                                        control,
+                                        pressed: false,
+                                    });
                                 }
                             }
                             _ => {}
