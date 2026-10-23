@@ -5,7 +5,7 @@
 //! variants share one structure, so pages ask the [`Palette`] for colours
 //! instead of hard-coding them.
 
-use eframe::egui::{self, Color32, Margin, Pos2, Rect, Rounding, Stroke, Vec2};
+use eframe::egui::{self, Align2, Color32, FontId, Margin, Pos2, Rect, Rounding, Stroke, Vec2};
 
 /// Accent colour used until the user picks another one.
 pub const DEFAULT_ACCENT: Color32 = Color32::from_rgb(79, 70, 229);
