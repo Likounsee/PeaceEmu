@@ -213,6 +213,7 @@ struct DesktopApp {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LibraryFormat {
     All,
+    Nes,
     GameBoy,
 }
 
@@ -221,6 +222,8 @@ impl LibraryFormat {
         match (self, french) {
             (Self::All, true) => "Tous les jeux",
             (Self::All, false) => "All games",
+            (Self::Nes, true) => "Nintendo NES (.nes)",
+            (Self::Nes, false) => "Nintendo NES (.nes)",
             (Self::GameBoy, _) => "Game Boy (GB / GBC / GBA)",
         }
     }
@@ -232,6 +235,7 @@ impl LibraryFormat {
             .unwrap_or("");
         match self {
             Self::All => true,
+            Self::Nes => extension.eq_ignore_ascii_case("nes"),
             Self::GameBoy => ["gb", "gbc", "gba"]
                 .iter()
                 .any(|supported| extension.eq_ignore_ascii_case(supported)),
@@ -628,6 +632,8 @@ impl DesktopApp {
 
     fn choose_content_file(&mut self) {
         let selected = rfd::FileDialog::new()
+            .add_filter("Nintendo NES ROMs", &["nes"])
+            .add_filter("ROM files", &["nes", "gb", "gbc", "gba"])
             .add_filter("Game Boy ROMs", &["gb", "gbc", "gba"])
             .add_filter("Game Boy ROM", &["gb"])
             .add_filter("Game Boy Color ROM", &["gbc"])
