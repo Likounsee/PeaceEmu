@@ -12,7 +12,6 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
 use audio_output::AudioOutput;
-#[cfg(any())]
 use emulation_core::content::{ContentFormatProbe, ContentLimits};
 use emulation_core::core_io::{FrameCadence, InputControl, InputEvent};
 use game_view::{map_key_to_control, video_frame_to_image};
@@ -29,6 +28,7 @@ mod game_view;
 mod home_page;
 mod language_pack;
 mod library_page;
+mod nes_module;
 pub mod manifest_ed25519;
 mod preferences;
 mod save_states;
@@ -45,8 +45,7 @@ use eframe::egui;
 use emulation_core::host_runtime::{HostRuntime, HostRuntimeConfig, SessionId};
 use emulation_core::runtime::SessionState;
 use emulation_core::CoreRegistry;
-#[cfg(any())]
-use game_boy::{register_game_boy_color, GameBoyColorCartridgeProbe};
+use nes_module::{register_nes, NesCartridgeProbe};
 
 const MAX_CONTENT_BYTES: usize = 32 * 1024 * 1024;
 
@@ -166,8 +165,7 @@ fn poll_background_result<T>(receiver: &mut Option<Receiver<T>>) -> Result<Optio
 struct DesktopApp {
     controller: ApplicationController,
     registry: CoreRegistry,
-    #[cfg(any())]
-    probe: GameBoyColorCartridgeProbe,
+    probe: NesCartridgeProbe,
     content_path: String,
     library_filter: String,
     library_format: LibraryFormat,
@@ -210,6 +208,7 @@ struct DesktopApp {
 enum LibraryFormat {
     All,
     GameBoy,
+    Nes,
 }
 
 impl LibraryFormat {
@@ -218,6 +217,7 @@ impl LibraryFormat {
             (Self::All, true) => "Tous les jeux",
             (Self::All, false) => "All games",
             (Self::GameBoy, _) => "Game Boy (GB / GBC / GBA)",
+            (Self::Nes, _) => "Nintendo Entertainment System (NES)",
         }
     }
 
@@ -231,6 +231,7 @@ impl LibraryFormat {
             Self::GameBoy => ["gb", "gbc", "gba"]
                 .iter()
                 .any(|supported| extension.eq_ignore_ascii_case(supported)),
+            Self::Nes => extension.eq_ignore_ascii_case("nes"),
         }
     }
 }
@@ -267,13 +268,8 @@ impl DesktopPage {
 
 impl DesktopApp {
     fn new() -> Result<Self, Box<dyn Error>> {
-        let registry = CoreRegistry::new();
-        #[cfg(any())]
-        let registry = {
-            let mut registry = registry;
-            register_game_boy_color(&mut registry)?;
-            registry
-        };
+        let mut registry = CoreRegistry::new();
+        register_nes(&mut registry)?;
         let host = HostRuntime::new(HostRuntimeConfig::default())?;
         let mut controller = ApplicationController::new(host);
         let config_path = config_file_path();
@@ -371,8 +367,7 @@ impl DesktopApp {
         let mut app = Self {
             controller,
             registry,
-            #[cfg(any())]
-            probe: GameBoyColorCartridgeProbe,
+            probe: NesCartridgeProbe,
             content_path: selected_content
                 .as_ref()
                 .map(|path| path.display().to_string())
@@ -682,7 +677,6 @@ impl DesktopApp {
         }
     }
 
-    #[cfg(any())]
     fn launch_content(&mut self) {
         let path = self.content_path.trim();
         if path.is_empty() {
@@ -706,10 +700,7 @@ impl DesktopApp {
             return;
         }
 
-        #[cfg(any())]
         let probes: [&dyn ContentFormatProbe; 1] = [&self.probe];
-        #[cfg(not(any()))]
-        let probes: [&dyn ContentFormatProbe; 0] = [];
         match self.controller.launch_content_path(
             Path::new(path),
             ContentLimits::new(MAX_CONTENT_BYTES),
@@ -760,15 +751,6 @@ impl DesktopApp {
                 }
             }
         }
-    }
-
-    #[cfg(not(any()))]
-    fn launch_content(&mut self) {
-        self.message = if self.language == "fr" {
-            "Le module Game Boy Color n’est pas inclus dans cette compilation. Recompilez avec --features game-boy-color-module pour l’activer.".to_owned()
-        } else {
-            "The Game Boy Color module is not included in this build. Rebuild with --features game-boy-color-module to enable it.".to_owned()
-        };
     }
 
     fn save_preferences(&mut self) -> bool {
