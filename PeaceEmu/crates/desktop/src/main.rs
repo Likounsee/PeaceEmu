@@ -1521,7 +1521,7 @@ impl DesktopApp {
                             let available = ui.available_size();
                             let source = video_size
                                 .map(|[width, height]| egui::vec2(width as f32, height as f32))
-                                .unwrap_or_else(|| egui::vec2(256.0, 240.0));
+                                .unwrap_or(egui::vec2(256.0, 240.0));
                             let scale = (available.x / source.x)
                                 .min(available.y / source.y)
                                 .max(0.01);
