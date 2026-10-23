@@ -266,10 +266,9 @@ impl DesktopPage {
 impl DesktopApp {
     fn new() -> Result<Self, Box<dyn Error>> {
         let mut registry = CoreRegistry::new();
-        registry.register(
-            emulation_core::SystemId::new("nes")?,
-            || Box::new(NesCoreAdapter::new()),
-        )?;
+        registry.register(emulation_core::SystemId::new("nes")?, || {
+            Box::new(NesCoreAdapter::new())
+        })?;
         let host = HostRuntime::new(HostRuntimeConfig::default())?;
         let mut controller = ApplicationController::new(host);
         let config_path = config_file_path();
