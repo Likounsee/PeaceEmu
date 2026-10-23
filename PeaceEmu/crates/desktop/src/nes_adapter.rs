@@ -5,10 +5,12 @@
 use emulation_core::content::FormatProbeResult;
 use emulation_core::core_io::{AudioBuffer, InputControl, InputEvent, PixelFormat, VideoFrame};
 use emulation_core::{
-    CoreApiVersion, CoreCapabilities, CoreDescriptor, CoreError, CoreEvent, EmulationCore,
-    SystemId,
+    CoreApiVersion, CoreCapabilities, CoreDescriptor, CoreError, CoreEvent, EmulationCore, SystemId,
 };
-use peaceemu_nes::{session::{NesConfig, NesSession}, CORE_VERSION, SYSTEM_ID};
+use peaceemu_nes::{
+    session::{NesConfig, NesSession},
+    CORE_VERSION, SYSTEM_ID,
+};
 
 const AUDIO_RATE: u32 = 44_100;
 const FRAME_WIDTH: u32 = 256;
@@ -40,22 +42,70 @@ impl emulation_core::content::ContentFormatProbe for NesCartridgeProbe {
 /// Converts NES palette indices to RGBA pixels for PeaceEmu's generic renderer.
 fn palette_rgba(index: u8) -> [u8; 4] {
     const PALETTE: [[u8; 3]; 64] = [
-        [84,84,84], [0,30,116], [8,16,144], [48,0,136],
-        [68,0,100], [92,0,48], [84,4,0], [60,24,0],
-        [32,42,0], [8,58,0], [0,64,0], [0,60,0],
-        [0,50,60], [0,0,0], [0,0,0], [0,0,0],
-        [152,150,152], [8,76,196], [48,50,236], [92,30,228],
-        [136,20,176], [160,20,100], [152,34,32], [120,60,0],
-        [84,90,0], [40,114,0], [8,124,0], [0,118,40],
-        [0,102,120], [0,0,0], [0,0,0], [0,0,0],
-        [236,238,236], [76,154,236], [120,124,236], [176,98,236],
-        [228,84,236], [236,88,180], [236,106,100], [212,136,32],
-        [160,170,0], [116,196,0], [76,208,32], [56,204,108],
-        [56,180,204], [60,60,60], [0,0,0], [0,0,0],
-        [236,238,236], [168,204,236], [188,188,236], [212,178,236],
-        [236,174,236], [236,174,212], [236,180,176], [228,196,144],
-        [204,210,120], [180,222,120], [168,226,144], [152,226,180],
-        [160,214,228], [160,162,160], [0,0,0], [0,0,0],
+        [84, 84, 84],
+        [0, 30, 116],
+        [8, 16, 144],
+        [48, 0, 136],
+        [68, 0, 100],
+        [92, 0, 48],
+        [84, 4, 0],
+        [60, 24, 0],
+        [32, 42, 0],
+        [8, 58, 0],
+        [0, 64, 0],
+        [0, 60, 0],
+        [0, 50, 60],
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+        [152, 150, 152],
+        [8, 76, 196],
+        [48, 50, 236],
+        [92, 30, 228],
+        [136, 20, 176],
+        [160, 20, 100],
+        [152, 34, 32],
+        [120, 60, 0],
+        [84, 90, 0],
+        [40, 114, 0],
+        [8, 124, 0],
+        [0, 118, 40],
+        [0, 102, 120],
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+        [236, 238, 236],
+        [76, 154, 236],
+        [120, 124, 236],
+        [176, 98, 236],
+        [228, 84, 236],
+        [236, 88, 180],
+        [236, 106, 100],
+        [212, 136, 32],
+        [160, 170, 0],
+        [116, 196, 0],
+        [76, 208, 32],
+        [56, 204, 108],
+        [56, 180, 204],
+        [60, 60, 60],
+        [0, 0, 0],
+        [0, 0, 0],
+        [236, 238, 236],
+        [168, 204, 236],
+        [188, 188, 236],
+        [212, 178, 236],
+        [236, 174, 236],
+        [236, 174, 212],
+        [236, 180, 176],
+        [228, 196, 144],
+        [204, 210, 120],
+        [180, 222, 120],
+        [168, 226, 144],
+        [152, 226, 180],
+        [160, 214, 228],
+        [160, 162, 160],
+        [0, 0, 0],
+        [0, 0, 0],
     ];
     let [r, g, b] = PALETTE[usize::from(index & 0x3f)];
     [r, g, b, 255]
@@ -116,8 +166,13 @@ impl EmulationCore for NesCoreAdapter {
     }
 
     fn load_content(&mut self, content: &[u8]) -> Result<(), CoreError> {
-        let session = NesSession::load(content, NesConfig { audio_sample_rate: AUDIO_RATE })
-            .map_err(|_| CoreError::InvalidContent("invalid or unsupported iNES cartridge"))?;
+        let session = NesSession::load(
+            content,
+            NesConfig {
+                audio_sample_rate: AUDIO_RATE,
+            },
+        )
+        .map_err(|_| CoreError::InvalidContent("invalid or unsupported iNES cartridge"))?;
         self.rom.clear();
         self.rom.extend_from_slice(content);
         self.session = Some(session);
@@ -135,7 +190,9 @@ impl EmulationCore for NesCoreAdapter {
         let saved_ram = self.session()?.save_battery_ram().map_err(core_error)?;
         let mut session = NesSession::load(
             &self.rom,
-            NesConfig { audio_sample_rate: AUDIO_RATE },
+            NesConfig {
+                audio_sample_rate: AUDIO_RATE,
+            },
         )
         .map_err(|_| CoreError::InvalidContent("invalid or unsupported iNES cartridge"))?;
         if !saved_ram.is_empty() {
@@ -161,7 +218,8 @@ impl EmulationCore for NesCoreAdapter {
         self.audio = if output.audio_samples.is_empty() {
             None
         } else {
-            let samples = output.audio_samples
+            let samples = output
+                .audio_samples
                 .into_iter()
                 .map(|sample| (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
                 .collect();
@@ -186,7 +244,9 @@ impl EmulationCore for NesCoreAdapter {
             return if data.is_empty() {
                 Ok(())
             } else {
-                Err(CoreError::InvalidState("cartridge has no battery-backed RAM"))
+                Err(CoreError::InvalidState(
+                    "cartridge has no battery-backed RAM",
+                ))
             };
         }
         session.load_battery_ram(data).map_err(core_error)
@@ -242,7 +302,10 @@ mod tests {
     #[test]
     fn nes_probe_requires_a_complete_ines_header() {
         let probe = NesCartridgeProbe;
-        assert_eq!(probe.probe(b"NES"), FormatProbeResult::NeedMoreData { minimum_bytes: 4 });
+        assert_eq!(
+            probe.probe(b"NES"),
+            FormatProbeResult::NeedMoreData { minimum_bytes: 4 }
+        );
         assert_eq!(probe.probe(b"NOPE"), FormatProbeResult::NoMatch);
         let mut header = [0; 16];
         header[..4].copy_from_slice(b"NES\x1a");
