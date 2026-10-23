@@ -6,8 +6,8 @@
 use emulation_core::content::{ContentFormatProbe, FormatProbeResult};
 use emulation_core::core_io::{AudioBuffer, InputControl, InputEvent, PixelFormat, VideoFrame};
 use emulation_core::{
-    CoreCapabilities, CoreDescriptor, CoreError, CoreEvent, CoreRegistry,
-    EmulationCore, RegistryError, SystemId, CURRENT_CORE_API_VERSION,
+    CoreCapabilities, CoreDescriptor, CoreError, CoreEvent, CoreRegistry, EmulationCore,
+    RegistryError, SystemId, CURRENT_CORE_API_VERSION,
 };
 use peaceemu_nes::session::{NesConfig, NesSession, NES_FRAME_HEIGHT, NES_FRAME_WIDTH};
 
