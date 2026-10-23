@@ -1473,14 +1473,9 @@ impl DesktopApp {
                         .inner_margin(egui::Margin::same(0.0)),
                 )
                 .show(viewport_context, |ui| {
-                    ui.painter().rect_filled(
-                        ui.max_rect(),
-                        0.0,
-                        egui::Color32::BLACK,
-                    );
-                    if let (Some(texture), Some([width, height])) =
-                        (texture.as_ref(), video_size)
-                    {
+                    ui.painter()
+                        .rect_filled(ui.max_rect(), 0.0, egui::Color32::BLACK);
+                    if let (Some(texture), Some([width, height])) = (texture.as_ref(), video_size) {
                         let available = ui.available_size();
                         let scale = (available.x.max(1.0) / width as f32)
                             .min(available.y.max(1.0) / height as f32);
