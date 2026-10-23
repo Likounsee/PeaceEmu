@@ -33,6 +33,7 @@ impl ContentFormatProbe for NesCartridgeProbe {
 }
 
 /// PeaceEmu-owned adapter around the independent Rust NES core.
+#[derive(Default)]
 pub struct NesCoreAdapter {
     session: Option<NesSession>,
     image: Vec<u8>,
@@ -42,18 +43,6 @@ pub struct NesCoreAdapter {
     save_dirty: bool,
 }
 
-impl Default for NesCoreAdapter {
-    fn default() -> Self {
-        Self {
-            session: None,
-            image: Vec::new(),
-            pending_video: None,
-            pending_audio: None,
-            controller_1: 0,
-            save_dirty: false,
-        }
-    }
-}
 
 impl NesCoreAdapter {
     /// Constructs an unloaded NES core instance for registration with PeaceEmu.
