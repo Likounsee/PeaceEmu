@@ -7,7 +7,7 @@ use emulation_core::content::{ContentFormatProbe, FormatProbeResult};
 use emulation_core::core_io::{AudioBuffer, InputControl, InputEvent, PixelFormat, VideoFrame};
 use emulation_core::{
     CoreApiVersion, CoreCapabilities, CoreDescriptor, CoreError, CoreEvent, EmulationCore,
-    SystemId, CURRENT_CORE_API_VERSION,
+    CoreRegistry, RegistryError, SystemId, CURRENT_CORE_API_VERSION,
 };
 use peaceemu_nes::session::{NesConfig, NesSession, NES_FRAME_HEIGHT, NES_FRAME_WIDTH};
 
@@ -68,6 +68,16 @@ impl NesCoreAdapter {
     fn session_mut(&mut self) -> Result<&mut NesSession, CoreError> {
         self.session.as_mut().ok_or(CoreError::NotInitialized)
     }
+}
+
+fn create_nes_core() -> Box<dyn EmulationCore> {
+    Box::new(NesCoreAdapter::new())
+}
+
+/// Registers NES with the host using its truthful runtime capabilities.
+pub fn register_nes(registry: &mut CoreRegistry) -> Result<(), RegistryError> {
+    let descriptor = NesCoreAdapter::new().descriptor();
+    registry.register_with_descriptor(descriptor, create_nes_core)
 }
 
 impl EmulationCore for NesCoreAdapter {
