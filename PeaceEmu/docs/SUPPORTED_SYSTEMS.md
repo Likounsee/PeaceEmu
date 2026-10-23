@@ -2,10 +2,11 @@
 
 ## Current verified status
 
-**No console is currently emulated or supported by the host repository.** Console cores are developed in separate repositories and must demonstrate compatibility with reproducible tests before being listed as supported.
+**NES is integrated as an experimental module, but no console is yet claimed as supported.** Integration tests prove the host contract is connected; they do not prove commercial-game compatibility.
 
 | System | Status | Evidence |
 | --- | --- | --- |
+| Nintendo Entertainment System (NES) | Experimental | The desktop app registers the pinned `PeaceEmu-NES` module, detects iNES ROM headers from library launches, and adapts frame/audio/input/battery-RAM APIs. A synthetic looping ROM exercises adapter frame output; real-game compatibility remains unverified. |
 
 ## Status definitions
 
