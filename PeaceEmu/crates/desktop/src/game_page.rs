@@ -158,19 +158,35 @@ impl DesktopApp {
         theme::card(ui, &palette, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(if french {
-                    "Fenêtre de jeu séparée"
-                } else {
-                    "Separate game window"
-                }).size(18.0).strong());
+                ui.label(
+                    egui::RichText::new(if french {
+                        "Fenêtre de jeu séparée"
+                    } else {
+                        "Separate game window"
+                    })
+                    .size(18.0)
+                    .strong(),
+                );
                 theme::badge(
                     ui,
                     if self.game_viewport_open {
-                        if french { "Jeu ouvert" } else { "Game open" }
+                        if french {
+                            "Jeu ouvert"
+                        } else {
+                            "Game open"
+                        }
                     } else {
-                        if french { "Fenêtre fermée" } else { "Window closed" }
+                        if french {
+                            "Fenêtre fermée"
+                        } else {
+                            "Window closed"
+                        }
                     },
-                    if self.game_viewport_open { palette.success } else { palette.text_dim },
+                    if self.game_viewport_open {
+                        palette.success
+                    } else {
+                        palette.text_dim
+                    },
                 );
             });
             ui.label(if french {
