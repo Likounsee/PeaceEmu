@@ -313,6 +313,39 @@ mod tests {
     }
 
     #[test]
+    fn registered_nes_module_launches_ines_content_through_host_pipeline() {
+        use emulation_core::content::ContentLimits;
+        use emulation_core::host_runtime::{HostRuntime, HostRuntimeConfig};
+        use emulation_core::{CoreRegistry, SystemId};
+
+        let mut rom = vec![0; 16 + 16 * 1024];
+        rom[..4].copy_from_slice(b"NES\\x1a");
+        rom[4] = 1;
+        rom[16] = 0x4c;
+        rom[17] = 0;
+        rom[18] = 0x80;
+        rom[16 + 0x3ffc] = 0;
+        rom[16 + 0x3ffd] = 0x80;
+
+        let mut registry = CoreRegistry::new();
+        registry
+            .register(SystemId::new(SYSTEM_ID).unwrap(), || {
+                Box::new(NesCoreAdapter::new())
+            })
+            .unwrap();
+        let probe = NesCartridgeProbe;
+        let probes: [&dyn ContentFormatProbe; 1] = [&probe];
+        let mut host = HostRuntime::new(HostRuntimeConfig::default()).unwrap();
+
+        let session_id = host
+            .launch_content(&rom, ContentLimits::new(32 * 1024), &probes, &registry)
+            .unwrap();
+
+        assert_eq!(host.session_count(), 1);
+        assert_eq!(host.session_ids(), vec![session_id]);
+    }
+
+    #[test]
     fn adapter_exposes_a_frame_to_the_host_contract() {
         let mut rom = vec![0; 16 + 16 * 1024];
         rom[..4].copy_from_slice(b"NES\x1a");
