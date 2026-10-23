@@ -1393,6 +1393,31 @@ impl DesktopApp {
     fn show_game_viewport(&mut self, context: &egui::Context) {
         if self.game_viewport_closed.swap(false, Ordering::AcqRel) {
             self.game_viewport_open = false;
+            if let Some(id) = self.controller.active_session() {
+                if let Err(error) = self.release_game_inputs() {
+                    self.message = format!("Could not release game input after closing the game window: {error}");
+                }
+                let save_errors = self.flush_dirty_game_saves();
+                if !save_errors.is_empty() {
+                    self.message = format!("Game window closed; save warning: {}", save_errors.join("; "));
+                }
+                if let Err(error) = self.controller.close_session(id) {
+                    self.message = format!("Game window closed, but the session could not be closed: {error}");
+                }
+                self.session_content_paths
+                    .retain(|(session_id, _)| *session_id != id);
+                self.last_tick_errors.retain(|(session_id, _)| *session_id != id);
+                self.frame_texture = None;
+                self.audio_output.clear();
+                self.active_page = DesktopPage::Library;
+                if self.message.is_empty() || !self.message.to_lowercase().contains("could not") {
+                    self.message = if self.language == "fr" {
+                        "Fenêtre de jeu fermée. Relancez le jeu depuis la bibliothèque.".to_owned()
+                    } else {
+                        "Game window closed. Launch the game again from the library.".to_owned()
+                    };
+                }
+            }
         }
         if !self.game_viewport_open {
             return;
