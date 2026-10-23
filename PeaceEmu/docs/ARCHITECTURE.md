@@ -2,7 +2,7 @@
 
 ## Current state
 
-The repository contains a Rust workspace with a shared core contract and a native eframe/egui desktop application. Console-specific implementations are developed and versioned in separate module repositories. The desktop provides library management, session controls, semantic keyboard input, preferences and a bounded video-frame presentation path. Audio playback is not yet integrated, and the Game Boy core is incomplete and not a playable emulator. Contracts and successful CI checks are not proof of console compatibility.
+The repository contains a Rust workspace with a shared core contract and a native eframe/egui desktop application. The desktop app now pins the separately versioned PeaceEmu-NES module and adapts its frames, PCM audio, semantic input and battery-backed saves to the shared contract. A library launch opens a separate game-only viewport. NES remains experimental: adapter tests and successful builds are not proof of compatibility with commercial games. The older Game Boy core remains incomplete.
 
 ## Intended layers
 
