@@ -6,7 +6,7 @@
 use emulation_core::content::{ContentFormatProbe, FormatProbeResult};
 use emulation_core::core_io::{AudioBuffer, InputControl, InputEvent, PixelFormat, VideoFrame};
 use emulation_core::{
-    CoreApiVersion, CoreCapabilities, CoreDescriptor, CoreError, CoreEvent, CoreRegistry,
+    CoreCapabilities, CoreDescriptor, CoreError, CoreEvent, CoreRegistry,
     EmulationCore, RegistryError, SystemId, CURRENT_CORE_API_VERSION,
 };
 use peaceemu_nes::session::{NesConfig, NesSession, NES_FRAME_HEIGHT, NES_FRAME_WIDTH};
@@ -232,8 +232,8 @@ impl EmulationCore for NesCoreAdapter {
         } else {
             self.controller_1 &= !(1 << bit);
         }
-        self.session_mut()?
-            .set_controller_state(0, self.controller_1);
+        let buttons = self.controller_1;
+        self.session_mut()?.set_controller_state(0, buttons);
         Ok(())
     }
 
