@@ -1001,7 +1001,7 @@ impl DesktopApp {
                     self.audio_output.clear();
                     self.frame_cadence.reset();
                     self.frame_texture = None;
-                    self.last_tick = Instant::now();
+                    self.video_size = None;                    self.last_tick = Instant::now();
                     self.media_status = if self.language == "fr" {
                         "État restauré ; attente de la prochaine trame.".to_owned()
                     } else {
@@ -1115,7 +1115,7 @@ impl DesktopApp {
                     self.audio_output.clear();
                     self.frame_cadence.reset();
                     self.frame_texture = None;
-                    self.media_status = if self.language == "fr" {
+                    self.video_size = None;                    self.media_status = if self.language == "fr" {
                         "Session active arrêtée après la sauvegarde de son état.".to_owned()
                     } else {
                         "Active session stopped after saving its state.".to_owned()
@@ -1125,7 +1125,7 @@ impl DesktopApp {
                     self.audio_output.clear();
                     self.frame_cadence.reset();
                     self.frame_texture = None;
-                    self.last_tick = Instant::now();
+                    self.video_size = None;                    self.last_tick = Instant::now();
                     self.media_status = if self.language == "fr" {
                         "Session active réinitialisée ; en attente d’une nouvelle image.".to_owned()
                     } else {
@@ -1416,7 +1416,7 @@ impl DesktopApp {
                 self.last_tick_errors
                     .retain(|(session_id, _)| *session_id != id);
                 self.frame_texture = None;
-                self.audio_output.clear();
+                self.video_size = None;                self.audio_output.clear();
                 self.active_page = DesktopPage::Library;
                 self.message = if warnings.is_empty() {
                     if self.language == "fr" {
@@ -1603,7 +1603,7 @@ impl DesktopApp {
         let Some(id) = self.controller.active_session() else {
             self.frame_cadence.reset();
             self.frame_texture = None;
-            self.media_status =
+            self.video_size = None;            self.media_status =
                 "No active session. Launch a ROM to receive core-provided frames.".to_owned();
             return;
         };
@@ -1629,7 +1629,7 @@ impl DesktopApp {
                     .retain(|(error_id, _)| *error_id != id);
                 self.last_tick_errors.push((id, self.media_status.clone()));
                 self.frame_texture = None;
-                return;
+                self.video_size = None;                return;
             }
         };
         let state = update.state;
@@ -1672,7 +1672,7 @@ impl DesktopApp {
                 .retain(|(error_id, _)| *error_id != id);
             self.last_tick_errors.push((id, diagnostic));
             self.frame_texture = None;
-        } else {
+            self.video_size = None;        } else {
             self.last_tick_errors
                 .retain(|(error_id, _)| *error_id != id);
         }
