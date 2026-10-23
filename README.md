@@ -30,7 +30,7 @@
 
 The shared Rust core crate defines validated system identifiers, capability metadata, a core registry, an independent-session lifecycle controller, bounded execution requests, common media payloads, and host-side input state with duplicate-transition suppression and explicit release recovery. Module selection/state persistence and host performance planning are also present as foundations. Runtime tests cover lifecycle transitions, error recovery, independent session creation, and shared input-state behavior.
 
-Console-specific implementations are developed in separate module repositories and are not embedded in this host repository. This repository focuses on the shared runtime, module contracts, desktop application, integration, and packaging. No system is currently claimed as supported.
+Console-specific implementations remain maintained in separate repositories. The desktop app now pins and adapts the experimental `PeaceEmu-NES` module; selecting a compatible `.nes` ROM in the PeaceEmu library is the intended launch path. NES game compatibility is not yet validated, so no system is currently claimed as supported.
 
 ## Build and test
 
