@@ -160,7 +160,13 @@ impl DesktopApp {
             ui.set_min_height(display_height);
             ui.set_min_width(ui.available_width());
             ui.vertical_centered(|ui| {
-                if let (Some(texture), Some([width, height])) =
+                if self.game_window_open {
+                    ui.label(if french {
+                        "Le jeu est affiché dans sa fenêtre dédiée."
+                    } else {
+                        "Gameplay is displayed in its dedicated window."
+                    });
+                } else if let (Some(texture), Some([width, height])) =
                     (&self.frame_texture, self.video_size)
                 {
                     let available = ui.available_size();
