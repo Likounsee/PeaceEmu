@@ -9,7 +9,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 use ureq::ResponseExt;
 
-const RELEASES_URL: &str = "https://api.github.com/repos/Likounsee/PeaceEmu-NES/releases?per_page=20";
+const RELEASES_URL: &str =
+    "https://api.github.com/repos/Likounsee/PeaceEmu-NES/releases?per_page=20";
 const MAX_RELEASES_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_MODULE_BYTES: u64 = 100 * 1024 * 1024;
 const EXE_NAME: &str = "peaceemu-nes-desktop.exe";
@@ -31,10 +32,18 @@ struct ReleaseAsset {
 
 fn module_root() -> Result<PathBuf, String> {
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        return Ok(PathBuf::from(local).join("PeaceEmu").join("modules").join("nes"));
+        return Ok(PathBuf::from(local)
+            .join("PeaceEmu")
+            .join("modules")
+            .join("nes"));
     }
     if let Some(home) = std::env::var_os("HOME") {
-        return Ok(PathBuf::from(home).join(".local").join("share").join("PeaceEmu").join("modules").join("nes"));
+        return Ok(PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("PeaceEmu")
+            .join("modules")
+            .join("nes"));
     }
     Err("Could not locate a user-writable PeaceEmu data directory.".to_owned())
 }
@@ -46,7 +55,8 @@ fn version_number(tag: &str) -> Option<u64> {
 /// Returns the newest successfully installed NES module executable, if present.
 pub(crate) fn installed_executable_path() -> Option<PathBuf> {
     let root = module_root().ok()?;
-    let mut versions = fs::read_dir(root).ok()?
+    let mut versions = fs::read_dir(root)
+        .ok()?
         .filter_map(Result::ok)
         .filter_map(|entry| {
             let name = entry.file_name().into_string().ok()?;
@@ -67,12 +77,16 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
         .timeout_recv_body(Some(Duration::from_secs(20)))
         .build()
         .into();
-    let mut response = agent.get(RELEASES_URL)
+    let mut response = agent
+        .get(RELEASES_URL)
         .header("User-Agent", "PeaceEmu-module-manager")
         .call()
         .map_err(|error| format!("Could not retrieve the NES module catalogue: {error}"))?;
     let mut json = Vec::new();
-    response.body_mut().as_reader().take(MAX_RELEASES_BYTES + 1)
+    response
+        .body_mut()
+        .as_reader()
+        .take(MAX_RELEASES_BYTES + 1)
         .read_to_end(&mut json)
         .map_err(|error| format!("Could not read NES release catalogue: {error}"))?;
     if json.len() as u64 > MAX_RELEASES_BYTES {
@@ -80,23 +94,41 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
     }
     let releases: Vec<Release> = serde_json::from_slice(&json)
         .map_err(|error| format!("NES release catalogue is invalid: {error}"))?;
-    let release = releases.into_iter()
+    let release = releases
+        .into_iter()
         .filter(|release| !release.draft && version_number(&release.tag_name).is_some())
-        .find(|release| release.assets.iter().any(|asset| asset.name == EXE_NAME)
-            && release.assets.iter().any(|asset| asset.name == CHECKSUM_NAME))
+        .find(|release| {
+            release.assets.iter().any(|asset| asset.name == EXE_NAME)
+                && release
+                    .assets
+                    .iter()
+                    .any(|asset| asset.name == CHECKSUM_NAME)
+        })
         .ok_or_else(|| "No compatible downloadable NES module release was found.".to_owned())?;
-    let exe_asset = release.assets.iter().find(|asset| asset.name == EXE_NAME).unwrap();
-    let checksum_asset = release.assets.iter().find(|asset| asset.name == CHECKSUM_NAME).unwrap();
-    if exe_asset.size == 0 || exe_asset.size > MAX_MODULE_BYTES
+    let exe_asset = release
+        .assets
+        .iter()
+        .find(|asset| asset.name == EXE_NAME)
+        .expect("release asset presence was checked");
+    let checksum_asset = release
+        .assets
+        .iter()
+        .find(|asset| asset.name == CHECKSUM_NAME)
+        .expect("release checksum presence was checked");
+    if exe_asset.size == 0
+        || exe_asset.size > MAX_MODULE_BYTES
         || !official_release_asset_url(&exe_asset.browser_download_url, &release.tag_name)
-        || !official_release_asset_url(&checksum_asset.browser_download_url, &release.tag_name) {
+        || !official_release_asset_url(&checksum_asset.browser_download_url, &release.tag_name)
+    {
         return Err("NES release contains invalid or oversized download metadata.".to_owned());
     }
     let exe_bytes = download_asset(&agent, &exe_asset.browser_download_url, exe_asset.size)?;
     let checksum_bytes = download_asset(&agent, &checksum_asset.browser_download_url, 1024)?;
     let checksum_text = std::str::from_utf8(&checksum_bytes)
         .map_err(|_| "NES release checksum is not valid UTF-8.".to_owned())?;
-    let expected = checksum_text.split_whitespace().next()
+    let expected = checksum_text
+        .split_whitespace()
+        .next()
         .ok_or_else(|| "NES release checksum is empty.".to_owned())?;
     if expected.len() != 64 || !expected.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err("NES release checksum has an invalid SHA-256 digest.".to_owned());
@@ -110,43 +142,69 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
     fs::create_dir_all(&destination)
         .map_err(|error| format!("Could not create NES module directory: {error}"))?;
     let final_path = destination.join(EXE_NAME);
-    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
-        .map_err(|error| format!("System clock is invalid: {error}"))?.as_nanos();
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| format!("System clock is invalid: {error}"))?
+        .as_nanos();
     let staging = destination.join(format!(".module-{nonce}.part"));
     let result = (|| {
-        let mut file = OpenOptions::new().write(true).create_new(true).open(&staging)
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&staging)
             .map_err(|error| format!("Could not stage NES module: {error}"))?;
-        file.write_all(&exe_bytes).map_err(|error| format!("Could not write NES module: {error}"))?;
-        file.sync_all().map_err(|error| format!("Could not flush NES module: {error}"))?;
-        fs::rename(&staging, &final_path).map_err(|error| format!("Could not activate NES module: {error}"))?;
+        file.write_all(&exe_bytes)
+            .map_err(|error| format!("Could not write NES module: {error}"))?;
+        file.sync_all()
+            .map_err(|error| format!("Could not flush NES module: {error}"))?;
+        fs::rename(&staging, &final_path)
+            .map_err(|error| format!("Could not activate NES module: {error}"))?;
         Ok(final_path.clone())
     })();
-    if result.is_err() { let _ = fs::remove_file(&staging); }
+    if result.is_err() {
+        let _ = fs::remove_file(&staging);
+    }
     result
 }
 
 fn official_release_asset_url(url: &str, tag: &str) -> bool {
-    url.starts_with(&format!("https://github.com/Likounsee/PeaceEmu-NES/releases/download/{tag}/"))
-        && !url.bytes().any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == b'\\')
+    url.starts_with(&format!(
+        "https://github.com/Likounsee/PeaceEmu-NES/releases/download/{tag}/"
+    )) && !url
+        .bytes()
+        .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == b'\\')
 }
 
 fn download_asset(agent: &ureq::Agent, url: &str, maximum: u64) -> Result<Vec<u8>, String> {
-    let mut response = agent.get(url).call()
+    let mut response = agent
+        .get(url)
+        .call()
         .map_err(|error| format!("Could not download NES module asset: {error}"))?;
     let final_url = response.get_uri().to_string();
     if !(final_url.starts_with("https://github.com/")
         || final_url.starts_with("https://release-assets.githubusercontent.com/")
-        || final_url.starts_with("https://objects.githubusercontent.com/")) {
+        || final_url.starts_with("https://objects.githubusercontent.com/"))
+    {
         return Err("NES module download redirected to an untrusted host.".to_owned());
     }
-    if let Some(length) = response.headers().get("Content-Length").and_then(|value| value.to_str().ok()) {
-        let length = length.parse::<u64>().map_err(|_| "NES module has an invalid Content-Length.".to_owned())?;
+    if let Some(length) = response
+        .headers()
+        .get("Content-Length")
+        .and_then(|value| value.to_str().ok())
+    {
+        let length = length
+            .parse::<u64>()
+            .map_err(|_| "NES module has an invalid Content-Length.".to_owned())?;
         if length == 0 || length > maximum {
             return Err("NES module asset exceeds the accepted download size.".to_owned());
         }
     }
     let mut bytes = Vec::new();
-    response.body_mut().as_reader().take(maximum + 1).read_to_end(&mut bytes)
+    response
+        .body_mut()
+        .as_reader()
+        .take(maximum + 1)
+        .read_to_end(&mut bytes)
         .map_err(|error| format!("Could not read NES module asset: {error}"))?;
     if bytes.is_empty() || bytes.len() as u64 > maximum {
         return Err("NES module asset is empty or exceeds the accepted download size.".to_owned());
