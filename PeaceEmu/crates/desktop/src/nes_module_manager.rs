@@ -322,6 +322,33 @@ mod tests {
     }
 
     #[test]
+    fn embedded_module_catalogue_is_versioned_and_contains_nes() {
+        let module = nes_module_descriptor().expect("checked-in NES module entry must be valid");
+        assert_eq!(module.id, "nes");
+        assert_eq!(module.repository, "Likounsee/PeaceEmu-NES");
+        assert_eq!(
+            module.release_api,
+            "https://api.github.com/repos/Likounsee/PeaceEmu-NES/releases?per_page=20"
+        );
+        assert_eq!(module.tag_prefix, "nes-module-");
+        assert_eq!(module.assets.executable, EXE_NAME);
+        assert_eq!(module.assets.sha256, CHECKSUM_NAME);
+        assert!(module.max_download_bytes > 0);
+    }
+
+    #[test]
+    fn catalogue_version_parser_uses_the_declared_tag_prefix() {
+        assert_eq!(
+            version_number_with_prefix("nes-module-0.3.1", "nes-module-"),
+            Some((0, 3, 1))
+        );
+        assert_eq!(
+            version_number_with_prefix("gba-module-0.3.1", "nes-module-"),
+            None
+        );
+    }
+
+    #[test]
     fn only_accepts_assets_from_the_expected_repository_and_tag() {
         assert!(official_release_asset_url(
             "https://github.com/Likounsee/PeaceEmu-NES/releases/download/nes-module-0.1.3/peaceemu-nes-desktop.exe",
