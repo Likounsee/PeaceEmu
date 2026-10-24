@@ -167,6 +167,8 @@ struct DesktopApp {
     controller: ApplicationController,
     registry: CoreRegistry,
     probe: NesCartridgeProbe,
+    nes_install_receiver: Option<Receiver<Result<PathBuf, String>>>,
+    nes_installing: bool,
     content_path: String,
     library_filter: String,
     library_format: LibraryFormat,
@@ -369,6 +371,8 @@ impl DesktopApp {
             controller,
             registry,
             probe: NesCartridgeProbe,
+            nes_install_receiver: None,
+            nes_installing: false,
             content_path: selected_content
                 .as_ref()
                 .map(|path| path.display().to_string())
@@ -414,6 +418,23 @@ impl DesktopApp {
         // The user can still trigger another check from Settings after this completes.
         app.start_update_check();
         Ok(app)
+    }
+
+    fn start_nes_module_install(&mut self) {
+        if self.nes_installing {
+            return;
+        }
+        let (sender, receiver) = mpsc::channel();
+        self.nes_install_receiver = Some(receiver);
+        self.nes_installing = true;
+        self.message = if self.language == "fr" {
+            "Téléchargement et vérification du module NES en arrière-plan…".to_owned()
+        } else {
+            "Downloading and verifying the NES module in the background…".to_owned()
+        };
+        std::thread::spawn(move || {
+            let _ = sender.send(nes_module_manager::install_latest());
+        });
     }
 
     fn start_update_check(&mut self) {
