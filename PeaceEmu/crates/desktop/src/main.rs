@@ -29,7 +29,8 @@ mod home_page;
 mod language_pack;
 mod library_page;
 pub mod manifest_ed25519;
-mod nes_module;
+mod nes_module_manager;
+mod nes_probe;
 mod preferences;
 mod save_states;
 mod sessions_page;
@@ -45,7 +46,7 @@ use eframe::egui;
 use emulation_core::host_runtime::{HostRuntime, HostRuntimeConfig, SessionId};
 use emulation_core::runtime::SessionState;
 use emulation_core::CoreRegistry;
-use nes_module::{register_nes, NesCartridgeProbe};
+use nes_probe::NesCartridgeProbe;
 
 const MAX_CONTENT_BYTES: usize = 32 * 1024 * 1024;
 
@@ -166,6 +167,8 @@ struct DesktopApp {
     controller: ApplicationController,
     registry: CoreRegistry,
     probe: NesCartridgeProbe,
+    nes_install_receiver: Option<Receiver<Result<PathBuf, String>>>,
+    nes_installing: bool,
     content_path: String,
     library_filter: String,
     library_format: LibraryFormat,
@@ -269,8 +272,7 @@ impl DesktopPage {
 
 impl DesktopApp {
     fn new() -> Result<Self, Box<dyn Error>> {
-        let mut registry = CoreRegistry::new();
-        register_nes(&mut registry)?;
+        let registry = CoreRegistry::new();
         let host = HostRuntime::new(HostRuntimeConfig::default())?;
         let mut controller = ApplicationController::new(host);
         let config_path = config_file_path();
@@ -369,6 +371,8 @@ impl DesktopApp {
             controller,
             registry,
             probe: NesCartridgeProbe,
+            nes_install_receiver: None,
+            nes_installing: false,
             content_path: selected_content
                 .as_ref()
                 .map(|path| path.display().to_string())
@@ -414,6 +418,23 @@ impl DesktopApp {
         // The user can still trigger another check from Settings after this completes.
         app.start_update_check();
         Ok(app)
+    }
+
+    fn start_nes_module_install(&mut self) {
+        if self.nes_installing {
+            return;
+        }
+        let (sender, receiver) = mpsc::channel();
+        self.nes_install_receiver = Some(receiver);
+        self.nes_installing = true;
+        self.message = if self.language == "fr" {
+            "Téléchargement et vérification du module NES en arrière-plan…".to_owned()
+        } else {
+            "Downloading and verifying the NES module in the background…".to_owned()
+        };
+        std::thread::spawn(move || {
+            let _ = sender.send(nes_module_manager::install_latest());
+        });
     }
 
     fn start_update_check(&mut self) {
@@ -687,6 +708,41 @@ impl DesktopApp {
             } else {
                 "Enter a content path first.".to_owned()
             };
+            return;
+        }
+
+        // NES is an optional, separately downloaded module. Never fall back to a
+        // built-in core: launching from the library always starts the installed module.
+        if Path::new(&path)
+            .extension()
+            .is_some_and(|extension| extension.to_string_lossy().eq_ignore_ascii_case("nes"))
+        {
+            let Some(executable) = nes_module_manager::installed_executable_path() else {
+                self.message = if self.language == "fr" {
+                    "Le module NES n’est pas installé. Ouvrez Systèmes pour le télécharger."
+                        .to_owned()
+                } else {
+                    "The NES module is not installed. Open Systems to download it.".to_owned()
+                };
+                self.navigate_to(DesktopPage::Systems);
+                return;
+            };
+            match std::process::Command::new(&executable).arg(&path).spawn() {
+                Ok(_) => {
+                    self.message = if self.language == "fr" {
+                        "Jeu NES lancé dans la fenêtre du module.".to_owned()
+                    } else {
+                        "NES game launched in the module window.".to_owned()
+                    };
+                }
+                Err(error) => {
+                    self.message = if self.language == "fr" {
+                        format!("Impossible de lancer le module NES : {error}")
+                    } else {
+                        format!("Could not launch the NES module: {error}")
+                    };
+                }
+            }
             return;
         }
 
