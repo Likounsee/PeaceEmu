@@ -142,6 +142,17 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
     fs::create_dir_all(&destination)
         .map_err(|error| format!("Could not create NES module directory: {error}"))?;
     let final_path = destination.join(EXE_NAME);
+    if final_path.is_file() {
+        let existing = fs::read(&final_path)
+            .map_err(|error| format!("Could not verify the installed NES module: {error}"))?;
+        if format!("{:x}", Sha256::digest(&existing)).eq_ignore_ascii_case(expected) {
+            return Ok(final_path);
+        }
+        return Err(
+            "An installed NES module with this version tag has a bad checksum; remove it before retrying."
+                .to_owned(),
+        );
+    }
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|error| format!("System clock is invalid: {error}"))?
