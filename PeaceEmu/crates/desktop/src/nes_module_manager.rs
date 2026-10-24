@@ -26,6 +26,8 @@ struct ModuleDescriptor {
     repository: String,
     release_api: String,
     tag_prefix: String,
+    minimum_peaceemu_version: String,
+    platforms: Vec<String>,
     assets: ModuleAssets,
     max_download_bytes: u64,
 }
@@ -58,6 +60,8 @@ fn nes_module_descriptor() -> Result<ModuleDescriptor, String> {
             .any(|byte| !(byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'_')))
         || module.release_api != expected_api
         || module.tag_prefix != "nes-module-"
+        || parse_semver(&module.minimum_peaceemu_version).is_none()
+        || module.platforms.is_empty()
         || module.assets.executable != EXE_NAME
         || module.assets.sha256 != CHECKSUM_NAME
         || module.max_download_bytes == 0
@@ -116,6 +120,33 @@ fn version_number_with_prefix(tag: &str, prefix: &str) -> Option<(u64, u64, u64)
     Some((major, minor, patch))
 }
 
+fn parse_semver(version: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = version.split('.');
+    let major = parse_version_component(parts.next()?)?;
+    let minor = parse_version_component(parts.next()?)?;
+    let patch = parse_version_component(parts.next()?)?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((major, minor, patch))
+}
+
+fn current_platform_id() -> &'static str {
+    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows-x86_64"
+    } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+        "windows-aarch64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux-x86_64"
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "macos-aarch64"
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        "macos-x86_64"
+    } else {
+        "unsupported"
+    }
+}
+
 fn parse_version_component(component: &str) -> Option<u64> {
     if component.is_empty()
         || (component.len() > 1 && component.starts_with('0'))
@@ -152,6 +183,22 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
         .build()
         .into();
     let module = nes_module_descriptor()?;
+    let platform = current_platform_id();
+    if !module.platforms.iter().any(|supported| supported == platform) {
+        return Err(format!(
+            "The NES module is not available for this platform yet ({platform})."
+        ));
+    }
+    let app_version = parse_semver(env!("CARGO_PKG_VERSION"))
+        .expect("the desktop package version must be valid semantic versioning");
+    let minimum_version = parse_semver(&module.minimum_peaceemu_version)
+        .expect("the validated catalogue minimum version must be valid");
+    if app_version < minimum_version {
+        return Err(format!(
+            "The NES module requires PeaceEmu {} or newer.",
+            module.minimum_peaceemu_version
+        ));
+    }
     let mut response = agent
         .get(&module.release_api)
         .header("User-Agent", "PeaceEmu-module-manager")
@@ -350,9 +397,20 @@ mod tests {
             "https://api.github.com/repos/Likounsee/PeaceEmu-NES/releases?per_page=20"
         );
         assert_eq!(module.tag_prefix, "nes-module-");
+        assert_eq!(module.minimum_peaceemu_version, "0.2.3");
+        assert!(module.platforms.iter().any(|platform| platform == "windows-x86_64"));
         assert_eq!(module.assets.executable, EXE_NAME);
         assert_eq!(module.assets.sha256, CHECKSUM_NAME);
         assert!(module.max_download_bytes > 0);
+    }
+
+    #[test]
+    fn semantic_version_parser_rejects_noncanonical_versions() {
+        assert_eq!(parse_semver("0.2.3"), Some((0, 2, 3)));
+        assert_eq!(parse_semver("1.10.0"), Some((1, 10, 0)));
+        assert_eq!(parse_semver("0.02.3"), None);
+        assert_eq!(parse_semver("0.2"), None);
+        assert_eq!(parse_semver("0.2.3-beta"), None);
     }
 
     #[test]
