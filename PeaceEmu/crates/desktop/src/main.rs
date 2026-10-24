@@ -644,6 +644,7 @@ impl DesktopApp {
 
     fn choose_content_file(&mut self) {
         let selected = rfd::FileDialog::new()
+            .add_filter("NES ROMs", &["nes"])
             .add_filter("Game Boy ROMs", &["gb", "gbc", "gba"])
             .add_filter("Game Boy ROM", &["gb"])
             .add_filter("Game Boy Color ROM", &["gbc"])
@@ -1975,16 +1976,20 @@ fn import_dialog_body(
 }
 
 /// Rejects unsupported extensions and non-ROM bytes before adding a file to the library.
+fn is_supported_rom_extension(extension: &str) -> bool {
+    ["gb", "gbc", "gba", "nes"]
+        .iter()
+        .any(|supported| extension.eq_ignore_ascii_case(supported))
+}
+
+/// Rejects unsupported extensions and non-ROM bytes before adding a file to the library.
 fn validate_import_file(path: &Path) -> Result<(), String> {
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
-    if !extension.eq_ignore_ascii_case("gb")
-        && !extension.eq_ignore_ascii_case("gbc")
-        && !extension.eq_ignore_ascii_case("gba")
-    {
-        return Err("unsupported file type: choose a .gb, .gbc or .gba ROM".to_owned());
+    if !is_supported_rom_extension(extension) {
+        return Err("unsupported file type: choose a .gb, .gbc, .gba or .nes ROM".to_owned());
     }
 
     let metadata = std::fs::metadata(path)
@@ -2063,6 +2068,17 @@ fn format_size(bytes: u64) -> String {
 #[cfg(test)]
 mod import_dialog_tests {
     use super::*;
+
+    #[test]
+    fn accepts_nes_rom_extension_case_insensitively() {
+        assert!(is_supported_rom_extension("nes"));
+        assert!(is_supported_rom_extension("NES"));
+        assert!(is_supported_rom_extension("gb"));
+        assert!(is_supported_rom_extension("gbc"));
+        assert!(is_supported_rom_extension("gba"));
+        assert!(!is_supported_rom_extension("zip"));
+        assert!(!is_supported_rom_extension(""));
+    }
 
     #[test]
     fn dialog_stays_compact_on_large_windows() {
