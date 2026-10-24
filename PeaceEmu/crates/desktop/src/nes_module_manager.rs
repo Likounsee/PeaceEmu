@@ -157,7 +157,7 @@ fn parse_version_component(component: &str) -> Option<u64> {
     component.parse().ok()
 }
 
-/// Returns the newest successfully installed NES module executable, if present.
+/// Returns the newest installed NES executable whose persisted digest still matches.
 pub(crate) fn installed_executable_path() -> Option<PathBuf> {
     let root = module_root().ok()?;
     let mut versions = fs::read_dir(root)
@@ -167,11 +167,33 @@ pub(crate) fn installed_executable_path() -> Option<PathBuf> {
             let name = entry.file_name().into_string().ok()?;
             let number = version_number(&name)?;
             let exe = entry.path().join(EXE_NAME);
-            exe.is_file().then_some((number, exe))
+            let checksum = entry.path().join(CHECKSUM_NAME);
+            let bytes = fs::read(&exe).ok()?;
+            let expected = fs::read_to_string(checksum).ok()?;
+            checksum_matches(&bytes, &expected).then_some((number, exe))
         })
         .collect::<Vec<_>>();
     versions.sort_by_key(|(number, _)| *number);
     versions.pop().map(|(_, path)| path)
+}
+
+fn checksum_matches(bytes: &[u8], checksum_text: &str) -> bool {
+    let Some(expected) = checksum_text.split_whitespace().next() else {
+        return false;
+    };
+    expected.len() == 64
+        && expected.bytes().all(|byte| byte.is_ascii_hexdigit())
+        && format!("{:x}", Sha256::digest(bytes)).eq_ignore_ascii_case(expected)
+}
+
+fn persist_checksum(directory: &std::path::Path, expected: &str) -> Result<(), String> {
+    let checksum_path = directory.join(CHECKSUM_NAME);
+    let temporary_path = directory.join(format!(".{CHECKSUM_NAME}.part"));
+    fs::write(&temporary_path, format!("{expected}  {EXE_NAME}\\n"))
+        .map_err(|error| format!("Could not persist NES module checksum: {error}"))?;
+    fs::rename(&temporary_path, &checksum_path)
+        .map_err(|error| format!("Could not activate NES module checksum: {error}"))?;
+    Ok(())
 }
 
 /// Downloads the newest published module release, verifies its SHA-256 sidecar,
@@ -296,7 +318,8 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
     if final_path.is_file() {
         let existing = fs::read(&final_path)
             .map_err(|error| format!("Could not verify the installed NES module: {error}"))?;
-        if format!("{:x}", Sha256::digest(&existing)).eq_ignore_ascii_case(expected) {
+        if checksum_matches(&existing, expected) {
+            persist_checksum(&destination, expected)?;
             return Ok(final_path);
         }
         return Err(
@@ -326,7 +349,9 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
     if result.is_err() {
         let _ = fs::remove_file(&staging);
     }
-    result
+    let installed = result?;
+    persist_checksum(&destination, expected)?;
+    Ok(installed)
 }
 
 fn official_release_asset_url(url: &str, repository: &str, tag: &str) -> bool {
@@ -377,6 +402,16 @@ fn download_asset(agent: &ureq::Agent, url: &str, maximum: u64) -> Result<Vec<u8
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn installed_module_checksum_must_match_the_binary() {
+        let bytes = b"verified module bytes";
+        let digest = format!("{:x}", Sha256::digest(bytes));
+        assert!(checksum_matches(bytes, &format!("{digest}  {EXE_NAME}")));
+        assert!(!checksum_matches(b"tampered module bytes", &format!("{digest}  {EXE_NAME}")));
+        assert!(!checksum_matches(bytes, "not-a-sha256"));
+        assert!(!checksum_matches(bytes, ""));
+    }
 
     #[test]
     fn parses_and_orders_canonical_semantic_release_versions() {
