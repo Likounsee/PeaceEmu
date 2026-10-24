@@ -38,3 +38,6 @@ wildcards = "deny"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+# The NES core is an intentional first-party dependency pinned to an immutable commit
+# in crates/desktop/Cargo.toml; no other Git source is allowed.
+allow-git = ["https://github.com/Likounsee/PeaceEmu-NES"]
