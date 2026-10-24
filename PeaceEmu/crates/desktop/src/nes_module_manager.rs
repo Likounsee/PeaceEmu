@@ -9,12 +9,68 @@ use std::path::PathBuf;
 use std::time::Duration;
 use ureq::ResponseExt;
 
-const RELEASES_URL: &str =
-    "https://api.github.com/repos/Likounsee/PeaceEmu-NES/releases?per_page=20";
+const MODULE_CATALOG: &str = include_str!("../assets/modules/catalog.json");
 const MAX_RELEASES_BYTES: u64 = 2 * 1024 * 1024;
-const MAX_MODULE_BYTES: u64 = 100 * 1024 * 1024;
 const EXE_NAME: &str = "peaceemu-nes-desktop.exe";
 const CHECKSUM_NAME: &str = "peaceemu-nes-desktop.exe.sha256";
+
+#[derive(Deserialize)]
+struct ModuleCatalog {
+    schema_version: u32,
+    modules: Vec<ModuleDescriptor>,
+}
+
+#[derive(Clone, Deserialize)]
+struct ModuleDescriptor {
+    id: String,
+    repository: String,
+    release_api: String,
+    tag_prefix: String,
+    minimum_peaceemu_version: String,
+    platforms: Vec<String>,
+    assets: ModuleAssets,
+    max_download_bytes: u64,
+}
+
+#[derive(Clone, Deserialize)]
+struct ModuleAssets {
+    executable: String,
+    sha256: String,
+}
+
+fn nes_module_descriptor() -> Result<ModuleDescriptor, String> {
+    let catalog: ModuleCatalog = serde_json::from_str(MODULE_CATALOG)
+        .map_err(|error| format!("Embedded module catalogue is invalid: {error}"))?;
+    if catalog.schema_version != 1 {
+        return Err("Unsupported embedded module catalogue schema.".to_owned());
+    }
+    let module = catalog
+        .modules
+        .into_iter()
+        .find(|module| module.id == "nes")
+        .ok_or_else(|| "The NES module is missing from the module catalogue.".to_owned())?;
+    let expected_api = format!(
+        "https://api.github.com/repos/{}/releases?per_page=20",
+        module.repository
+    );
+    if module.repository.split('/').count() != 2
+        || module
+            .repository
+            .bytes()
+            .any(|byte| !(byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'_')))
+        || module.release_api != expected_api
+        || module.tag_prefix != "nes-module-"
+        || parse_semver(&module.minimum_peaceemu_version).is_none()
+        || module.platforms.is_empty()
+        || module.assets.executable != EXE_NAME
+        || module.assets.sha256 != CHECKSUM_NAME
+        || module.max_download_bytes == 0
+        || module.max_download_bytes > 100 * 1024 * 1024
+    {
+        return Err("The NES module catalogue entry failed validation.".to_owned());
+    }
+    Ok(module)
+}
 
 #[derive(Deserialize)]
 struct Release {
@@ -49,7 +105,11 @@ fn module_root() -> Result<PathBuf, String> {
 }
 
 fn version_number(tag: &str) -> Option<(u64, u64, u64)> {
-    let version = tag.strip_prefix("nes-module-")?;
+    version_number_with_prefix(tag, "nes-module-")
+}
+
+fn version_number_with_prefix(tag: &str, prefix: &str) -> Option<(u64, u64, u64)> {
+    let version = tag.strip_prefix(prefix)?;
     let mut parts = version.split('.');
     let major = parse_version_component(parts.next()?)?;
     let minor = parse_version_component(parts.next()?)?;
@@ -58,6 +118,33 @@ fn version_number(tag: &str) -> Option<(u64, u64, u64)> {
         return None;
     }
     Some((major, minor, patch))
+}
+
+fn parse_semver(version: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = version.split('.');
+    let major = parse_version_component(parts.next()?)?;
+    let minor = parse_version_component(parts.next()?)?;
+    let patch = parse_version_component(parts.next()?)?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((major, minor, patch))
+}
+
+fn current_platform_id() -> &'static str {
+    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows-x86_64"
+    } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+        "windows-aarch64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux-x86_64"
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "macos-aarch64"
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        "macos-x86_64"
+    } else {
+        "unsupported"
+    }
 }
 
 fn parse_version_component(component: &str) -> Option<u64> {
@@ -95,8 +182,29 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
         .timeout_recv_body(Some(Duration::from_secs(20)))
         .build()
         .into();
+    let module = nes_module_descriptor()?;
+    let platform = current_platform_id();
+    if !module
+        .platforms
+        .iter()
+        .any(|supported| supported == platform)
+    {
+        return Err(format!(
+            "The NES module is not available for this platform yet ({platform})."
+        ));
+    }
+    let app_version = parse_semver(env!("CARGO_PKG_VERSION"))
+        .expect("the desktop package version must be valid semantic versioning");
+    let minimum_version = parse_semver(&module.minimum_peaceemu_version)
+        .expect("the validated catalogue minimum version must be valid");
+    if app_version < minimum_version {
+        return Err(format!(
+            "The NES module requires PeaceEmu {} or newer.",
+            module.minimum_peaceemu_version
+        ));
+    }
     let mut response = agent
-        .get(RELEASES_URL)
+        .get(&module.release_api)
         .header("User-Agent", "PeaceEmu-module-manager")
         .call()
         .map_err(|error| format!("Could not retrieve the NES module catalogue: {error}"))?;
@@ -114,36 +222,58 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
         .map_err(|error| format!("NES release catalogue is invalid: {error}"))?;
     let release = releases
         .into_iter()
-        .filter(|release| !release.draft && version_number(&release.tag_name).is_some())
         .filter(|release| {
-            release.assets.iter().any(|asset| asset.name == EXE_NAME)
+            !release.draft
+                && version_number_with_prefix(&release.tag_name, &module.tag_prefix).is_some()
+        })
+        .filter(|release| {
+            release
+                .assets
+                .iter()
+                .any(|asset| asset.name == module.assets.executable)
                 && release
                     .assets
                     .iter()
-                    .any(|asset| asset.name == CHECKSUM_NAME)
+                    .any(|asset| asset.name == module.assets.sha256)
         })
         .max_by_key(|release| {
-            version_number(&release.tag_name).expect("release version was validated")
+            version_number_with_prefix(&release.tag_name, &module.tag_prefix)
+                .expect("release version was validated")
         })
         .ok_or_else(|| "No compatible downloadable NES module release was found.".to_owned())?;
     let exe_asset = release
         .assets
         .iter()
-        .find(|asset| asset.name == EXE_NAME)
+        .find(|asset| asset.name == module.assets.executable)
         .expect("release asset presence was checked");
     let checksum_asset = release
         .assets
         .iter()
-        .find(|asset| asset.name == CHECKSUM_NAME)
+        .find(|asset| asset.name == module.assets.sha256)
         .expect("release checksum presence was checked");
     if exe_asset.size == 0
-        || exe_asset.size > MAX_MODULE_BYTES
-        || !official_release_asset_url(&exe_asset.browser_download_url, &release.tag_name)
-        || !official_release_asset_url(&checksum_asset.browser_download_url, &release.tag_name)
+        || exe_asset.size > module.max_download_bytes
+        || !official_release_asset_url(
+            &exe_asset.browser_download_url,
+            &module.repository,
+            &release.tag_name,
+        )
+        || !official_release_asset_url(
+            &checksum_asset.browser_download_url,
+            &module.repository,
+            &release.tag_name,
+        )
     {
         return Err("NES release contains invalid or oversized download metadata.".to_owned());
     }
-    let exe_bytes = download_asset(&agent, &exe_asset.browser_download_url, exe_asset.size)?;
+    let exe_bytes = download_asset(
+        &agent,
+        &exe_asset.browser_download_url,
+        module.max_download_bytes,
+    )?;
+    if exe_bytes.len() as u64 != exe_asset.size {
+        return Err("NES module download size does not match the release metadata.".to_owned());
+    }
     let checksum_bytes = download_asset(&agent, &checksum_asset.browser_download_url, 1024)?;
     let checksum_text = std::str::from_utf8(&checksum_bytes)
         .map_err(|_| "NES release checksum is not valid UTF-8.".to_owned())?;
@@ -199,9 +329,9 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
     result
 }
 
-fn official_release_asset_url(url: &str, tag: &str) -> bool {
+fn official_release_asset_url(url: &str, repository: &str, tag: &str) -> bool {
     url.starts_with(&format!(
-        "https://github.com/Likounsee/PeaceEmu-NES/releases/download/{tag}/"
+        "https://github.com/{repository}/releases/download/{tag}/"
     )) && !url
         .bytes()
         .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == b'\\')
@@ -262,13 +392,61 @@ mod tests {
     }
 
     #[test]
+    fn embedded_module_catalogue_is_versioned_and_contains_nes() {
+        let module = nes_module_descriptor().expect("checked-in NES module entry must be valid");
+        assert_eq!(module.id, "nes");
+        assert_eq!(module.repository, "Likounsee/PeaceEmu-NES");
+        assert_eq!(
+            module.release_api,
+            "https://api.github.com/repos/Likounsee/PeaceEmu-NES/releases?per_page=20"
+        );
+        assert_eq!(module.tag_prefix, "nes-module-");
+        assert_eq!(module.minimum_peaceemu_version, "0.2.3");
+        assert!(module
+            .platforms
+            .iter()
+            .any(|platform| platform == "windows-x86_64"));
+        assert_eq!(module.assets.executable, EXE_NAME);
+        assert_eq!(module.assets.sha256, CHECKSUM_NAME);
+        assert!(module.max_download_bytes > 0);
+    }
+
+    #[test]
+    fn semantic_version_parser_rejects_noncanonical_versions() {
+        assert_eq!(parse_semver("0.2.3"), Some((0, 2, 3)));
+        assert_eq!(parse_semver("1.10.0"), Some((1, 10, 0)));
+        assert_eq!(parse_semver("0.02.3"), None);
+        assert_eq!(parse_semver("0.2"), None);
+        assert_eq!(parse_semver("0.2.3-beta"), None);
+    }
+
+    #[test]
+    fn catalogue_version_parser_uses_the_declared_tag_prefix() {
+        assert_eq!(
+            version_number_with_prefix("nes-module-0.3.1", "nes-module-"),
+            Some((0, 3, 1))
+        );
+        assert_eq!(
+            version_number_with_prefix("gba-module-0.3.1", "nes-module-"),
+            None
+        );
+    }
+
+    #[test]
     fn only_accepts_assets_from_the_expected_repository_and_tag() {
         assert!(official_release_asset_url(
             "https://github.com/Likounsee/PeaceEmu-NES/releases/download/nes-module-0.1.3/peaceemu-nes-desktop.exe",
+            "Likounsee/PeaceEmu-NES",
             "nes-module-0.1.3"
         ));
         assert!(!official_release_asset_url(
             "https://example.com/peaceemu-nes-desktop.exe",
+            "Likounsee/PeaceEmu-NES",
+            "nes-module-0.1.3"
+        ));
+        assert!(!official_release_asset_url(
+            "https://github.com/evil/Repo/releases/download/nes-module-0.1.3/peaceemu-nes-desktop.exe",
+            "Likounsee/PeaceEmu-NES",
             "nes-module-0.1.3"
         ));
     }
