@@ -332,10 +332,8 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
             persist_checksum(&destination, expected)?;
             return Ok(final_path);
         }
-        return Err(
-            "An installed NES module with this version tag has a bad checksum; remove it before retrying."
-                .to_owned(),
-        );
+        // The downloaded bytes have already passed the release SHA-256 check.
+        // Replace a damaged same-version executable instead of leaving updates stuck.
     }
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -352,6 +350,10 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
             .map_err(|error| format!("Could not write NES module: {error}"))?;
         file.sync_all()
             .map_err(|error| format!("Could not flush NES module: {error}"))?;
+        if final_path.exists() {
+            fs::remove_file(&final_path)
+                .map_err(|error| format!("Could not replace damaged NES module: {error}"))?;
+        }
         fs::rename(&staging, &final_path)
             .map_err(|error| format!("Could not activate NES module: {error}"))?;
         Ok(final_path.clone())
