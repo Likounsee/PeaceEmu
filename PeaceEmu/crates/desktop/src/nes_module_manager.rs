@@ -424,6 +424,33 @@ mod tests {
     }
 
     #[test]
+    fn checksum_marker_is_written_reused_and_repaired() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock must be valid")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("peaceemu-nes-checksum-{nonce}"));
+        fs::create_dir_all(&directory).expect("temporary test directory must be created");
+        let expected = format!("{:x}", Sha256::digest(b"module bytes"));
+        let checksum_path = directory.join(CHECKSUM_NAME);
+
+        persist_checksum(&directory, &expected).expect("checksum must be persisted");
+        assert!(checksum_matches(
+            b"module bytes",
+            &fs::read_to_string(&checksum_path).expect("checksum must be readable")
+        ));
+
+        persist_checksum(&directory, &expected).expect("matching checksum should be reused");
+        fs::write(&checksum_path, "broken").expect("checksum marker should be corrupted");
+        persist_checksum(&directory, &expected).expect("corrupt checksum should be repaired");
+        assert!(checksum_matches(
+            b"module bytes",
+            &fs::read_to_string(&checksum_path).expect("repaired checksum must be readable")
+        ));
+        fs::remove_dir_all(directory).expect("temporary test directory must be removed");
+    }
+
+    #[test]
     fn parses_and_orders_canonical_semantic_release_versions() {
         assert_eq!(version_number("nes-module-0.1.7"), Some((0, 1, 7)));
         assert_eq!(version_number("nes-module-0.1.0"), Some((0, 1, 0)));
