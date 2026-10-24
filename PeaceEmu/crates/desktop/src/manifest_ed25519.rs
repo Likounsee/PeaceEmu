@@ -187,7 +187,7 @@ mod tests {
     fn decode_hex<const N: usize>(input: &str) -> [u8; N] {
         assert_eq!(input.len(), N * 2);
         let mut output = [0_u8; N];
-        for (index, pair) in input.as_bytes().as_chunks::<2>().0.iter().enumerate() {
+        for (index, pair) in input.as_bytes().chunks_exact(2).enumerate() {
             let digit = |byte: u8| match byte {
                 b'0'..=b'9' => Some(byte - b'0'),
                 b'a'..=b'f' => Some(byte - b'a' + 10),

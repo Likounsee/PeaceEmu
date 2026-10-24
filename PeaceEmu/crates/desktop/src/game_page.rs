@@ -154,52 +154,124 @@ impl DesktopApp {
             });
         }
 
-        ui.add_space(8.0);
+        ui.add_space(4.0);
+        let display_height = (ui.available_height() - 100.0).max(180.0);
         theme::card(ui, &palette, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new(if french {
-                        "Fenêtre de jeu séparée"
+            ui.set_min_height(display_height);
+            ui.set_min_width(ui.available_width());
+            ui.vertical_centered(|ui| {
+                if self.game_window_open {
+                    ui.label(if french {
+                        "Le jeu est affiché dans sa fenêtre dédiée."
                     } else {
-                        "Separate game window"
-                    })
-                    .size(18.0)
-                    .strong(),
-                );
-                theme::badge(
-                    ui,
-                    if self.game_viewport_open {
-                        if french {
-                            "Jeu ouvert"
-                        } else {
-                            "Game open"
-                        }
-                    } else {
-                        if french {
-                            "Fenêtre fermée"
-                        } else {
-                            "Window closed"
-                        }
-                    },
-                    if self.game_viewport_open {
-                        palette.success
-                    } else {
-                        palette.text_dim
-                    },
-                );
+                        "Gameplay is displayed in its dedicated window."
+                    });
+                } else if let (Some(texture), Some([width, height])) =
+                    (&self.frame_texture, self.video_size)
+                {
+                    let available = ui.available_size();
+                    let scale = (available.x.max(1.0) / width as f32)
+                        .min(available.y.max(1.0) / height as f32);
+                    let size = egui::vec2(width as f32 * scale, height as f32 * scale);
+                    ui.image((texture.id(), size));
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{width} x {height}  ·  {}",
+                            if french {
+                                "mise à l’échelle au plus proche voisin"
+                            } else {
+                                "nearest-neighbour scaling"
+                            }
+                        ))
+                        .size(11.0)
+                        .color(palette.text_dim),
+                    );
+                } else {
+                    ui.add_space(14.0);
+                    ui.columns(2, |columns| {
+                        columns[0].vertical_centered(|ui| {
+                            let width = ui.available_width().min(260.0);
+                            let (rect, _) = ui.allocate_exact_size(
+                                egui::vec2(width, 170.0),
+                                egui::Sense::hover(),
+                            );
+                            theme::paint_console(ui.painter(), rect, &palette, "PEACEEMU");
+                            ui.label(
+                                egui::RichText::new(self.language_pack.text("ui.game_page.022"))
+                                    .size(11.0)
+                                    .strong()
+                                    .color(palette.text_dim),
+                            );
+                        });
+                        columns[1].vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new(self.language_pack.text("ui.game_page.023"))
+                                    .size(11.0)
+                                    .strong()
+                                    .color(palette.accent_text),
+                            );
+                            ui.label(
+                                egui::RichText::new(self.language_pack.text("ui.game_page.024"))
+                                    .size(22.0)
+                                    .strong(),
+                            );
+                            ui.label(self.language_pack.text("ui.game_page.025"));
+                            ui.add_space(8.0);
+                            egui::Frame::none()
+                                .fill(palette.panel)
+                                .stroke(egui::Stroke::new(1.0_f32, palette.border))
+                                .rounding(egui::Rounding::same(10.0))
+                                .inner_margin(egui::Margin::same(12.0))
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        egui::RichText::new(
+                                            self.language_pack.text("ui.game_page.026"),
+                                        )
+                                        .size(11.0)
+                                        .strong()
+                                        .color(palette.text_dim),
+                                    );
+                                    ui.horizontal_wrapped(|ui| {
+                                        for (key, action) in [
+                                            (
+                                                self.language_pack.text("ui.game_page.027"),
+                                                self.language_pack.text("ui.game_page.028"),
+                                            ),
+                                            ("Z / X", "Action"),
+                                            (
+                                                if french { "Entrée" } else { "Enter" },
+                                                if french { "Démarrer" } else { "Start" },
+                                            ),
+                                            (
+                                                if french { "Retour" } else { "Backspace" },
+                                                if french { "Sélection" } else { "Select" },
+                                            ),
+                                        ] {
+                                            theme::badge(ui, key, palette.text_dim);
+                                            ui.label(action);
+                                            ui.add_space(6.0);
+                                        }
+                                    });
+                                });
+                        });
+                    });
+                    ui.add_space(14.0);
+                }
             });
-            ui.label(if french {
-                "L’image du jeu est affichée dans sa propre fenêtre, sans interface ajoutée par l’émulateur. Utilisez cette page pour gérer la session ; relancez le jeu depuis la bibliothèque si vous avez fermé sa fenêtre."
-            } else {
-                "The game image is shown in its own window without emulator-added UI. Use this page to manage the session; launch the game again from the library if you closed its window."
-            });
-            ui.add_space(4.0);
+        });
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
             ui.label(
-                egui::RichText::new(&self.media_status)
+                egui::RichText::new(self.language_pack.text("ui.game_page.029"))
                     .size(13.0)
                     .color(palette.text_dim),
             );
+            ui.label(egui::RichText::new(&self.media_status).size(13.0));
         });
+        ui.label(
+            egui::RichText::new(self.language_pack.text("ui.game_page.030"))
+                .size(12.0)
+                .color(palette.text_dim),
+        );
     }
 }

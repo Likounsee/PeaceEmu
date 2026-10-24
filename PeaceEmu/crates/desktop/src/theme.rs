@@ -266,6 +266,61 @@ pub fn setting_row(
     ui.separator();
 }
 
+/// Draws a small handheld console, themed with the palette.
+pub fn paint_console(painter: &egui::Painter, rect: Rect, palette: &Palette, title: &str) {
+    let rounding = Rounding::same(18.0);
+    painter.rect_filled(rect, rounding, palette.border);
+    painter.rect_stroke(
+        rect,
+        rounding,
+        Stroke::new(1.0_f32, with_alpha(palette.text_dim, 80)),
+    );
+    let screen = Rect::from_min_max(
+        rect.min + egui::vec2(rect.width() * 0.12, rect.height() * 0.09),
+        egui::pos2(
+            rect.max.x - rect.width() * 0.12,
+            rect.min.y + rect.height() * 0.58,
+        ),
+    );
+    painter.rect_filled(screen, Rounding::same(8.0), palette.rail);
+    painter.text(
+        screen.center(),
+        Align2::CENTER_CENTER,
+        title,
+        FontId::proportional(16.0),
+        palette.accent_text,
+    );
+    let pad = egui::pos2(
+        rect.min.x + rect.width() * 0.24,
+        rect.min.y + rect.height() * 0.80,
+    );
+    let pad_stroke = Stroke::new(4.0_f32, palette.text_dim);
+    painter.line_segment(
+        [pad - egui::vec2(9.0, 0.0), pad + egui::vec2(9.0, 0.0)],
+        pad_stroke,
+    );
+    painter.line_segment(
+        [pad - egui::vec2(0.0, 9.0), pad + egui::vec2(0.0, 9.0)],
+        pad_stroke,
+    );
+    painter.circle_filled(
+        egui::pos2(
+            rect.max.x - rect.width() * 0.26,
+            rect.min.y + rect.height() * 0.78,
+        ),
+        8.0,
+        palette.accent,
+    );
+    painter.circle_filled(
+        egui::pos2(
+            rect.max.x - rect.width() * 0.15,
+            rect.min.y + rect.height() * 0.70,
+        ),
+        8.0,
+        with_alpha(palette.accent, 150),
+    );
+}
+
 /// Draws the round check mark shown on selected choice cards.
 pub fn paint_check_badge(painter: &egui::Painter, center: Pos2, palette: &Palette) {
     painter.circle_filled(center, 9.0, palette.accent);

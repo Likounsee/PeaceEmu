@@ -159,12 +159,16 @@ impl DesktopApp {
                         );
                     });
                     if ui
-                        .button(self.language_pack.text("ui.home_page.019"))
+                        .button(if french {
+                            "Ouvrir dans la bibliothèque"
+                        } else {
+                            "Open in library"
+                        })
                         .clicked()
                     {
                         self.content_path = path.display().to_string();
                         self.selected_content = Some(path.clone());
-                        self.launch_content();
+                        self.navigate_to(DesktopPage::Library);
                     }
                 });
             }

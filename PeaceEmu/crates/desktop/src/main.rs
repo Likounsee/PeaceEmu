@@ -9,10 +9,6 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
-};
 use std::time::{Duration, Instant};
 
 use audio_output::AudioOutput;
@@ -33,6 +29,7 @@ mod home_page;
 mod language_pack;
 mod library_page;
 pub mod manifest_ed25519;
+mod nes_module;
 mod preferences;
 mod save_states;
 mod sessions_page;
@@ -48,8 +45,7 @@ use eframe::egui;
 use emulation_core::host_runtime::{HostRuntime, HostRuntimeConfig, SessionId};
 use emulation_core::runtime::SessionState;
 use emulation_core::CoreRegistry;
-mod nes_adapter;
-use nes_adapter::{NesCartridgeProbe, NesCoreAdapter};
+use nes_module::{register_nes, NesCartridgeProbe};
 
 const MAX_CONTENT_BYTES: usize = 32 * 1024 * 1024;
 
@@ -170,9 +166,6 @@ struct DesktopApp {
     controller: ApplicationController,
     registry: CoreRegistry,
     probe: NesCartridgeProbe,
-    game_viewport_open: bool,
-    game_viewport_closed: Arc<AtomicBool>,
-    game_viewport_inputs: Arc<Mutex<Vec<InputEvent>>>,
     content_path: String,
     library_filter: String,
     library_format: LibraryFormat,
@@ -189,6 +182,7 @@ struct DesktopApp {
     last_game_save: Instant,
     frame_cadence: FrameCadence,
     frame_texture: Option<egui::TextureHandle>,
+    game_window_open: bool,
     video_size: Option<[u32; 2]>,
     media_status: String,
     audio_output: AudioOutput,
@@ -214,8 +208,8 @@ struct DesktopApp {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LibraryFormat {
     All,
-    Nes,
     GameBoy,
+    Nes,
 }
 
 impl LibraryFormat {
@@ -223,9 +217,8 @@ impl LibraryFormat {
         match (self, french) {
             (Self::All, true) => "Tous les jeux",
             (Self::All, false) => "All games",
-            (Self::Nes, true) => "Nintendo NES (.nes)",
-            (Self::Nes, false) => "Nintendo NES (.nes)",
             (Self::GameBoy, _) => "Game Boy (GB / GBC / GBA)",
+            (Self::Nes, _) => "Nintendo Entertainment System (NES)",
         }
     }
 
@@ -236,10 +229,10 @@ impl LibraryFormat {
             .unwrap_or("");
         match self {
             Self::All => true,
-            Self::Nes => extension.eq_ignore_ascii_case("nes"),
             Self::GameBoy => ["gb", "gbc", "gba"]
                 .iter()
                 .any(|supported| extension.eq_ignore_ascii_case(supported)),
+            Self::Nes => extension.eq_ignore_ascii_case("nes"),
         }
     }
 }
@@ -277,9 +270,7 @@ impl DesktopPage {
 impl DesktopApp {
     fn new() -> Result<Self, Box<dyn Error>> {
         let mut registry = CoreRegistry::new();
-        registry.register(emulation_core::SystemId::new("nes")?, || {
-            Box::new(NesCoreAdapter::new())
-        })?;
+        register_nes(&mut registry)?;
         let host = HostRuntime::new(HostRuntimeConfig::default())?;
         let mut controller = ApplicationController::new(host);
         let config_path = config_file_path();
@@ -378,9 +369,6 @@ impl DesktopApp {
             controller,
             registry,
             probe: NesCartridgeProbe,
-            game_viewport_open: false,
-            game_viewport_closed: Arc::new(AtomicBool::new(false)),
-            game_viewport_inputs: Arc::new(Mutex::new(Vec::new())),
             content_path: selected_content
                 .as_ref()
                 .map(|path| path.display().to_string())
@@ -400,6 +388,7 @@ impl DesktopApp {
             last_game_save: Instant::now(),
             frame_cadence: FrameCadence::new(60, 3)?,
             frame_texture: None,
+            game_window_open: false,
             video_size: None,
             media_status: "No active session.".to_owned(),
             audio_output: AudioOutput::new(),
@@ -634,8 +623,6 @@ impl DesktopApp {
 
     fn choose_content_file(&mut self) {
         let selected = rfd::FileDialog::new()
-            .add_filter("Nintendo NES ROMs", &["nes"])
-            .add_filter("ROM files", &["nes", "gb", "gbc", "gba"])
             .add_filter("Game Boy ROMs", &["gb", "gbc", "gba"])
             .add_filter("Game Boy ROM", &["gb"])
             .add_filter("Game Boy Color ROM", &["gbc"])
@@ -696,13 +683,16 @@ impl DesktopApp {
         let path = self.content_path.trim().to_owned();
         if path.is_empty() {
             self.message = if self.language == "fr" {
-                "Sélectionnez d’abord un jeu dans la bibliothèque.".to_owned()
+                "Saisissez d’abord le chemin du contenu.".to_owned()
             } else {
-                "Select a game from the library first.".to_owned()
+                "Enter a content path first.".to_owned()
             };
             return;
         }
 
+        // Release held controls in every session before creating/switching sessions.
+        // Input may have been sent to a non-active session earlier; failing to release
+        // that session before a launch could leave a control logically held.
         if let Err(error) = self.release_game_inputs() {
             self.message = if self.language == "fr" {
                 format!("Lancement annulé : impossible de libérer les entrées : {error}")
@@ -721,8 +711,8 @@ impl DesktopApp {
         ) {
             Ok(id) => {
                 self.audio_output.clear();
-                let launched_path = std::fs::canonicalize(Path::new(&path))
-                    .unwrap_or_else(|_| PathBuf::from(&path));
+                let launched_path =
+                    std::fs::canonicalize(Path::new(&path)).unwrap_or_else(|_| PathBuf::from(path));
                 self.session_content_paths
                     .retain(|(session_id, _)| *session_id != id);
                 self.session_content_paths.push((id, launched_path));
@@ -736,26 +726,25 @@ impl DesktopApp {
                     }
                     Ok(false) => {
                         if self.language == "fr" {
-                            format!("Jeu lancé dans la session {}.", id.get())
+                            format!("Session {} lancée.", id.get())
                         } else {
-                            format!("Game launched in session {}.", id.get())
+                            format!("Launched session {}.", id.get())
                         }
                     }
                     Err(error) => {
                         if self.language == "fr" {
                             format!("Session {} lancée, mais la sauvegarde en jeu n’a pas pu être chargée : {error}", id.get())
                         } else {
-                            format!("Session {} launched, but its in-game save could not be loaded: {error}", id.get())
+                            format!("Launched session {}, but its in-game save could not be loaded: {error}", id.get())
                         }
                     }
                 };
                 self.frame_cadence.reset();
                 self.frame_texture = None;
+                self.game_window_open = true;
                 self.video_size = None;
                 self.last_tick = Instant::now();
                 self.active_page = DesktopPage::Game;
-                self.game_viewport_open = true;
-                self.game_viewport_closed.store(false, Ordering::Release);
             }
             Err(error) => {
                 self.message = if self.language == "fr" {
@@ -1333,7 +1322,7 @@ impl eframe::App for DesktopApp {
             context.request_repaint_after(Duration::from_millis(250));
         }
         self.advance_emulation(context);
-        self.show_game_viewport(context);
+        self.show_game_window(context);
         let previous_dark_mode = self.dark_mode;
         let previous_accent_color = self.accent_color;
         let previous_language = self.language.clone();
@@ -1401,142 +1390,6 @@ impl eframe::App for DesktopApp {
 }
 
 impl DesktopApp {
-    /// Opens a detached, image-only viewport for the active game.
-    fn show_game_viewport(&mut self, context: &egui::Context) {
-        if self.game_viewport_closed.swap(false, Ordering::AcqRel) {
-            self.game_viewport_open = false;
-            if let Some(id) = self.controller.active_session() {
-                let mut warnings = Vec::new();
-                if let Err(error) = self.release_game_inputs() {
-                    warnings.push(format!("input release: {error}"));
-                }
-                warnings.extend(self.flush_dirty_game_saves());
-                if let Err(error) = self.controller.close_session(id) {
-                    warnings.push(format!("session close: {error}"));
-                }
-                self.session_content_paths
-                    .retain(|(session_id, _)| *session_id != id);
-                self.last_tick_errors
-                    .retain(|(session_id, _)| *session_id != id);
-                self.frame_texture = None;
-                self.video_size = None;
-                self.audio_output.clear();
-                self.active_page = DesktopPage::Library;
-                self.message = if warnings.is_empty() {
-                    if self.language == "fr" {
-                        "Fenêtre de jeu fermée. Relancez le jeu depuis la bibliothèque.".to_owned()
-                    } else {
-                        "Game window closed. Launch the game again from the library.".to_owned()
-                    }
-                } else if self.language == "fr" {
-                    format!(
-                        "Fenêtre fermée avec avertissements : {}",
-                        warnings.join("; ")
-                    )
-                } else {
-                    format!("Game window closed with warnings: {}", warnings.join("; "))
-                };
-            }
-        }
-        if !self.game_viewport_open {
-            return;
-        }
-
-        let texture = self.frame_texture.clone();
-        let video_size = self.video_size;
-        let inputs = Arc::clone(&self.game_viewport_inputs);
-        let closed = Arc::clone(&self.game_viewport_closed);
-        let builder = egui::ViewportBuilder::default()
-            .with_title("PeaceEmu — NES")
-            .with_inner_size([768.0, 720.0])
-            .with_min_inner_size([256.0, 240.0])
-            .with_resizable(true);
-
-        context.show_viewport_deferred(
-            egui::ViewportId::from_hash_of("peaceemu-nes-game"),
-            builder,
-            move |viewport_context, _class| {
-                if viewport_context.input(|input| input.viewport().close_requested()) {
-                    if let Ok(mut queue) = inputs.lock() {
-                        for control in [
-                            InputControl::Action1,
-                            InputControl::Action2,
-                            InputControl::Select,
-                            InputControl::Start,
-                            InputControl::Up,
-                            InputControl::Down,
-                            InputControl::Left,
-                            InputControl::Right,
-                        ] {
-                            queue.push(InputEvent {
-                                control,
-                                pressed: false,
-                            });
-                        }
-                    }
-                    closed.store(true, Ordering::Release);
-                    return;
-                }
-
-                let events = viewport_context.input(|input| input.events.clone());
-                if let Ok(mut queue) = inputs.lock() {
-                    for event in events {
-                        match event {
-                            egui::Event::Key {
-                                key,
-                                pressed,
-                                repeat,
-                                ..
-                            } if !(repeat && pressed) => {
-                                if let Some(control) = map_key_to_control(key) {
-                                    queue.push(InputEvent { control, pressed });
-                                }
-                            }
-                            egui::Event::WindowFocused(false) => {
-                                for control in [
-                                    InputControl::Action1,
-                                    InputControl::Action2,
-                                    InputControl::Select,
-                                    InputControl::Start,
-                                    InputControl::Up,
-                                    InputControl::Down,
-                                    InputControl::Left,
-                                    InputControl::Right,
-                                ] {
-                                    queue.push(InputEvent {
-                                        control,
-                                        pressed: false,
-                                    });
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                egui::CentralPanel::default()
-                    .frame(egui::Frame::none().fill(egui::Color32::BLACK))
-                    .show(viewport_context, |ui| {
-                        if let Some(texture) = texture.as_ref() {
-                            let available = ui.available_size();
-                            let source = video_size
-                                .map(|[width, height]| egui::vec2(width as f32, height as f32))
-                                .unwrap_or(egui::vec2(256.0, 240.0));
-                            let scale = (available.x / source.x)
-                                .min(available.y / source.y)
-                                .max(0.01);
-                            let size = source * scale;
-                            ui.vertical_centered(|ui| {
-                                ui.add_space(((available.y - size.y) * 0.5).max(0.0));
-                                ui.image((texture.id(), size));
-                            });
-                        }
-                    });
-                viewport_context.request_repaint_after(Duration::from_millis(16));
-            },
-        );
-    }
-
     /// Shows the import failure dialog until the user dismisses it.
     ///
     /// The dialog is a compact box centered in the window, drawn over a dimmed
@@ -1560,6 +1413,97 @@ impl DesktopApp {
         }
     }
 
+    /// Presents the active game in a dedicated borderless-content window.
+    ///
+    /// PeaceEmu still owns the session and controls; this viewport contains only
+    /// the game's rendered pixels, with no emulator toolbar or added HUD.
+    fn show_game_window(&mut self, context: &egui::Context) {
+        let viewport_id = egui::ViewportId::from_hash_of("peaceemu-nes-game-window");
+        if !self.game_window_open {
+            return;
+        }
+        if self.controller.active_session().is_none() {
+            self.game_window_open = false;
+            context.send_viewport_cmd_to(viewport_id, egui::ViewportCommand::Close);
+            return;
+        }
+
+        let texture = self.frame_texture.clone();
+        let video_size = self.video_size;
+        let mut close_requested = false;
+        let mut lost_focus = false;
+        let mut input_events = Vec::new();
+        let builder = egui::ViewportBuilder::default()
+            .with_title("NES")
+            .with_inner_size([768.0, 720.0])
+            .with_min_inner_size([256.0, 240.0])
+            .with_resizable(true);
+
+        context.show_viewport_immediate(viewport_id, builder, |viewport_context, _class| {
+            if viewport_context.input(|input| input.viewport().close_requested()) {
+                close_requested = true;
+                return;
+            }
+            let events = viewport_context.input(|input| input.events.clone());
+            for event in events {
+                match event {
+                    egui::Event::Key {
+                        key,
+                        pressed,
+                        repeat,
+                        ..
+                    } => {
+                        if repeat && pressed {
+                            continue;
+                        }
+                        if let Some(control) = map_key_to_control(key) {
+                            input_events.push((control, pressed));
+                        }
+                    }
+                    egui::Event::WindowFocused(false) => lost_focus = true,
+                    _ => {}
+                }
+            }
+
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(egui::Color32::BLACK)
+                        .inner_margin(egui::Margin::same(0.0)),
+                )
+                .show(viewport_context, |ui| {
+                    ui.painter()
+                        .rect_filled(ui.max_rect(), 0.0, egui::Color32::BLACK);
+                    if let (Some(texture), Some([width, height])) = (texture.as_ref(), video_size) {
+                        let available = ui.available_size();
+                        let scale = (available.x.max(1.0) / width as f32)
+                            .min(available.y.max(1.0) / height as f32);
+                        let size = egui::vec2(width as f32 * scale, height as f32 * scale);
+                        ui.centered_and_justified(|ui| {
+                            ui.image((texture.id(), size));
+                        });
+                    }
+                });
+        });
+
+        if lost_focus || close_requested {
+            if let Err(error) = self.release_game_inputs() {
+                self.message = format!("Could not release game inputs: {error}");
+            }
+        } else {
+            for (control, pressed) in input_events {
+                self.send_game_input(control, pressed);
+            }
+        }
+        if close_requested {
+            self.game_window_open = false;
+            if let Some(id) = self.controller.active_session() {
+                self.session_action(id, SessionAction::Pause);
+            }
+            self.active_page = DesktopPage::Library;
+        }
+    }
+
     fn advance_emulation(&mut self, context: &egui::Context) {
         // Flush a previous tick's dirty battery RAM even if the next tick errors or
         // the active session has since been deselected.
@@ -1568,16 +1512,7 @@ impl DesktopApp {
         let elapsed = now.saturating_duration_since(self.last_tick);
         self.last_tick = now;
 
-        let viewport_events = self
-            .game_viewport_inputs
-            .lock()
-            .map(|mut events| std::mem::take(&mut *events))
-            .unwrap_or_default();
-        for event in viewport_events {
-            self.send_game_input(event.control, event.pressed);
-        }
-
-        if self.active_page == DesktopPage::Game && !self.game_viewport_open {
+        if self.active_page == DesktopPage::Game && !self.game_window_open {
             let events = context.input(|input| input.events.clone());
             for event in events {
                 match event {
@@ -1652,7 +1587,8 @@ impl DesktopApp {
         if let Some(frame) = newest_frame {
             match video_frame_to_image(&frame) {
                 Ok(image) => {
-                    self.video_size = Some([image.size[0] as u32, image.size[1] as u32]);
+                    let [width, height] = image.size;
+                    self.video_size = Some([width as u32, height as u32]);
                     if let Some(texture) = self.frame_texture.as_mut() {
                         texture.set(image, egui::TextureOptions::NEAREST);
                     } else {
@@ -2348,6 +2284,9 @@ mod preference_tests {
         assert!(LibraryFormat::GameBoy.matches(Path::new("Pokemon.GbC")));
         assert!(LibraryFormat::GameBoy.matches(Path::new("Pokemon.GBA")));
         assert!(!LibraryFormat::GameBoy.matches(Path::new("Pokemon.zip")));
+        assert!(LibraryFormat::Nes.matches(Path::new("Super-Mario.nes")));
+        assert!(LibraryFormat::Nes.matches(Path::new("Zelda.NES")));
+        assert!(!LibraryFormat::Nes.matches(Path::new("Super-Mario.zip")));
         assert!(LibraryFormat::All.matches(Path::new("archive.zip")));
     }
 

@@ -385,8 +385,8 @@ impl DesktopApp {
                 .show_ui(ui, |ui| {
                     for format in [
                         LibraryFormat::All,
-                        LibraryFormat::Nes,
                         LibraryFormat::GameBoy,
+                        LibraryFormat::Nes,
                     ] {
                         ui.selectable_value(&mut self.library_format, format, format.label(french));
                     }
@@ -458,11 +458,11 @@ impl DesktopApp {
             let (heading, hint) = match (total == 0, french) {
                 (true, true) => (
                     "Votre bibliothèque est vide",
-                    "Importez des ROMs Nintendo NES (.nes) dans votre bibliothèque. Les autres systèmes restent en développement.",
+                    "Importez des jeux Game Boy (.gb), Game Boy Color (.gbc) ou Game Boy Advance (.gba) pour constituer votre collection.",
                 ),
                 (true, false) => (
                     "Your library is empty",
-                    "Import Nintendo NES (.nes) ROMs into your library. Other systems are still in development.",
+                    "Import Game Boy (.gb), Game Boy Color (.gbc), or Game Boy Advance (.gba) games to build your collection.",
                 ),
                 (false, true) => (
                     "Aucun jeu ne correspond",
