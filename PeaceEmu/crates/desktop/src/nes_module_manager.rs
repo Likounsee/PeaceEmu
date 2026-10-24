@@ -420,7 +420,10 @@ mod tests {
         let bytes = b"verified module bytes";
         let digest = format!("{:x}", Sha256::digest(bytes));
         assert!(checksum_matches(bytes, &format!("{digest}  {EXE_NAME}")));
-        assert!(!checksum_matches(b"tampered module bytes", &format!("{digest}  {EXE_NAME}")));
+        assert!(!checksum_matches(
+            b"tampered module bytes",
+            &format!("{digest}  {EXE_NAME}")
+        ));
         assert!(!checksum_matches(bytes, "not-a-sha256"));
         assert!(!checksum_matches(bytes, ""));
     }
