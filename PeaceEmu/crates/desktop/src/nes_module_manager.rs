@@ -52,9 +52,10 @@ fn nes_module_descriptor() -> Result<ModuleDescriptor, String> {
         module.repository
     );
     if module.repository.split('/').count() != 2
-        || module.repository.bytes().any(|byte| {
-            !(byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'_'))
-        })
+        || module
+            .repository
+            .bytes()
+            .any(|byte| !(byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'_')))
         || module.release_api != expected_api
         || module.tag_prefix != "nes-module-"
         || module.assets.executable != EXE_NAME
@@ -175,8 +176,14 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
                 && version_number_with_prefix(&release.tag_name, &module.tag_prefix).is_some()
         })
         .filter(|release| {
-            release.assets.iter().any(|asset| asset.name == module.assets.executable)
-                && release.assets.iter().any(|asset| asset.name == module.assets.sha256)
+            release
+                .assets
+                .iter()
+                .any(|asset| asset.name == module.assets.executable)
+                && release
+                    .assets
+                    .iter()
+                    .any(|asset| asset.name == module.assets.sha256)
         })
         .max_by_key(|release| {
             version_number_with_prefix(&release.tag_name, &module.tag_prefix)
@@ -195,12 +202,24 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
         .expect("release checksum presence was checked");
     if exe_asset.size == 0
         || exe_asset.size > module.max_download_bytes
-        || !official_release_asset_url(&exe_asset.browser_download_url, &module.repository, &release.tag_name)
-        || !official_release_asset_url(&checksum_asset.browser_download_url, &module.repository, &release.tag_name)
+        || !official_release_asset_url(
+            &exe_asset.browser_download_url,
+            &module.repository,
+            &release.tag_name,
+        )
+        || !official_release_asset_url(
+            &checksum_asset.browser_download_url,
+            &module.repository,
+            &release.tag_name,
+        )
     {
         return Err("NES release contains invalid or oversized download metadata.".to_owned());
     }
-    let exe_bytes = download_asset(&agent, &exe_asset.browser_download_url, module.max_download_bytes)?;
+    let exe_bytes = download_asset(
+        &agent,
+        &exe_asset.browser_download_url,
+        module.max_download_bytes,
+    )?;
     if exe_bytes.len() as u64 != exe_asset.size {
         return Err("NES module download size does not match the release metadata.".to_owned());
     }
