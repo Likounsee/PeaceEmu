@@ -115,12 +115,15 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
     let release = releases
         .into_iter()
         .filter(|release| !release.draft && version_number(&release.tag_name).is_some())
-        .find(|release| {
+        .filter(|release| {
             release.assets.iter().any(|asset| asset.name == EXE_NAME)
                 && release
                     .assets
                     .iter()
                     .any(|asset| asset.name == CHECKSUM_NAME)
+        })
+        .max_by_key(|release| {
+            version_number(&release.tag_name).expect("release version was validated")
         })
         .ok_or_else(|| "No compatible downloadable NES module release was found.".to_owned())?;
     let exe_asset = release
