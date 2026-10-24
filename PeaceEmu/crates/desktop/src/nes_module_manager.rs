@@ -340,7 +340,7 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
         .map_err(|error| format!("System clock is invalid: {error}"))?
         .as_nanos();
     let staging = destination.join(format!(".module-{nonce}.part"));
-    let result = (|| {
+    let result: Result<PathBuf, String> = (|| {
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
