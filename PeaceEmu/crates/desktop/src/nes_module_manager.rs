@@ -184,7 +184,11 @@ pub(crate) fn install_latest() -> Result<PathBuf, String> {
         .into();
     let module = nes_module_descriptor()?;
     let platform = current_platform_id();
-    if !module.platforms.iter().any(|supported| supported == platform) {
+    if !module
+        .platforms
+        .iter()
+        .any(|supported| supported == platform)
+    {
         return Err(format!(
             "The NES module is not available for this platform yet ({platform})."
         ));
@@ -398,7 +402,10 @@ mod tests {
         );
         assert_eq!(module.tag_prefix, "nes-module-");
         assert_eq!(module.minimum_peaceemu_version, "0.2.3");
-        assert!(module.platforms.iter().any(|platform| platform == "windows-x86_64"));
+        assert!(module
+            .platforms
+            .iter()
+            .any(|platform| platform == "windows-x86_64"));
         assert_eq!(module.assets.executable, EXE_NAME);
         assert_eq!(module.assets.sha256, CHECKSUM_NAME);
         assert!(module.max_download_bytes > 0);
