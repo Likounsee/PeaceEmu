@@ -314,9 +314,9 @@ impl DesktopApp {
                 .installed_version(&module_id)
                 .map(str::to_owned)
                 .or_else(|| {
-                    nes_executable.as_ref().and_then(|path| {
-                        path.parent()?.file_name()?.to_str().map(str::to_owned)
-                    })
+                    nes_executable
+                        .as_ref()
+                        .and_then(|path| path.parent()?.file_name()?.to_str().map(str::to_owned))
                 });
             let mut is_selected = selected.contains(&module_id);
             let descriptor = self
@@ -428,9 +428,13 @@ impl DesktopApp {
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {
                     ui.label(
-                        egui::RichText::new(if french { "Téléchargement" } else { "Download" })
-                            .strong()
-                            .size(12.0),
+                        egui::RichText::new(if french {
+                            "Téléchargement"
+                        } else {
+                            "Download"
+                        })
+                        .strong()
+                        .size(12.0),
                     );
                     if installed_version.is_some() {
                         status_badge(
@@ -441,44 +445,66 @@ impl DesktopApp {
                     } else if is_bundled {
                         status_badge(
                             ui,
-                            if french { "Inclus dans l’application" } else { "Included with app" },
+                            if french {
+                                "Inclus dans l’application"
+                            } else {
+                                "Included with app"
+                            },
                             palette.accent,
                         );
                     } else if id == "nes" {
                         status_badge(
                             ui,
-                            if french { "Prêt à télécharger" } else { "Ready to download" },
+                            if french {
+                                "Prêt à télécharger"
+                            } else {
+                                "Ready to download"
+                            },
                             palette.accent,
                         );
                     } else {
                         status_badge(
                             ui,
-                            if french { "Source indisponible" } else { "Source unavailable" },
+                            if french {
+                                "Source indisponible"
+                            } else {
+                                "Source unavailable"
+                            },
                             palette.warning,
                         );
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if id == "nes" {
                             let label = if self.nes_installing {
-                                if french { "Installation…" } else { "Installing…" }
+                                if french {
+                                    "Installation…"
+                                } else {
+                                    "Installing…"
+                                }
                             } else if installed_version.is_some() {
-                                if french { "Réinstaller / mettre à jour" } else { "Reinstall / update" }
+                                if french {
+                                    "Réinstaller / mettre à jour"
+                                } else {
+                                    "Reinstall / update"
+                                }
                             } else if french {
                                 "Télécharger et installer"
                             } else {
                                 "Download and install"
                             };
-                            let response = ui.add_enabled(
-                                !self.nes_installing,
-                                egui::Button::new(label),
-                            );
+                            let response =
+                                ui.add_enabled(!self.nes_installing, egui::Button::new(label));
                             if response.clicked() {
                                 self.start_nes_module_install();
                             }
                         } else {
                             let response = ui.add_enabled(
                                 false,
-                                egui::Button::new(if french { "Télécharger" } else { "Download" }),
+                                egui::Button::new(if french {
+                                    "Télécharger"
+                                } else {
+                                    "Download"
+                                }),
                             );
                             response.on_hover_text(if french {
                                 "Aucune version téléchargeable n’est configurée pour ce module."
