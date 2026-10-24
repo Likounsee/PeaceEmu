@@ -189,13 +189,23 @@ fn checksum_matches(bytes: &[u8], checksum_text: &str) -> bool {
 fn persist_checksum(directory: &std::path::Path, expected: &str) -> Result<(), String> {
     let checksum_path = directory.join(CHECKSUM_NAME);
     let temporary_path = directory.join(format!(".{CHECKSUM_NAME}.part"));
-    fs::write(&temporary_path, format!("{expected}  {EXE_NAME}\\n"))
+    if fs::read_to_string(&checksum_path)
+        .ok()
+        .and_then(|contents| contents.split_whitespace().next().map(str::to_owned))
+        .is_some_and(|installed| installed.eq_ignore_ascii_case(expected))
+    {
+        return Ok(());
+    }
+    fs::write(&temporary_path, format!("{expected}  {EXE_NAME}\n"))
         .map_err(|error| format!("Could not persist NES module checksum: {error}"))?;
+    if checksum_path.exists() {
+        fs::remove_file(&checksum_path)
+            .map_err(|error| format!("Could not replace NES module checksum: {error}"))?;
+    }
     fs::rename(&temporary_path, &checksum_path)
         .map_err(|error| format!("Could not activate NES module checksum: {error}"))?;
     Ok(())
 }
-
 /// Downloads the newest published module release, verifies its SHA-256 sidecar,
 /// and installs it into a version-specific directory without overwriting prior builds.
 pub(crate) fn install_latest() -> Result<PathBuf, String> {
