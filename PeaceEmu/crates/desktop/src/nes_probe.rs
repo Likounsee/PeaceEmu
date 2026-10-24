@@ -8,7 +8,9 @@ use emulation_core::content::{ContentFormatProbe, FormatProbeResult};
 pub struct NesCartridgeProbe;
 
 impl ContentFormatProbe for NesCartridgeProbe {
-    fn format_id(&self) -> &'static str { "nes" }
+    fn format_id(&self) -> &'static str {
+        "nes"
+    }
 
     fn probe(&self, prefix: &[u8]) -> FormatProbeResult {
         if prefix.len() < 4 {
