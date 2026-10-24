@@ -713,7 +713,10 @@ impl DesktopApp {
 
         // NES is an optional, separately downloaded module. Never fall back to a
         // built-in core: launching from the library always starts the installed module.
-        if Path::new(&path).extension().is_some_and(|extension| extension.to_string_lossy().eq_ignore_ascii_case("nes")) {
+        if Path::new(&path)
+            .extension()
+            .is_some_and(|extension| extension.to_string_lossy().eq_ignore_ascii_case("nes"))
+        {
             let Some(executable) = nes_module_manager::installed_executable_path() else {
                 self.message = if self.language == "fr" {
                     "Le module NES n’est pas installé. Ouvrez Systèmes pour le télécharger."
