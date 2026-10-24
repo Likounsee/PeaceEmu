@@ -30,6 +30,37 @@ fn status_badge(ui: &mut egui::Ui, text: &str, color: egui::Color32) {
 
 impl DesktopApp {
     pub(super) fn show_systems(&mut self, ui: &mut egui::Ui) {
+        if let Some(receiver) = self.nes_install_receiver.take() {
+            match receiver.try_recv() {
+                Ok(Ok(path)) => {
+                    self.nes_installing = false;
+                    self.message = if self.language == "fr" {
+                        format!("Module NES installé et vérifié : {}", path.display())
+                    } else {
+                        format!("NES module installed and verified: {}", path.display())
+                    };
+                }
+                Ok(Err(error)) => {
+                    self.nes_installing = false;
+                    self.message = if self.language == "fr" {
+                        format!("Échec de l’installation du module NES : {error}")
+                    } else {
+                        format!("NES module installation failed: {error}")
+                    };
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.nes_install_receiver = Some(receiver);
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.nes_installing = false;
+                    self.message = if self.language == "fr" {
+                        "Le téléchargement du module NES s’est interrompu.".to_owned()
+                    } else {
+                        "NES module download stopped unexpectedly.".to_owned()
+                    };
+                }
+            }
+        }
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
         let french = self.language == "fr";
         let registered: BTreeSet<String> = self
@@ -169,6 +200,49 @@ impl DesktopApp {
                     );
                 });
             }
+        });
+
+        ui.add_space(14.0);
+
+        let installed_nes = nes_module_manager::installed_executable_path();
+        theme::card(ui, &palette, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                module_tile(ui, &palette, "NES");
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new("Nintendo Entertainment System").size(15.0).strong());
+                    let status = if let Some(path) = installed_nes.as_deref() {
+                        let version = path.parent().and_then(|parent| parent.file_name())
+                            .and_then(|name| name.to_str()).unwrap_or("unknown");
+                        if french { format!("Module externe installé · {version}") }
+                        else { format!("External module installed · {version}") }
+                    } else if french {
+                        "Module optionnel · non installé".to_owned()
+                    } else {
+                        "Optional module · not installed".to_owned()
+                    };
+                    ui.label(egui::RichText::new(status).size(12.0).color(palette.text_dim));
+                    ui.label(egui::RichText::new(if french {
+                        "Téléchargé séparément depuis les versions publiées du dépôt PeaceEmu-NES."
+                    } else {
+                        "Downloaded separately from the PeaceEmu-NES repository releases."
+                    }).size(12.0).color(palette.text_dim));
+                });
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let label = if self.nes_installing {
+                        if french { "Téléchargement…" } else { "Downloading…" }
+                    } else if installed_nes.is_some() {
+                        if french { "Mettre à jour" } else { "Update module" }
+                    } else if french {
+                        "Télécharger"
+                    } else {
+                        "Download module"
+                    };
+                    if ui.add_enabled(!self.nes_installing, egui::Button::new(label)).clicked() {
+                        self.start_nes_module_install();
+                    }
+                });
+            });
         });
 
         ui.add_space(14.0);
