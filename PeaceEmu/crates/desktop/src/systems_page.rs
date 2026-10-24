@@ -210,18 +210,32 @@ impl DesktopApp {
             ui.horizontal(|ui| {
                 module_tile(ui, &palette, "NES");
                 ui.vertical(|ui| {
-                    ui.label(egui::RichText::new("Nintendo Entertainment System").size(15.0).strong());
+                    ui.label(
+                        egui::RichText::new("Nintendo Entertainment System")
+                            .size(15.0)
+                            .strong(),
+                    );
                     let status = if let Some(path) = installed_nes.as_deref() {
-                        let version = path.parent().and_then(|parent| parent.file_name())
-                            .and_then(|name| name.to_str()).unwrap_or("unknown");
-                        if french { format!("Module externe installé · {version}") }
-                        else { format!("External module installed · {version}") }
+                        let version = path
+                            .parent()
+                            .and_then(|parent| parent.file_name())
+                            .and_then(|name| name.to_str())
+                            .unwrap_or("unknown");
+                        if french {
+                            format!("Module externe installé · {version}")
+                        } else {
+                            format!("External module installed · {version}")
+                        }
                     } else if french {
                         "Module optionnel · non installé".to_owned()
                     } else {
                         "Optional module · not installed".to_owned()
                     };
-                    ui.label(egui::RichText::new(status).size(12.0).color(palette.text_dim));
+                    ui.label(
+                        egui::RichText::new(status)
+                            .size(12.0)
+                            .color(palette.text_dim),
+                    );
                     ui.label(egui::RichText::new(if french {
                         "Téléchargé séparément depuis les versions publiées du dépôt PeaceEmu-NES."
                     } else {
@@ -230,15 +244,26 @@ impl DesktopApp {
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let label = if self.nes_installing {
-                        if french { "Téléchargement…" } else { "Downloading…" }
+                        if french {
+                            "Téléchargement…"
+                        } else {
+                            "Downloading…"
+                        }
                     } else if installed_nes.is_some() {
-                        if french { "Mettre à jour" } else { "Update module" }
+                        if french {
+                            "Mettre à jour"
+                        } else {
+                            "Update module"
+                        }
                     } else if french {
                         "Télécharger"
                     } else {
                         "Download module"
                     };
-                    if ui.add_enabled(!self.nes_installing, egui::Button::new(label)).clicked() {
+                    if ui
+                        .add_enabled(!self.nes_installing, egui::Button::new(label))
+                        .clicked()
+                    {
                         self.start_nes_module_install();
                     }
                 });
