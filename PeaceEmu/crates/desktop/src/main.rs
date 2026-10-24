@@ -29,7 +29,8 @@ mod home_page;
 mod language_pack;
 mod library_page;
 pub mod manifest_ed25519;
-mod nes_module;
+mod nes_module_manager;
+mod nes_probe;
 mod preferences;
 mod save_states;
 mod sessions_page;
@@ -45,7 +46,7 @@ use eframe::egui;
 use emulation_core::host_runtime::{HostRuntime, HostRuntimeConfig, SessionId};
 use emulation_core::runtime::SessionState;
 use emulation_core::CoreRegistry;
-use nes_module::{register_nes, NesCartridgeProbe};
+use nes_probe::NesCartridgeProbe;
 
 const MAX_CONTENT_BYTES: usize = 32 * 1024 * 1024;
 
@@ -270,7 +271,6 @@ impl DesktopPage {
 impl DesktopApp {
     fn new() -> Result<Self, Box<dyn Error>> {
         let mut registry = CoreRegistry::new();
-        register_nes(&mut registry)?;
         let host = HostRuntime::new(HostRuntimeConfig::default())?;
         let mut controller = ApplicationController::new(host);
         let config_path = config_file_path();
@@ -687,6 +687,38 @@ impl DesktopApp {
             } else {
                 "Enter a content path first.".to_owned()
             };
+            return;
+        }
+
+        // NES is an optional, separately downloaded module. Never fall back to a
+        // built-in core: launching from the library always starts the installed module.
+        if Path::new(&path).extension().is_some_and(|extension| extension.eq_ignore_ascii_case("nes")) {
+            let Some(executable) = nes_module_manager::installed_executable_path() else {
+                self.message = if self.language == "fr" {
+                    "Le module NES n’est pas installé. Ouvrez Systèmes pour le télécharger."
+                        .to_owned()
+                } else {
+                    "The NES module is not installed. Open Systems to download it.".to_owned()
+                };
+                self.navigate_to(DesktopPage::Systems);
+                return;
+            };
+            match std::process::Command::new(&executable).arg(&path).spawn() {
+                Ok(_) => {
+                    self.message = if self.language == "fr" {
+                        "Jeu NES lancé dans la fenêtre du module.".to_owned()
+                    } else {
+                        "NES game launched in the module window.".to_owned()
+                    };
+                }
+                Err(error) => {
+                    self.message = if self.language == "fr" {
+                        format!("Impossible de lancer le module NES : {error}")
+                    } else {
+                        format!("Could not launch the NES module: {error}")
+                    };
+                }
+            }
             return;
         }
 
