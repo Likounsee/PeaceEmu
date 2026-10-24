@@ -108,6 +108,9 @@ impl DesktopApp {
         // One inventory combines compiled modules and persisted package records,
         // so installed modules don't disappear merely because a core isn't bundled.
         let mut module_ids = registered.clone();
+        // The NES core is a separately downloadable executable, so expose it even
+        // before its package has been installed or registered in the local state.
+        module_ids.insert("nes".to_owned());
         module_ids.extend(
             state
                 .installed_modules()
@@ -302,7 +305,19 @@ impl DesktopApp {
                 continue;
             };
             let is_bundled = registered.contains(&id);
-            let installed_version = state.installed_version(&module_id).map(str::to_owned);
+            let nes_executable = if id == "nes" {
+                nes_module_manager::installed_executable_path()
+            } else {
+                None
+            };
+            let installed_version = state
+                .installed_version(&module_id)
+                .map(str::to_owned)
+                .or_else(|| {
+                    nes_executable.as_ref().and_then(|path| {
+                        path.parent()?.file_name()?.to_str().map(str::to_owned)
+                    })
+                });
             let mut is_selected = selected.contains(&module_id);
             let descriptor = self
                 .registry
@@ -420,7 +435,7 @@ impl DesktopApp {
                     if installed_version.is_some() {
                         status_badge(
                             ui,
-                            if french { "Déjà installé" } else { "Already installed" },
+                            if french { "Installé" } else { "Installed" },
                             palette.success,
                         );
                     } else if is_bundled {
@@ -429,26 +444,60 @@ impl DesktopApp {
                             if french { "Inclus dans l’application" } else { "Included with app" },
                             palette.accent,
                         );
+                    } else if id == "nes" {
+                        status_badge(
+                            ui,
+                            if french { "Prêt à télécharger" } else { "Ready to download" },
+                            palette.accent,
+                        );
                     } else {
                         status_badge(
                             ui,
-                            if french { "Source de téléchargement non configurée" } else { "Download source not configured" },
+                            if french { "Source indisponible" } else { "Source unavailable" },
                             palette.warning,
                         );
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let button = egui::Button::new(if french {
-                            "Télécharger"
+                        if id == "nes" {
+                            let label = if self.nes_installing {
+                                if french { "Installation…" } else { "Installing…" }
+                            } else if installed_version.is_some() {
+                                if french { "Réinstaller / mettre à jour" } else { "Reinstall / update" }
+                            } else if french {
+                                "Télécharger et installer"
+                            } else {
+                                "Download and install"
+                            };
+                            let response = ui.add_enabled(
+                                !self.nes_installing,
+                                egui::Button::new(label),
+                            );
+                            if response.clicked() {
+                                self.start_nes_module_install();
+                            }
                         } else {
-                            "Download"
-                        });
-                        let response = ui.add_enabled(false, button);
-                        response.on_hover_text(if french {
-                            "Le catalogue et l’installation distante ne sont pas encore reliés à cette page."
-                        } else {
-                            "The remote catalogue and installer are not connected to this page yet."
-                        });
+                            let response = ui.add_enabled(
+                                false,
+                                egui::Button::new(if french { "Télécharger" } else { "Download" }),
+                            );
+                            response.on_hover_text(if french {
+                                "Aucune version téléchargeable n’est configurée pour ce module."
+                            } else {
+                                "No downloadable release is configured for this module."
+                            });
+                        }
                     });
+                    if id == "nes" && self.nes_installing {
+                        ui.label(
+                            egui::RichText::new(if french {
+                                "Téléchargement, contrôle SHA-256 et installation en arrière-plan…"
+                            } else {
+                                "Downloading, checking SHA-256 and installing in the background…"
+                            })
+                            .size(12.0)
+                            .color(palette.text_dim),
+                        );
+                    }
                 });
 
                 if let Some(descriptor) = descriptor {
