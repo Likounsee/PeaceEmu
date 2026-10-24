@@ -48,8 +48,26 @@ fn module_root() -> Result<PathBuf, String> {
     Err("Could not locate a user-writable PeaceEmu data directory.".to_owned())
 }
 
-fn version_number(tag: &str) -> Option<u64> {
-    tag.strip_prefix("nes-module-0.1.")?.parse().ok()
+fn version_number(tag: &str) -> Option<(u64, u64, u64)> {
+    let version = tag.strip_prefix("nes-module-")?;
+    let mut parts = version.split('.');
+    let major = parse_version_component(parts.next()?)?;
+    let minor = parse_version_component(parts.next()?)?;
+    let patch = parse_version_component(parts.next()?)?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((major, minor, patch))
+}
+
+fn parse_version_component(component: &str) -> Option<u64> {
+    if component.is_empty()
+        || (component.len() > 1 && component.starts_with('0'))
+        || !component.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    component.parse().ok()
 }
 
 /// Returns the newest successfully installed NES module executable, if present.
@@ -228,11 +246,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_accepts_expected_release_tags() {
-        assert_eq!(version_number("nes-module-0.1.7"), Some(7));
-        assert_eq!(version_number("nes-module-0.1.0"), Some(0));
+    fn parses_and_orders_canonical_semantic_release_versions() {
+        assert_eq!(version_number("nes-module-0.1.7"), Some((0, 1, 7)));
+        assert_eq!(version_number("nes-module-0.1.0"), Some((0, 1, 0)));
+        assert_eq!(version_number("nes-module-0.2.1"), Some((0, 2, 1)));
+        assert_eq!(version_number("nes-module-1.0.0"), Some((1, 0, 0)));
+        assert!(version_number("nes-module-0.10.0") > version_number("nes-module-0.2.9"));
         assert_eq!(version_number("latest"), None);
-        assert_eq!(version_number("nes-module-0.2.1"), None);
+        assert_eq!(version_number("nes-module-0.01.2"), None);
+        assert_eq!(version_number("nes-module-0.1"), None);
+        assert_eq!(version_number("nes-module-0.1.2-extra"), None);
     }
 
     #[test]
