@@ -25,8 +25,8 @@ mod game_names;
 mod game_page;
 mod game_saves;
 mod game_view;
-mod key_bindings;
 mod home_page;
+mod key_bindings;
 mod language_pack;
 mod library_page;
 pub mod manifest_ed25519;
@@ -854,11 +854,17 @@ impl DesktopApp {
 
     fn persist_key_bindings(&mut self) {
         if let Err(error) = self.key_bindings.save(self.config_path.as_deref()) {
-            self.message = if self.language == "fr" { format!("Impossible d’enregistrer les touches : {error}") }
-                else { format!("Could not save key bindings: {error}") };
+            self.message = if self.language == "fr" {
+                format!("Impossible d’enregistrer les touches : {error}")
+            } else {
+                format!("Could not save key bindings: {error}")
+            };
         } else {
-            self.message = if self.language == "fr" { "Configuration des touches enregistrée.".to_owned() }
-                else { "Keyboard bindings saved.".to_owned() };
+            self.message = if self.language == "fr" {
+                "Configuration des touches enregistrée.".to_owned()
+            } else {
+                "Keyboard bindings saved.".to_owned()
+            };
         }
     }
 
