@@ -272,6 +272,10 @@ impl DesktopApp {
         );
         ui.add_space(8.0);
         ui.spacing_mut().item_spacing.y = 2.0;
+        let has_installed_modules = !self.installed_module_ids().is_empty();
+        if !has_installed_modules && self.settings_section == SettingsSection::Controls {
+            self.settings_section = SettingsSection::Application;
+        }
         let mut sections = vec![
             (
                 SettingsSection::Appearance,
@@ -280,7 +284,7 @@ impl DesktopApp {
             ),
             (SettingsSection::Application, "Application", Icon::Systems),
         ];
-        if !self.installed_module_ids().is_empty() {
+        if has_installed_modules {
             sections.insert(
                 1,
                 (
