@@ -52,13 +52,26 @@ impl KeyBindings {
             return bindings;
         };
         for line in contents.lines() {
-            let Some((index, value)) = line.split_once('=') else { continue; };
-            let Ok(index) = index.parse::<usize>() else { continue; };
-            if index >= bindings.keys.len() { continue; }
-            let Some(key) = parse_key(value) else { continue; };
-            let duplicate = bindings.keys.iter().enumerate()
+            let Some((index, value)) = line.split_once('=') else {
+                continue;
+            };
+            let Ok(index) = index.parse::<usize>() else {
+                continue;
+            };
+            if index >= bindings.keys.len() {
+                continue;
+            }
+            let Some(key) = parse_key(value) else {
+                continue;
+            };
+            let duplicate = bindings
+                .keys
+                .iter()
+                .enumerate()
                 .any(|(other, existing)| other != index && *existing == key);
-            if !duplicate { bindings.keys[index] = key; }
+            if !duplicate {
+                bindings.keys[index] = key;
+            }
         }
         bindings
     }
@@ -107,10 +120,16 @@ impl KeyBindings {
 
     pub(crate) fn save(&self, config: Option<&Path>, module_id: &str) -> std::io::Result<()> {
         let directory = config.and_then(Path::parent).ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::NotFound, "configuration directory unavailable")
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "configuration directory unavailable",
+            )
         })?;
         if !valid_module_id(module_id) {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid module identifier"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "invalid module identifier",
+            ));
         }
         let directory = directory.join("keybindings");
         fs::create_dir_all(&directory)?;
@@ -124,12 +143,16 @@ impl KeyBindings {
 
 fn valid_module_id(module_id: &str) -> bool {
     !module_id.is_empty()
-        && module_id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        && module_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
 fn read_binding_file(path: &Path) -> Option<String> {
     let metadata = fs::symlink_metadata(path).ok()?;
-    if !metadata.file_type().is_file() || metadata.len() > 4096 { return None; }
+    if !metadata.file_type().is_file() || metadata.len() > 4096 {
+        return None;
+    }
     fs::read_to_string(path).ok()
 }
 
