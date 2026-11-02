@@ -2,6 +2,16 @@
 
 use super::*;
 
+fn metric_columns(available_width: f32) -> usize {
+    if available_width < 560.0 {
+        1
+    } else if available_width < 900.0 {
+        2
+    } else {
+        3
+    }
+}
+
 impl DesktopApp {
     pub(super) fn show_home(&mut self, ui: &mut egui::Ui) {
         let palette = theme::Palette::new(self.dark_mode, self.accent_color);
@@ -57,13 +67,7 @@ impl DesktopApp {
                 self.language_pack.text("ui.home_page.013"),
             ),
         ];
-        let columns = if ui.available_width() < 560.0 {
-            1
-        } else if ui.available_width() < 900.0 {
-            2
-        } else {
-            3
-        };
+        let columns = metric_columns(ui.available_width());
         let metric_width = ((ui.available_width() - 10.0 * (columns - 1) as f32)
             / columns as f32)
             .max(140.0);
@@ -224,5 +228,17 @@ impl DesktopApp {
             });
         });
         ui.add_space(16.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn home_metrics_choose_one_two_or_three_columns_at_responsive_breakpoints() {
+        assert_eq!(metric_columns(420.0), 1);
+        assert_eq!(metric_columns(760.0), 2);
+        assert_eq!(metric_columns(1280.0), 3);
     }
 }
