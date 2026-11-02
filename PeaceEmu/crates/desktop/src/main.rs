@@ -221,6 +221,17 @@ enum LibraryFormat {
     Nes,
 }
 
+fn visible_library_formats(installed: &BTreeSet<String>) -> Vec<LibraryFormat> {
+    [LibraryFormat::GameBoy, LibraryFormat::Nes]
+        .into_iter()
+        .filter(|format| {
+            format
+                .module_id()
+                .is_some_and(|id| installed.contains(id))
+        })
+        .collect()
+}
+
 impl LibraryFormat {
     fn label(self, french: bool) -> &'static str {
         match (self, french) {
@@ -889,14 +900,7 @@ impl DesktopApp {
 
     fn installed_library_formats(&self) -> Vec<LibraryFormat> {
         let installed = self.installed_module_ids();
-        [LibraryFormat::GameBoy, LibraryFormat::Nes]
-            .into_iter()
-            .filter(|format| {
-                format
-                    .module_id()
-                    .is_some_and(|id| installed.contains(id))
-            })
-            .collect()
+        visible_library_formats(&installed)
     }
 
     fn active_session_module_id(&self) -> Option<String> {
@@ -2473,6 +2477,29 @@ mod preference_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn library_categories_follow_installed_modules() {
+        let none = BTreeSet::new();
+        assert!(visible_library_formats(&none).is_empty());
+
+        let nes = ["nes".to_owned()].into_iter().collect();
+        assert_eq!(visible_library_formats(&nes), vec![LibraryFormat::Nes]);
+
+        let game_boy = ["game-boy".to_owned()].into_iter().collect();
+        assert_eq!(
+            visible_library_formats(&game_boy),
+            vec![LibraryFormat::GameBoy]
+        );
+
+        let both = ["game-boy".to_owned(), "nes".to_owned()]
+            .into_iter()
+            .collect();
+        assert_eq!(
+            visible_library_formats(&both),
+            vec![LibraryFormat::GameBoy, LibraryFormat::Nes]
+        );
     }
 
     #[test]
