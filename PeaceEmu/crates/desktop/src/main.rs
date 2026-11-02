@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use audio_output::AudioOutput;
 use emulation_core::content::{ContentFormatProbe, ContentLimits};
 use emulation_core::core_io::{FrameCadence, InputControl, InputEvent};
-use game_view::{map_key_to_control, video_frame_to_image};
+use game_view::video_frame_to_image;
 use host_app::controller::{ApplicationController, SessionCommand};
 use preferences::{config_file_path, load_preferences, write_preferences_with_language};
 
@@ -25,6 +25,7 @@ mod game_names;
 mod game_page;
 mod game_saves;
 mod game_view;
+mod key_bindings;
 mod home_page;
 mod language_pack;
 mod library_page;
@@ -209,6 +210,8 @@ struct DesktopApp {
     cover_textures: HashMap<PathBuf, egui::TextureHandle>,
     game_names: HashMap<PathBuf, String>,
     display_name_edit: String,
+    key_bindings: key_bindings::KeyBindings,
+    binding_capture: Option<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -257,6 +260,7 @@ enum DesktopPage {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SettingsSection {
     Appearance,
+    Controls,
     Application,
 }
 
@@ -420,6 +424,8 @@ impl DesktopApp {
             cover_textures: HashMap::new(),
             game_names,
             display_name_edit: String::new(),
+            key_bindings,
+            binding_capture: None,
         };
         // Check the official stable manifest without blocking the first window render.
         // The user can still trigger another check from Settings after this completes.
@@ -843,6 +849,16 @@ impl DesktopApp {
                     format!("Launch failed: {error}")
                 }
             }
+        }
+    }
+
+    fn persist_key_bindings(&mut self) {
+        if let Err(error) = self.key_bindings.save(self.config_path.as_deref()) {
+            self.message = if self.language == "fr" { format!("Impossible d’enregistrer les touches : {error}") }
+                else { format!("Could not save key bindings: {error}") };
+        } else {
+            self.message = if self.language == "fr" { "Configuration des touches enregistrée.".to_owned() }
+                else { "Keyboard bindings saved.".to_owned() };
         }
     }
 
@@ -1546,7 +1562,7 @@ impl DesktopApp {
                         if repeat && pressed {
                             continue;
                         }
-                        if let Some(control) = map_key_to_control(key) {
+                        if let Some(control) = self.key_bindings.control(key) {
                             input_events.push((control, pressed));
                         }
                     }
