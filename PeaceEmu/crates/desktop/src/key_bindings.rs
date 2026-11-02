@@ -35,45 +35,30 @@ pub(crate) struct KeyBindings {
 }
 
 impl KeyBindings {
-    pub(crate) fn load(config: Option<&Path>) -> Self {
+    pub(crate) fn load(config: Option<&Path>, module_id: &str) -> Self {
         let mut bindings = Self { keys: DEFAULTS };
-        let Some(path) = config
-            .and_then(Path::parent)
-            .map(|parent| parent.join("keybindings.conf"))
-        else {
+        let Some(directory) = config.and_then(Path::parent) else {
             return bindings;
         };
-        let Ok(metadata) = fs::symlink_metadata(&path) else {
-            return bindings;
-        };
-        if !metadata.file_type().is_file() || metadata.len() > 4096 {
+        if !valid_module_id(module_id) {
             return bindings;
         }
-        let Ok(contents) = fs::read_to_string(path) else {
+        let module_path = directory.join("keybindings").join(format!("{module_id}.conf"));
+        // Prefer the module-specific file. Fall back to the legacy global file
+        // so existing users retain their previous mapping after upgrading.
+        let contents = read_binding_file(&module_path)
+            .or_else(|| read_binding_file(&directory.join("keybindings.conf")));
+        let Some(contents) = contents else {
             return bindings;
         };
-
         for line in contents.lines() {
-            let Some((index, value)) = line.split_once('=') else {
-                continue;
-            };
-            let Ok(index) = index.parse::<usize>() else {
-                continue;
-            };
-            if index >= bindings.keys.len() {
-                continue;
-            }
-            let Some(key) = parse_key(value) else {
-                continue;
-            };
-            let duplicate = bindings
-                .keys
-                .iter()
-                .enumerate()
+            let Some((index, value)) = line.split_once('=') else { continue; };
+            let Ok(index) = index.parse::<usize>() else { continue; };
+            if index >= bindings.keys.len() { continue; }
+            let Some(key) = parse_key(value) else { continue; };
+            let duplicate = bindings.keys.iter().enumerate()
                 .any(|(other, existing)| other != index && *existing == key);
-            if !duplicate {
-                bindings.keys[index] = key;
-            }
+            if !duplicate { bindings.keys[index] = key; }
         }
         bindings
     }
@@ -120,20 +105,32 @@ impl KeyBindings {
         key_name(self.keys[index]).to_owned()
     }
 
-    pub(crate) fn save(&self, config: Option<&Path>) -> std::io::Result<()> {
+    pub(crate) fn save(&self, config: Option<&Path>, module_id: &str) -> std::io::Result<()> {
         let directory = config.and_then(Path::parent).ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "configuration directory unavailable",
-            )
+            std::io::Error::new(std::io::ErrorKind::NotFound, "configuration directory unavailable")
         })?;
-        fs::create_dir_all(directory)?;
-        let mut contents = String::from("# PeaceEmu keyboard bindings v1\n");
+        if !valid_module_id(module_id) {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid module identifier"));
+        }
+        let directory = directory.join("keybindings");
+        fs::create_dir_all(&directory)?;
+        let mut contents = String::from("# PeaceEmu module keyboard bindings v1\n");
         for (index, key) in self.keys.iter().enumerate() {
             contents.push_str(&format!("{index}={}\n", key_name(*key)));
         }
-        fs::write(directory.join("keybindings.conf"), contents)
+        fs::write(directory.join(format!("{module_id}.conf")), contents)
     }
+}
+
+fn valid_module_id(module_id: &str) -> bool {
+    !module_id.is_empty()
+        && module_id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
+fn read_binding_file(path: &Path) -> Option<String> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if !metadata.file_type().is_file() || metadata.len() > 4096 { return None; }
+    fs::read_to_string(path).ok()
 }
 
 fn key_name(key: egui::Key) -> &'static str {
@@ -246,5 +243,26 @@ mod tests {
         bindings.set(4, egui::Key::Q).unwrap();
         assert_eq!(bindings.control(egui::Key::Q), Some(InputControl::Action1));
         assert_eq!(bindings.control(egui::Key::Z), None);
+    }
+
+    #[test]
+    fn module_identifiers_reject_path_traversal() {
+        assert!(valid_module_id("game-boy"));
+        assert!(!valid_module_id("../nes"));
+        assert!(!valid_module_id(""));
+    }
+
+    #[test]
+    fn module_binding_files_are_isolated() {
+        let root = std::env::temp_dir().join(format!("peaceemu-bindings-{}", std::process::id()));
+        let config = root.join("preferences.json");
+        let mut nes = KeyBindings { keys: DEFAULTS };
+        nes.set(4, egui::Key::Q).unwrap();
+        nes.save(Some(&config), "nes").unwrap();
+        let loaded_nes = KeyBindings::load(Some(&config), "nes");
+        let loaded_gb = KeyBindings::load(Some(&config), "game-boy");
+        assert_eq!(loaded_nes.control(egui::Key::Q), Some(InputControl::Action1));
+        assert_eq!(loaded_gb.control(egui::Key::Z), Some(InputControl::Action1));
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
