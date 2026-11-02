@@ -43,7 +43,9 @@ impl KeyBindings {
         if !valid_module_id(module_id) {
             return bindings;
         }
-        let module_path = directory.join("keybindings").join(format!("{module_id}.conf"));
+        let module_path = directory
+            .join("keybindings")
+            .join(format!("{module_id}.conf"));
         // Prefer the module-specific file. Fall back to the legacy global file
         // so existing users retain their previous mapping after upgrading.
         let contents = read_binding_file(&module_path)
@@ -284,7 +286,10 @@ mod tests {
         nes.save(Some(&config), "nes").unwrap();
         let loaded_nes = KeyBindings::load(Some(&config), "nes");
         let loaded_gb = KeyBindings::load(Some(&config), "game-boy");
-        assert_eq!(loaded_nes.control(egui::Key::Q), Some(InputControl::Action1));
+        assert_eq!(
+            loaded_nes.control(egui::Key::Q),
+            Some(InputControl::Action1)
+        );
         assert_eq!(loaded_gb.control(egui::Key::Z), Some(InputControl::Action1));
         std::fs::remove_dir_all(root).unwrap();
     }
