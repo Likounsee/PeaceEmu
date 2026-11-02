@@ -226,7 +226,7 @@ pub fn page_header(
         ui.label(egui::RichText::new(title).size(FONT_TITLE).strong());
         ui.label(egui::RichText::new(subtitle).color(palette.text_dim));
     };
-    if ui.available_width() < 560.0 {
+    if ui.available_width() < 760.0 {
         ui.vertical(title_block);
         ui.horizontal_wrapped(add_actions);
     } else {
