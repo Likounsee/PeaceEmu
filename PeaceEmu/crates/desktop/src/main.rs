@@ -241,7 +241,10 @@ impl LibraryFormat {
 
     fn for_path(path: &Path) -> Option<Self> {
         let extension = path.extension()?.to_str()?;
-        if ["gb", "gbc", "gba"].iter().any(|item| extension.eq_ignore_ascii_case(item)) {
+        if ["gb", "gbc", "gba"]
+            .iter()
+            .any(|item| extension.eq_ignore_ascii_case(item))
+        {
             Some(Self::GameBoy)
         } else if extension.eq_ignore_ascii_case("nes") {
             Some(Self::Nes)
@@ -894,7 +897,8 @@ impl DesktopApp {
 
     fn active_session_module_id(&self) -> Option<String> {
         let active = self.controller.active_session()?;
-        let path = self.session_content_paths
+        let path = self
+            .session_content_paths
             .iter()
             .find(|(id, _)| *id == active)
             .map(|(_, path)| path)?;
@@ -904,7 +908,8 @@ impl DesktopApp {
     fn control_for_active_session(&mut self, key: egui::Key) -> Option<InputControl> {
         let module_id = self.active_session_module_id()?;
         if !self.key_bindings.contains_key(&module_id) {
-            let bindings = key_bindings::KeyBindings::load(self.config_path.as_deref(), &module_id);
+            let bindings =
+                key_bindings::KeyBindings::load(self.config_path.as_deref(), &module_id);
             self.key_bindings.insert(module_id.clone(), bindings);
         }
         self.key_bindings.get(&module_id)?.control(key)
