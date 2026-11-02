@@ -121,14 +121,12 @@ impl KeyBindings {
     }
 
     pub(crate) fn save(&self, config: Option<&Path>) -> std::io::Result<()> {
-        let directory = config
-            .and_then(Path::parent)
-            .ok_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "configuration directory unavailable",
-                )
-            })?;
+        let directory = config.and_then(Path::parent).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "configuration directory unavailable",
+            )
+        })?;
         fs::create_dir_all(directory)?;
         let mut contents = String::from("# PeaceEmu keyboard bindings v1\n");
         for (index, key) in self.keys.iter().enumerate() {
@@ -227,14 +225,8 @@ mod tests {
     #[test]
     fn defaults_keep_existing_layout() {
         let bindings = KeyBindings { keys: DEFAULTS };
-        assert_eq!(
-            bindings.control(egui::Key::ArrowUp),
-            Some(InputControl::Up)
-        );
-        assert_eq!(
-            bindings.control(egui::Key::Z),
-            Some(InputControl::Action1)
-        );
+        assert_eq!(bindings.control(egui::Key::ArrowUp), Some(InputControl::Up));
+        assert_eq!(bindings.control(egui::Key::Z), Some(InputControl::Action1));
         assert_eq!(
             bindings.control(egui::Key::Backspace),
             Some(InputControl::Select)
@@ -245,20 +237,14 @@ mod tests {
     fn duplicate_key_is_rejected() {
         let mut bindings = KeyBindings { keys: DEFAULTS };
         assert_eq!(bindings.set(4, egui::Key::ArrowUp), Err(0));
-        assert_eq!(
-            bindings.control(egui::Key::Z),
-            Some(InputControl::Action1)
-        );
+        assert_eq!(bindings.control(egui::Key::Z), Some(InputControl::Action1));
     }
 
     #[test]
     fn reassignment_changes_runtime_mapping() {
         let mut bindings = KeyBindings { keys: DEFAULTS };
         bindings.set(4, egui::Key::Q).unwrap();
-        assert_eq!(
-            bindings.control(egui::Key::Q),
-            Some(InputControl::Action1)
-        );
+        assert_eq!(bindings.control(egui::Key::Q), Some(InputControl::Action1));
         assert_eq!(bindings.control(egui::Key::Z), None);
     }
 }
