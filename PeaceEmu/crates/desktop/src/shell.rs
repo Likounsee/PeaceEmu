@@ -228,11 +228,7 @@ impl DesktopApp {
                 "Game Boy (GB / GBC / GBA)",
                 game_boy,
             ),
-            (
-                LibraryFormat::Nes,
-                "Nintendo (NES)",
-                nes,
-            ),
+            (LibraryFormat::Nes, "Nintendo (NES)", nes),
         ] {
             if theme::nav_item(
                 ui,

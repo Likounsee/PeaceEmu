@@ -68,9 +68,8 @@ impl DesktopApp {
             ),
         ];
         let columns = metric_columns(ui.available_width());
-        let metric_width = ((ui.available_width() - 10.0 * (columns - 1) as f32)
-            / columns as f32)
-            .max(140.0);
+        let metric_width =
+            ((ui.available_width() - 10.0 * (columns - 1) as f32) / columns as f32).max(140.0);
         egui::Grid::new("home_overview_metrics")
             .num_columns(columns)
             .spacing(egui::vec2(10.0, 10.0))
@@ -184,14 +183,7 @@ impl DesktopApp {
                             .color(palette.text_dim),
                         );
                     });
-                    if ui
-                        .button(if french {
-                            "Ouvrir"
-                        } else {
-                            "Open"
-                        })
-                        .clicked()
-                    {
+                    if ui.button(if french { "Ouvrir" } else { "Open" }).clicked() {
                         self.content_path = path.display().to_string();
                         self.selected_content = Some(path.clone());
                         self.navigate_to(DesktopPage::Library);

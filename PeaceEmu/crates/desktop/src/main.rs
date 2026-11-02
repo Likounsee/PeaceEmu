@@ -674,7 +674,14 @@ impl DesktopApp {
             })
             .add_filter("Nintendo Entertainment System (*.nes)", &["nes"])
             .add_filter("Game Boy (*.gb, *.gbc, *.gba)", &["gb", "gbc", "gba"])
-            .add_filter(if self.language == "fr" { "Tous les fichiers" } else { "All files" }, &["*"])
+            .add_filter(
+                if self.language == "fr" {
+                    "Tous les fichiers"
+                } else {
+                    "All files"
+                },
+                &["*"],
+            )
             .pick_files();
         if let Some(paths) = selected {
             if paths.is_empty() {

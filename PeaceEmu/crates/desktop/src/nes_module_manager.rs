@@ -167,8 +167,14 @@ pub(crate) fn available_module_ids() -> Vec<String> {
     let minimum_version = parse_semver(&module.minimum_peaceemu_version);
     match (app_version, minimum_version) {
         (Some(app), Some(minimum))
-            if module.platforms.iter().any(|supported| supported == platform)
-                && app >= minimum => vec![module.id],
+            if module
+                .platforms
+                .iter()
+                .any(|supported| supported == platform)
+                && app >= minimum =>
+        {
+            vec![module.id]
+        }
         _ => Vec::new(),
     }
 }
@@ -193,7 +199,8 @@ fn remove_installed_versions(root: &Path) -> Result<usize, String> {
         .map_err(|error| format!("Could not list installed NES modules: {error}"))?;
     let mut removed = 0usize;
     for entry in entries {
-        let entry = entry.map_err(|error| format!("Could not inspect NES module entry: {error}"))?;
+        let entry =
+            entry.map_err(|error| format!("Could not inspect NES module entry: {error}"))?;
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
         if version_number(name).is_none() {
@@ -205,8 +212,12 @@ fn remove_installed_versions(root: &Path) -> Result<usize, String> {
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             continue;
         }
-        fs::remove_dir_all(&path)
-            .map_err(|error| format!("Could not uninstall NES package {}: {error}", path.display()))?;
+        fs::remove_dir_all(&path).map_err(|error| {
+            format!(
+                "Could not uninstall NES package {}: {error}",
+                path.display()
+            )
+        })?;
         removed += 1;
     }
     Ok(removed)
@@ -490,7 +501,10 @@ mod tests {
         assert_eq!(remove_installed_versions(&root).unwrap(), 2);
         assert!(!old.exists());
         assert!(!current.exists());
-        assert_eq!(fs::read(keep.join("notes.txt")).unwrap(), b"user data".to_vec());
+        assert_eq!(
+            fs::read(keep.join("notes.txt")).unwrap(),
+            b"user data".to_vec()
+        );
         fs::remove_dir_all(root).unwrap();
     }
 

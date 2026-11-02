@@ -224,8 +224,9 @@ impl DesktopApp {
 
         // Availability is based on the embedded catalogue and this host target,
         // not on how many modules happen to be compiled into the desktop shell.
-        let catalogue_available: BTreeSet<String> =
-            nes_module_manager::available_module_ids().into_iter().collect();
+        let catalogue_available: BTreeSet<String> = nes_module_manager::available_module_ids()
+            .into_iter()
+            .collect();
         let installed_external: BTreeSet<String> =
             if nes_module_manager::installed_executable_path().is_some() {
                 ["nes".to_owned()].into_iter().collect()
@@ -235,14 +236,10 @@ impl DesktopApp {
         // A persisted record alone is not proof that package files still exist.
         // The external NES executable is verified by its SHA-256 marker above;
         // built-in cores are supplied by this running application.
-        let installed_ids: BTreeSet<String> = registered
-            .union(&installed_external)
-            .cloned()
-            .collect();
-        let available_ids: BTreeSet<String> = registered
-            .union(&catalogue_available)
-            .cloned()
-            .collect();
+        let installed_ids: BTreeSet<String> =
+            registered.union(&installed_external).cloned().collect();
+        let available_ids: BTreeSet<String> =
+            registered.union(&catalogue_available).cloned().collect();
         let module_ids = module_inventory(&registered, &catalogue_available, &installed_ids);
 
         theme::page_header(
@@ -381,7 +378,11 @@ impl DesktopApp {
                             } else {
                                 status_badge(
                                     ui,
-                                    &if french { "Indisponible" } else { "Unavailable" },
+                                    &if french {
+                                        "Indisponible"
+                                    } else {
+                                        "Unavailable"
+                                    },
                                     palette.warning,
                                 );
                             }
@@ -393,11 +394,7 @@ impl DesktopApp {
                                 );
                             }
                             if let Some(version) = installed_version.as_deref() {
-                                status_badge(
-                                    ui,
-                                    &format!("v{version}"),
-                                    palette.success,
-                                );
+                                status_badge(ui, &format!("v{version}"), palette.success);
                             }
                         });
                     });
@@ -407,7 +404,11 @@ impl DesktopApp {
                                 if ui
                                     .add_enabled(
                                         !self.nes_installing && !self.nes_uninstalling,
-                                        egui::Button::new(if french { "Désinstaller" } else { "Uninstall" }),
+                                        egui::Button::new(if french {
+                                            "Désinstaller"
+                                        } else {
+                                            "Uninstall"
+                                        }),
                                     )
                                     .clicked()
                                 {
@@ -415,21 +416,36 @@ impl DesktopApp {
                                 }
                             }
                             let label = if self.nes_installing {
-                                if french { "Installation…" } else { "Installing…" }
+                                if french {
+                                    "Installation…"
+                                } else {
+                                    "Installing…"
+                                }
                             } else if self.nes_uninstalling {
-                                if french { "Désinstallation…" } else { "Uninstalling…" }
+                                if french {
+                                    "Désinstallation…"
+                                } else {
+                                    "Uninstalling…"
+                                }
                             } else if is_installed {
-                                if french { "Mettre à jour" } else { "Update" }
+                                if french {
+                                    "Mettre à jour"
+                                } else {
+                                    "Update"
+                                }
                             } else if is_available {
-                                if french { "Installer" } else { "Install" }
+                                if french {
+                                    "Installer"
+                                } else {
+                                    "Install"
+                                }
                             } else if french {
                                 "Non disponible"
                             } else {
                                 "Unavailable"
                             };
-                            let can_install = is_available
-                                && !self.nes_installing
-                                && !self.nes_uninstalling;
+                            let can_install =
+                                is_available && !self.nes_installing && !self.nes_uninstalling;
                             if ui
                                 .add_enabled(can_install, egui::Button::new(label))
                                 .clicked()
@@ -439,7 +455,11 @@ impl DesktopApp {
                         } else if is_bundled {
                             status_badge(
                                 ui,
-                                &if french { "Prêt à l’emploi" } else { "Ready to use" },
+                                &if french {
+                                    "Prêt à l’emploi"
+                                } else {
+                                    "Ready to use"
+                                },
                                 palette.success,
                             );
                         }
@@ -456,17 +476,30 @@ impl DesktopApp {
                     ui.add_space(6.0);
                     ui.horizontal_wrapped(|ui| {
                         for (label, enabled) in [
-                            (if french { "Contenu" } else { "Content" }, caps.content_loading),
+                            (
+                                if french { "Contenu" } else { "Content" },
+                                caps.content_loading,
+                            ),
                             (if french { "Entrées" } else { "Input" }, caps.input),
                             (if french { "Vidéo" } else { "Video" }, caps.video_output),
                             ("Audio", caps.audio_output),
-                            (if french { "États" } else { "Save states" }, caps.save_states),
-                            (if french { "Sauvegardes" } else { "Saves" }, caps.persistent_saves),
+                            (
+                                if french { "États" } else { "Save states" },
+                                caps.save_states,
+                            ),
+                            (
+                                if french { "Sauvegardes" } else { "Saves" },
+                                caps.persistent_saves,
+                            ),
                         ] {
                             status_badge(
                                 ui,
                                 &format!("{} {label}", if enabled { "●" } else { "○" }),
-                                if enabled { palette.success } else { palette.text_dim },
+                                if enabled {
+                                    palette.success
+                                } else {
+                                    palette.text_dim
+                                },
                             );
                         }
                     });
@@ -543,7 +576,9 @@ mod tests {
 
     #[test]
     fn module_inventory_deduplicates_built_in_catalogue_and_installed_entries() {
-        let registered = ["game-boy".to_owned(), "nes".to_owned()].into_iter().collect();
+        let registered = ["game-boy".to_owned(), "nes".to_owned()]
+            .into_iter()
+            .collect();
         let available = ["nes".to_owned(), "nintendo-switch".to_owned()]
             .into_iter()
             .collect();
