@@ -214,7 +214,7 @@ struct DesktopApp {
     binding_capture: Option<(String, usize)>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LibraryFormat {
     All,
     GameBoy,
