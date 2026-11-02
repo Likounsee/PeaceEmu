@@ -370,6 +370,7 @@ impl DesktopApp {
             .map(game_names::load)
             .unwrap_or_default();
         let language_pack = language_pack::LanguagePack::load(&language);
+        let key_bindings = key_bindings::KeyBindings::load(config_path.as_deref());
         let mut app = Self {
             controller,
             registry,
