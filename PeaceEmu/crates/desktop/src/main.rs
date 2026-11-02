@@ -224,11 +224,7 @@ enum LibraryFormat {
 fn visible_library_formats(installed: &BTreeSet<String>) -> Vec<LibraryFormat> {
     [LibraryFormat::GameBoy, LibraryFormat::Nes]
         .into_iter()
-        .filter(|format| {
-            format
-                .module_id()
-                .is_some_and(|id| installed.contains(id))
-        })
+        .filter(|format| format.module_id().is_some_and(|id| installed.contains(id)))
         .collect()
 }
 
@@ -910,14 +906,15 @@ impl DesktopApp {
             .iter()
             .find(|(id, _)| *id == active)
             .map(|(_, path)| path)?;
-        LibraryFormat::for_path(path)?.module_id().map(str::to_owned)
+        LibraryFormat::for_path(path)?
+            .module_id()
+            .map(str::to_owned)
     }
 
     fn control_for_active_session(&mut self, key: egui::Key) -> Option<InputControl> {
         let module_id = self.active_session_module_id()?;
         if !self.key_bindings.contains_key(&module_id) {
-            let bindings =
-                key_bindings::KeyBindings::load(self.config_path.as_deref(), &module_id);
+            let bindings = key_bindings::KeyBindings::load(self.config_path.as_deref(), &module_id);
             self.key_bindings.insert(module_id.clone(), bindings);
         }
         self.key_bindings.get(&module_id)?.control(key)
