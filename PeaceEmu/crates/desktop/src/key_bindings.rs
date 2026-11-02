@@ -317,10 +317,7 @@ mod tests {
     #[test]
     fn assign_or_swap_rejects_unsupported_keys() {
         let mut bindings = KeyBindings { keys: DEFAULTS };
-        assert_eq!(
-            bindings.assign_or_swap(4, egui::Key::F1),
-            Err(usize::MAX)
-        );
+        assert_eq!(bindings.assign_or_swap(4, egui::Key::F1), Err(usize::MAX));
         assert_eq!(bindings.control(egui::Key::Z), Some(InputControl::Action1));
     }
 
