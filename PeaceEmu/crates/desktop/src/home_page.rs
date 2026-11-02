@@ -34,6 +34,12 @@ impl DesktopApp {
         }
 
         // At-a-glance metrics
+        let mut available_systems: std::collections::BTreeSet<String> = self
+            .registry
+            .system_ids()
+            .map(|id| id.as_str().to_owned())
+            .collect();
+        available_systems.extend(nes_module_manager::available_module_ids());
         let metrics = [
             (
                 self.language_pack.text("ui.home_page.009"),
@@ -41,36 +47,49 @@ impl DesktopApp {
                 self.language_pack.text("ui.home_page.010"),
             ),
             (
-                "SESSIONS",
+                if french { "SESSIONS" } else { "SESSIONS" },
                 self.controller.session_count().to_string(),
                 self.language_pack.text("ui.home_page.011"),
             ),
             (
                 self.language_pack.text("ui.home_page.012"),
-                self.registry.system_ids().count().to_string(),
+                available_systems.len().to_string(),
                 self.language_pack.text("ui.home_page.013"),
             ),
         ];
-        let columns = if ui.available_width() < 620.0 { 1 } else { 3 };
-        ui.columns(columns, |cols| {
-            for (index, (label, value, detail)) in metrics.into_iter().enumerate() {
-                theme::card(&mut cols[index % columns], &palette, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.label(
-                        egui::RichText::new(label)
-                            .size(11.0)
-                            .strong()
-                            .color(palette.text_dim),
-                    );
-                    ui.label(egui::RichText::new(value).size(30.0).strong());
-                    ui.label(
-                        egui::RichText::new(detail)
-                            .size(12.0)
-                            .color(palette.text_dim),
-                    );
-                });
-            }
-        });
+        let columns = if ui.available_width() < 560.0 {
+            1
+        } else if ui.available_width() < 900.0 {
+            2
+        } else {
+            3
+        };
+        egui::Grid::new("home_overview_metrics")
+            .num_columns(columns)
+            .spacing(egui::vec2(10.0, 10.0))
+            .show(ui, |ui| {
+                for (index, (label, value, detail)) in metrics.into_iter().enumerate() {
+                    theme::card(ui, &palette, |ui| {
+                        ui.set_min_width((ui.available_width() - 12.0).max(120.0));
+                        ui.set_width(ui.available_width());
+                        ui.label(
+                            egui::RichText::new(label)
+                                .size(11.0)
+                                .strong()
+                                .color(palette.text_dim),
+                        );
+                        ui.label(egui::RichText::new(value).size(30.0).strong());
+                        ui.label(
+                            egui::RichText::new(detail)
+                                .size(12.0)
+                                .color(palette.text_dim),
+                        );
+                    });
+                    if (index + 1) % columns == 0 {
+                        ui.end_row();
+                    }
+                }
+            });
 
         ui.add_space(12.0);
         ui.horizontal(|ui| {
@@ -131,7 +150,7 @@ impl DesktopApp {
                     .and_then(|value| value.to_str())
                     .unwrap_or("ROM")
                     .to_ascii_uppercase();
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     egui::Frame::none()
                         .fill(palette.accent_subtle)
                         .rounding(egui::Rounding::same(8.0))
@@ -144,7 +163,7 @@ impl DesktopApp {
                             );
                         });
                     ui.vertical(|ui| {
-                        ui.set_width((ui.available_width() - 110.0).max(120.0));
+                        ui.set_max_width((ui.available_width() - 90.0).max(100.0));
                         ui.label(egui::RichText::new(title).strong());
                         ui.label(
                             egui::RichText::new(format!(
@@ -160,9 +179,9 @@ impl DesktopApp {
                     });
                     if ui
                         .button(if french {
-                            "Ouvrir dans la bibliothèque"
+                            "Ouvrir"
                         } else {
-                            "Open in library"
+                            "Open"
                         })
                         .clicked()
                     {
@@ -177,7 +196,7 @@ impl DesktopApp {
         ui.add_space(4.0);
         theme::card(ui, &palette, |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         egui::RichText::new(self.language_pack.text("ui.home_page.020"))
