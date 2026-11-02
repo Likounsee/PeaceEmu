@@ -141,7 +141,7 @@ impl DesktopApp {
                     ));
                 }
                 labels
-            },
+            }
             _ => Vec::new(),
         };
         let text_width = context.fonts(|fonts| {
