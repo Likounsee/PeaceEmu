@@ -132,7 +132,11 @@ impl DesktopApp {
                 ];
                 if !self.installed_module_ids().is_empty() {
                     labels.push((
-                        if self.language == "fr" { "Commandes par console" } else { "Console controls" },
+                        if self.language == "fr" {
+                            "Commandes par console"
+                        } else {
+                            "Console controls"
+                        },
                         14.0,
                     ));
                 }
@@ -215,10 +219,16 @@ impl DesktopApp {
             all,
         )];
         for format in installed_formats {
-            let count = entries.iter().filter(|entry| format.matches(entry.path())).count();
+            let count = entries
+                .iter()
+                .filter(|entry| format.matches(entry.path()))
+                .count();
             categories.push((format, format.label(self.language == "fr"), count));
         }
-        if !categories.iter().any(|(format, _, _)| *format == self.library_format) {
+        if !categories
+            .iter()
+            .any(|(format, _, _)| *format == self.library_format)
+        {
             self.library_format = LibraryFormat::All;
         }
         ui.label(
@@ -271,11 +281,18 @@ impl DesktopApp {
             (SettingsSection::Application, "Application", Icon::Systems),
         ];
         if !self.installed_module_ids().is_empty() {
-            sections.insert(1, (
-                SettingsSection::Controls,
-                if self.language == "fr" { "Commandes par console" } else { "Console controls" },
-                Icon::Game,
-            ));
+            sections.insert(
+                1,
+                (
+                    SettingsSection::Controls,
+                    if self.language == "fr" {
+                        "Commandes par console"
+                    } else {
+                        "Console controls"
+                    },
+                    Icon::Game,
+                ),
+            );
         }
         for (section, label, icon) in sections {
             if theme::nav_item(
