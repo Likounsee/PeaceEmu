@@ -92,8 +92,7 @@ impl DesktopApp {
         let config_path = self.config_path.clone();
         for module_id in installed {
             if !self.key_bindings.contains_key(&module_id) {
-                let bindings =
-                    key_bindings::KeyBindings::load(config_path.as_deref(), &module_id);
+                let bindings = key_bindings::KeyBindings::load(config_path.as_deref(), &module_id);
                 self.key_bindings.insert(module_id.clone(), bindings);
             }
 
@@ -107,9 +106,7 @@ impl DesktopApp {
                         let mut chars = part.chars();
                         chars
                             .next()
-                            .map(|first| {
-                                first.to_uppercase().collect::<String>() + chars.as_str()
-                            })
+                            .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
                             .unwrap_or_default()
                     })
                     .collect::<Vec<_>>()
@@ -136,10 +133,11 @@ impl DesktopApp {
                                 ui.label(if french { *fr } else { *en });
                                 let is_capturing = self
                                     .binding_capture
-                                    .as_ref()
-                                    .is_some_and(|(capturing_id, capturing_index)| {
+                                    .as_ref().is_some_and(
+                                    |(capturing_id, capturing_index)| {
                                         capturing_id == &module_id && *capturing_index == index
-                                    });
+                                    },
+                                );
                                 let label = if is_capturing {
                                     if french {
                                         "Appuyez sur une touche…"
@@ -179,7 +177,9 @@ impl DesktopApp {
                                 .as_ref()
                                 .is_some_and(|(capturing_id, _)| capturing_id == &module_id);
                             if capturing_this_module
-                                && ui.button(if french { "Annuler" } else { "Cancel" }).clicked()
+                                && ui
+                                    .button(if french { "Annuler" } else { "Cancel" })
+                                    .clicked()
                             {
                                 self.binding_capture = None;
                             }
