@@ -305,11 +305,7 @@ impl DesktopApp {
         });
 
         ui.add_space(14.0);
-        ui.label(
-            egui::RichText::new("MODULES")
-                .strong()
-                .size(13.0),
-        );
+        ui.label(egui::RichText::new("MODULES").strong().size(13.0));
         ui.separator();
 
         if module_ids.is_empty() {
