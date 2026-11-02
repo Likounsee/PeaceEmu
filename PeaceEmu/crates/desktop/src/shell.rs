@@ -123,6 +123,7 @@ impl DesktopApp {
                 (self.language_pack.text("ui.shell.006"), 18.0),
                 (self.language_pack.text("ui.shell.007"), 13.0),
                 (self.language_pack.text("ui.shell.008"), 14.0),
+                (if self.language == "fr" { "Commandes" } else { "Controls" }, 14.0),
                 ("Application", 14.0),
             ],
             _ => Vec::new(),
@@ -264,6 +265,7 @@ impl DesktopApp {
                 self.language_pack.text("ui.shell.008"),
                 Icon::Settings,
             ),
+            (SettingsSection::Controls, if self.language == "fr" { "Commandes" } else { "Controls" }, Icon::Game),
             (SettingsSection::Application, "Application", Icon::Systems),
         ] {
             if theme::nav_item(
