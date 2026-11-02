@@ -112,27 +112,32 @@ impl DesktopApp {
     /// a fixed width. Keep the animation proportional to this measured width.
     fn context_sidebar_width(&self, context: &egui::Context) -> f32 {
         let labels: Vec<(&str, f32)> = match self.active_page {
-            DesktopPage::Library => vec![
-                (self.language_pack.text("ui.shell.003"), 18.0),
-                (self.language_pack.text("ui.shell.004"), 13.0),
-                (self.language_pack.text("ui.shell.005"), 14.0),
-                ("Game Boy (GB / GBC / GBA)", 14.0),
-                ("Nintendo (NES)", 14.0),
-            ],
-            DesktopPage::Settings => vec![
-                (self.language_pack.text("ui.shell.006"), 18.0),
-                (self.language_pack.text("ui.shell.007"), 13.0),
-                (self.language_pack.text("ui.shell.008"), 14.0),
-                (
-                    if self.language == "fr" {
-                        "Commandes"
-                    } else {
-                        "Controls"
-                    },
-                    14.0,
-                ),
-                ("Application", 14.0),
-            ],
+            DesktopPage::Library => {
+                let mut labels = vec![
+                    (self.language_pack.text("ui.shell.003"), 18.0),
+                    (self.language_pack.text("ui.shell.004"), 13.0),
+                    (self.language_pack.text("ui.shell.005"), 14.0),
+                ];
+                for format in self.installed_library_formats() {
+                    labels.push((format.label(self.language == "fr"), 14.0));
+                }
+                labels
+            }
+            DesktopPage::Settings => {
+                let mut labels = vec![
+                    (self.language_pack.text("ui.shell.006"), 18.0),
+                    (self.language_pack.text("ui.shell.007"), 13.0),
+                    (self.language_pack.text("ui.shell.008"), 14.0),
+                    ("Application", 14.0),
+                ];
+                if !self.installed_module_ids().is_empty() {
+                    labels.push((
+                        if self.language == "fr" { "Commandes par console" } else { "Console controls" },
+                        14.0,
+                    ));
+                }
+                labels
+            },
             _ => Vec::new(),
         };
         let text_width = context.fonts(|fonts| {
