@@ -31,6 +31,19 @@ const DEFAULTS: [egui::Key; 10] = [
     egui::Key::Space,
 ];
 
+const LEGACY_DEFAULTS: [egui::Key; 10] = [
+    egui::Key::ArrowUp,
+    egui::Key::ArrowDown,
+    egui::Key::ArrowLeft,
+    egui::Key::ArrowRight,
+    egui::Key::Z,
+    egui::Key::X,
+    egui::Key::A,
+    egui::Key::S,
+    egui::Key::Enter,
+    egui::Key::Backspace,
+];
+
 pub(crate) struct KeyBindings {
     keys: [egui::Key; 10],
 }
@@ -75,6 +88,11 @@ impl KeyBindings {
             if !duplicate {
                 bindings.keys[index] = key;
             }
+        }
+        // Upgrade files saved with the previous built-in defaults, without
+        // overwriting a user's intentionally customized Select binding.
+        if bindings.keys == LEGACY_DEFAULTS {
+            bindings.keys = DEFAULTS;
         }
         bindings
     }
@@ -295,6 +313,25 @@ mod tests {
             bindings.control(egui::Key::Space),
             Some(InputControl::Select)
         );
+    }
+
+    #[test]
+    fn previously_saved_default_select_binding_is_migrated_to_space() {
+        let root = std::env::temp_dir().join(format!("peaceemu-legacy-bindings-{}", std::process::id()));
+        let config = root.join("preferences.json");
+        let directory = root.join("keybindings");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            directory.join("nes.conf"),
+            "# PeaceEmu module keyboard bindings v1\n0=ArrowUp\n1=ArrowDown\n2=ArrowLeft\n3=ArrowRight\n4=Z\n5=X\n6=A\n7=S\n8=Enter\n9=Backspace\n",
+        )
+        .unwrap();
+
+        let loaded = KeyBindings::load(Some(&config), "nes");
+        assert_eq!(loaded.control(egui::Key::Space), Some(InputControl::Select));
+        assert_eq!(loaded.control(egui::Key::Backspace), None);
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
