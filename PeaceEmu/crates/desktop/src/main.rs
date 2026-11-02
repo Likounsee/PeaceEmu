@@ -169,6 +169,9 @@ struct DesktopApp {
     probe: NesCartridgeProbe,
     nes_install_receiver: Option<Receiver<Result<PathBuf, String>>>,
     nes_installing: bool,
+    nes_uninstall_receiver: Option<Receiver<Result<usize, String>>>,
+    nes_uninstalling: bool,
+    nes_uninstall_confirm_open: bool,
     content_path: String,
     library_filter: String,
     library_format: LibraryFormat,
@@ -373,6 +376,9 @@ impl DesktopApp {
             probe: NesCartridgeProbe,
             nes_install_receiver: None,
             nes_installing: false,
+            nes_uninstall_receiver: None,
+            nes_uninstalling: false,
+            nes_uninstall_confirm_open: false,
             content_path: selected_content
                 .as_ref()
                 .map(|path| path.display().to_string())
@@ -434,6 +440,23 @@ impl DesktopApp {
         };
         std::thread::spawn(move || {
             let _ = sender.send(nes_module_manager::install_latest());
+        });
+    }
+
+    fn start_nes_module_uninstall(&mut self) {
+        if self.nes_installing || self.nes_uninstalling {
+            return;
+        }
+        let (sender, receiver) = mpsc::channel();
+        self.nes_uninstall_receiver = Some(receiver);
+        self.nes_uninstalling = true;
+        self.message = if self.language == "fr" {
+            "Désinstallation de Nintendo (NES) en arrière-plan…".to_owned()
+        } else {
+            "Uninstalling Nintendo (NES) in the background…".to_owned()
+        };
+        std::thread::spawn(move || {
+            let _ = sender.send(nes_module_manager::uninstall_all());
         });
     }
 
@@ -644,12 +667,14 @@ impl DesktopApp {
 
     fn choose_content_file(&mut self) {
         let selected = rfd::FileDialog::new()
-            .add_filter("NES ROMs", &["nes"])
-            .add_filter("Game Boy ROMs", &["gb", "gbc", "gba"])
-            .add_filter("Game Boy ROM", &["gb"])
-            .add_filter("Game Boy Color ROM", &["gbc"])
-            .add_filter("Game Boy Advance ROM", &["gba"])
-            .add_filter("All files", &["*"])
+            .set_title(if self.language == "fr" {
+                "Importer des jeux"
+            } else {
+                "Import games"
+            })
+            .add_filter("Nintendo Entertainment System (*.nes)", &["nes"])
+            .add_filter("Game Boy (*.gb, *.gbc, *.gba)", &["gb", "gbc", "gba"])
+            .add_filter(if self.language == "fr" { "Tous les fichiers" } else { "All files" }, &["*"])
             .pick_files();
         if let Some(paths) = selected {
             if paths.is_empty() {
