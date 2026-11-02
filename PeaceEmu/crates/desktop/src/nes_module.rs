@@ -363,15 +363,30 @@ mod tests {
     }
 
     #[test]
-    fn adapter_maps_host_input_to_nes_controller_bits() {
+    fn adapter_maps_select_to_the_nes_select_bit_and_releases_it() {
         let mut core = NesCoreAdapter::new();
         core.load_content(&looping_rom()).unwrap();
+
+        core.send_input(InputEvent {
+            control: InputControl::Select,
+            pressed: true,
+        })
+        .unwrap();
+        assert_eq!(core.controller_1, 1 << 2);
+
+        // Select must not remain stuck, and releasing it must preserve other held buttons.
         core.send_input(InputEvent {
             control: InputControl::Action1,
             pressed: true,
         })
         .unwrap();
-        assert_eq!(core.controller_1, 1);
+        core.send_input(InputEvent {
+            control: InputControl::Select,
+            pressed: false,
+        })
+        .unwrap();
+        assert_eq!(core.controller_1, 1 << 0);
+
         core.send_input(InputEvent {
             control: InputControl::Action1,
             pressed: false,
