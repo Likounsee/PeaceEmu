@@ -90,7 +90,7 @@ impl DesktopApp {
         if let Some((index,key))=captured {
             match self.key_bindings.set(index,key) {
                 Ok(())=>{self.binding_capture=None;self.persist_key_bindings();}
-                Err(other)=>{self.message=if french {format!("Touche déjà utilisée par {}.",key_bindings::ACTIONS[other].0)} else {format!("Key already assigned to {}.",key_bindings::ACTIONS[other].1)};self.binding_capture=None;}
+                Err(other)=>{self.message=if other<key_bindings::ACTIONS.len(){if french {format!("Touche déjà utilisée par {}.",key_bindings::ACTIONS[other].0)} else {format!("Key already assigned to {}.",key_bindings::ACTIONS[other].1)}}else if french {"Cette touche n’est pas prise en charge.".to_owned()}else{"That key is not supported.".to_owned()};self.binding_capture=None;}
             }
         }
         ui.label(egui::RichText::new(if french { "Les réglages sont enregistrés localement et appliqués aux fenêtres de jeu." } else { "Bindings are saved locally and apply to game windows." }).small().color(palette.text_dim));
