@@ -64,14 +64,17 @@ impl DesktopApp {
         } else {
             3
         };
+        let metric_width = ((ui.available_width() - 10.0 * (columns - 1) as f32)
+            / columns as f32)
+            .max(140.0);
         egui::Grid::new("home_overview_metrics")
             .num_columns(columns)
             .spacing(egui::vec2(10.0, 10.0))
             .show(ui, |ui| {
                 for (index, (label, value, detail)) in metrics.into_iter().enumerate() {
                     theme::card(ui, &palette, |ui| {
-                        ui.set_min_width((ui.available_width() - 12.0).max(120.0));
-                        ui.set_width(ui.available_width());
+                        ui.set_min_width(metric_width);
+                        ui.set_max_width(metric_width);
                         ui.label(
                             egui::RichText::new(label)
                                 .size(11.0)
