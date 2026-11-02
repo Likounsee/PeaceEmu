@@ -1631,7 +1631,7 @@ impl DesktopApp {
                         if repeat && pressed {
                             continue;
                         }
-                        if let Some(control) = map_key_to_control(key) {
+                        if let Some(control) = self.key_bindings.control(key) {
                             self.send_game_input(control, pressed);
                         }
                     }
