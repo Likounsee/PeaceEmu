@@ -224,7 +224,7 @@ impl LibraryFormat {
             (Self::All, true) => "Tous les jeux",
             (Self::All, false) => "All games",
             (Self::GameBoy, _) => "Game Boy (GB / GBC / GBA)",
-            (Self::Nes, _) => "Nintendo Entertainment System (NES)",
+            (Self::Nes, _) => "Nintendo (NES)",
         }
     }
 
