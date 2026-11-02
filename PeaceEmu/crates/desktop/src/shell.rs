@@ -117,6 +117,7 @@ impl DesktopApp {
                 (self.language_pack.text("ui.shell.004"), 13.0),
                 (self.language_pack.text("ui.shell.005"), 14.0),
                 ("Game Boy (GB / GBC / GBA)", 14.0),
+                ("Nintendo (NES)", 14.0),
             ],
             DesktopPage::Settings => vec![
                 (self.language_pack.text("ui.shell.006"), 18.0),
@@ -194,10 +195,14 @@ impl DesktopApp {
     fn show_library_sidebar(&mut self, ui: &mut egui::Ui, palette: &Palette) {
         let mut all = 0usize;
         let mut game_boy = 0usize;
+        let mut nes = 0usize;
         for entry in self.controller.library().entries() {
             all += 1;
             if LibraryFormat::GameBoy.matches(entry.path()) {
                 game_boy += 1;
+            }
+            if LibraryFormat::Nes.matches(entry.path()) {
+                nes += 1;
             }
         }
         ui.label(
@@ -222,6 +227,11 @@ impl DesktopApp {
                 LibraryFormat::GameBoy,
                 "Game Boy (GB / GBC / GBA)",
                 game_boy,
+            ),
+            (
+                LibraryFormat::Nes,
+                "Nintendo (NES)",
+                nes,
             ),
         ] {
             if theme::nav_item(
