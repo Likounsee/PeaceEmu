@@ -891,7 +891,11 @@ impl DesktopApp {
         let installed = self.installed_module_ids();
         [LibraryFormat::GameBoy, LibraryFormat::Nes]
             .into_iter()
-            .filter(|format| format.module_id().is_some_and(|id| installed.contains(id)))
+            .filter(|format| {
+                format
+                    .module_id()
+                    .is_some_and(|id| installed.contains(id))
+            })
             .collect()
     }
 
