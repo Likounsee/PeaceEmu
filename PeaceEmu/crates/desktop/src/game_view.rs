@@ -6,26 +6,6 @@
 use eframe::egui;
 use emulation_core::core_io::{InputControl, PixelFormat, VideoFrame};
 
-/// Converts a host keyboard key into a semantic runtime input control.
-///
-/// Platform-specific keyboard events are normalized here; the runtime never sees
-/// egui key codes. Unsupported keys are ignored.
-pub(crate) fn map_key_to_control(key: egui::Key) -> Option<InputControl> {
-    match key {
-        egui::Key::ArrowUp => Some(InputControl::Up),
-        egui::Key::ArrowDown => Some(InputControl::Down),
-        egui::Key::ArrowLeft => Some(InputControl::Left),
-        egui::Key::ArrowRight => Some(InputControl::Right),
-        egui::Key::Z => Some(InputControl::Action1),
-        egui::Key::X => Some(InputControl::Action2),
-        egui::Key::A => Some(InputControl::Action3),
-        egui::Key::S => Some(InputControl::Action4),
-        egui::Key::Enter => Some(InputControl::Start),
-        egui::Key::Backspace => Some(InputControl::Select),
-        _ => None,
-    }
-}
-
 /// Converts a validated runtime video frame into a packed egui image.
 ///
 /// The function respects the frame's row stride, rejects unsupported formats,
@@ -67,26 +47,6 @@ pub(crate) fn video_frame_to_image(frame: &VideoFrame) -> Result<egui::ColorImag
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn keyboard_mapping_is_semantic_and_ignores_unmapped_keys() {
-        let expected = [
-            (egui::Key::ArrowUp, InputControl::Up),
-            (egui::Key::ArrowDown, InputControl::Down),
-            (egui::Key::ArrowLeft, InputControl::Left),
-            (egui::Key::ArrowRight, InputControl::Right),
-            (egui::Key::Z, InputControl::Action1),
-            (egui::Key::X, InputControl::Action2),
-            (egui::Key::A, InputControl::Action3),
-            (egui::Key::S, InputControl::Action4),
-            (egui::Key::Enter, InputControl::Start),
-            (egui::Key::Backspace, InputControl::Select),
-        ];
-        for (key, control) in expected {
-            assert_eq!(map_key_to_control(key), Some(control));
-        }
-        assert_eq!(map_key_to_control(egui::Key::Escape), None);
-    }
 
     #[test]
     fn conversion_respects_row_stride_and_preserves_rgba_pixels() {
