@@ -5,7 +5,7 @@
 )]
 //! Experimental desktop frontend for the shared PeaceEmu application controller.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -210,8 +210,8 @@ struct DesktopApp {
     cover_textures: HashMap<PathBuf, egui::TextureHandle>,
     game_names: HashMap<PathBuf, String>,
     display_name_edit: String,
-    key_bindings: key_bindings::KeyBindings,
-    binding_capture: Option<usize>,
+    key_bindings: HashMap<String, key_bindings::KeyBindings>,
+    binding_capture: Option<(String, usize)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -228,6 +228,25 @@ impl LibraryFormat {
             (Self::All, false) => "All games",
             (Self::GameBoy, _) => "Game Boy (GB / GBC / GBA)",
             (Self::Nes, _) => "Nintendo (NES)",
+        }
+    }
+
+    fn module_id(self) -> Option<&'static str> {
+        match self {
+            Self::All => None,
+            Self::GameBoy => Some("game-boy"),
+            Self::Nes => Some("nes"),
+        }
+    }
+
+    fn for_path(path: &Path) -> Option<Self> {
+        let extension = path.extension()?.to_str()?;
+        if ["gb", "gbc", "gba"].iter().any(|item| extension.eq_ignore_ascii_case(item)) {
+            Some(Self::GameBoy)
+        } else if extension.eq_ignore_ascii_case("nes") {
+            Some(Self::Nes)
+        } else {
+            None
         }
     }
 
@@ -374,7 +393,7 @@ impl DesktopApp {
             .map(game_names::load)
             .unwrap_or_default();
         let language_pack = language_pack::LanguagePack::load(&language);
-        let key_bindings = key_bindings::KeyBindings::load(config_path.as_deref());
+        let key_bindings = HashMap::new();
         let mut app = Self {
             controller,
             registry,
@@ -852,8 +871,50 @@ impl DesktopApp {
         }
     }
 
-    fn persist_key_bindings(&mut self) {
-        if let Err(error) = self.key_bindings.save(self.config_path.as_deref()) {
+    fn installed_module_ids(&self) -> BTreeSet<String> {
+        let mut installed: BTreeSet<String> = self
+            .registry
+            .system_ids()
+            .map(|id| id.as_str().to_owned())
+            .collect();
+        // NES is distributed as a separately installed executable.
+        if nes_module_manager::installed_executable_path().is_some() {
+            installed.insert("nes".to_owned());
+        }
+        installed
+    }
+
+    fn installed_library_formats(&self) -> Vec<LibraryFormat> {
+        let installed = self.installed_module_ids();
+        [LibraryFormat::GameBoy, LibraryFormat::Nes]
+            .into_iter()
+            .filter(|format| format.module_id().is_some_and(|id| installed.contains(id)))
+            .collect()
+    }
+
+    fn active_session_module_id(&self) -> Option<String> {
+        let active = self.controller.active_session()?;
+        let path = self.session_content_paths
+            .iter()
+            .find(|(id, _)| *id == active)
+            .map(|(_, path)| path)?;
+        LibraryFormat::for_path(path)?.module_id().map(str::to_owned)
+    }
+
+    fn control_for_active_session(&mut self, key: egui::Key) -> Option<InputControl> {
+        let module_id = self.active_session_module_id()?;
+        if !self.key_bindings.contains_key(&module_id) {
+            let bindings = key_bindings::KeyBindings::load(self.config_path.as_deref(), &module_id);
+            self.key_bindings.insert(module_id.clone(), bindings);
+        }
+        self.key_bindings.get(&module_id)?.control(key)
+    }
+
+    fn persist_key_bindings(&mut self, module_id: &str) {
+        let Some(bindings) = self.key_bindings.get(module_id) else {
+            return;
+        };
+        if let Err(error) = bindings.save(self.config_path.as_deref(), module_id) {
             self.message = if self.language == "fr" {
                 format!("Impossible d’enregistrer les touches : {error}")
             } else {
@@ -1568,7 +1629,7 @@ impl DesktopApp {
                         if repeat && pressed {
                             continue;
                         }
-                        if let Some(control) = self.key_bindings.control(key) {
+                        if let Some(control) = self.control_for_active_session(key) {
                             input_events.push((control, pressed));
                         }
                     }
@@ -1637,7 +1698,7 @@ impl DesktopApp {
                         if repeat && pressed {
                             continue;
                         }
-                        if let Some(control) = self.key_bindings.control(key) {
+                        if let Some(control) = self.control_for_active_session(key) {
                             self.send_game_input(control, pressed);
                         }
                     }
