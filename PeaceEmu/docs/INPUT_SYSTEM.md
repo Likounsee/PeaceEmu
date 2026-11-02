@@ -2,7 +2,7 @@
 
 ## Current state
 
-Keyboard, controller discovery, hot-plug, remapping and per-system input mapping are not implemented.
+Desktop keyboard remapping is implemented and persisted locally. Gamepad discovery, hot-plug and per-system/per-content overrides are not implemented.
 
 ## Planned boundary
 
@@ -15,4 +15,4 @@ Test remapping conflicts, disconnected devices, hot-plug, invalid configuration,
 
 ## Shared event shape
 
-The core crate defines platform-neutral `InputEvent` state transitions and a small set of semantic `InputControl` values. `EmulationCore::send_input` is the common delivery method; its default implementation explicitly reports unsupported input. Host keyboard/gamepad scan codes must be normalized before they reach a core, and each system module remains responsible for mapping semantic controls to its own hardware. Device discovery, remapping, hotplug, per-system mappings, and a real core consuming these events remain unimplemented.
+The core crate defines platform-neutral `InputEvent` state transitions and a small set of semantic `InputControl` values. `EmulationCore::send_input` is the common delivery method; its default implementation explicitly reports unsupported input. Host keyboard/gamepad scan codes must be normalized before they reach a core, and each system module remains responsible for mapping semantic controls to its own hardware. Desktop keyboard remapping translates configurable keys into semantic input controls before delivery to the active session. Gamepad discovery, hotplug, per-system mappings, and a real core consuming events remain unimplemented.
