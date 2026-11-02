@@ -1,18 +1,264 @@
 //! User-configurable desktop keyboard bindings.
+
 use eframe::egui;
 use emulation_core::core_io::InputControl;
 use std::{fs, path::Path};
-pub(crate) const ACTIONS:[(&str,&str);10]=[("Haut","Up"),("Bas","Down"),("Gauche","Left"),("Droite","Right"),("A","Action1"),("B","Action2"),("X","Action3"),("Y","Action4"),("Start","Start"),("Select","Select")];
-const DEFAULTS:[egui::Key;10]=[egui::Key::ArrowUp,egui::Key::ArrowDown,egui::Key::ArrowLeft,egui::Key::ArrowRight,egui::Key::Z,egui::Key::X,egui::Key::A,egui::Key::S,egui::Key::Enter,egui::Key::Backspace];
-pub(crate) struct KeyBindings{keys:[egui::Key;10]}
-impl KeyBindings{
-pub(crate) fn load(config:Option<&Path>)->Self{let mut b=Self{keys:DEFAULTS};let Some(path)=config.and_then(Path::parent).map(|p|p.join("keybindings.conf"))else{return b};let Ok(meta)=fs::symlink_metadata(&path)else{return b};if !meta.file_type().is_file()||meta.len()>4096{return b}let Ok(data)=fs::read_to_string(path)else{return b};for line in data.lines(){if let Some((i,v))=line.split_once('='){if let Ok(i)=i.parse::<usize>(){if i<10{if let Some(k)=parse_key(v){if !b.keys.iter().enumerate().any(|(j,x)|j!=i&&*x==k){b.keys[i]=k}}}}}}b}
-pub(crate) fn set(&mut self,i:usize,k:egui::Key)->Result<(),usize>{if i>=10{return Err(i)}if key_name(k)=="Unsupported"{return Err(usize::MAX)}if let Some(j)=self.keys.iter().position(|x|*x==k){if j!=i{return Err(j)}}self.keys[i]=k;Ok(())}
-pub(crate) fn control(&self,k:egui::Key)->Option<InputControl>{self.keys.iter().position(|x|*x==k).map(|i|match i{0=>InputControl::Up,1=>InputControl::Down,2=>InputControl::Left,3=>InputControl::Right,4=>InputControl::Action1,5=>InputControl::Action2,6=>InputControl::Action3,7=>InputControl::Action4,8=>InputControl::Start,_=>InputControl::Select})}
-pub(crate) fn reset(&mut self){self.keys=DEFAULTS}
-pub(crate) fn label(&self,i:usize)->String{key_name(self.keys[i]).to_owned()}
-pub(crate) fn save(&self,config:Option<&Path>)->std::io::Result<()>{let dir=config.and_then(Path::parent).ok_or_else(||std::io::Error::new(std::io::ErrorKind::NotFound,"configuration directory unavailable"))?;fs::create_dir_all(dir)?;let mut s=String::from("# PeaceEmu keyboard bindings v1\n");for(i,k)in self.keys.iter().enumerate(){s.push_str(&format!("{i}={}\n",key_name(*k)))}fs::write(dir.join("keybindings.conf"),s)}
+
+pub(crate) const ACTIONS: [(&str, &str); 10] = [
+    ("Haut", "Up"),
+    ("Bas", "Down"),
+    ("Gauche", "Left"),
+    ("Droite", "Right"),
+    ("A", "Action1"),
+    ("B", "Action2"),
+    ("X", "Action3"),
+    ("Y", "Action4"),
+    ("Start", "Start"),
+    ("Select", "Select"),
+];
+
+const DEFAULTS: [egui::Key; 10] = [
+    egui::Key::ArrowUp,
+    egui::Key::ArrowDown,
+    egui::Key::ArrowLeft,
+    egui::Key::ArrowRight,
+    egui::Key::Z,
+    egui::Key::X,
+    egui::Key::A,
+    egui::Key::S,
+    egui::Key::Enter,
+    egui::Key::Backspace,
+];
+
+pub(crate) struct KeyBindings {
+    keys: [egui::Key; 10],
 }
-fn key_name(k:egui::Key)->&'static str{match k{egui::Key::ArrowUp=>"ArrowUp",egui::Key::ArrowDown=>"ArrowDown",egui::Key::ArrowLeft=>"ArrowLeft",egui::Key::ArrowRight=>"ArrowRight",egui::Key::Enter=>"Enter",egui::Key::Backspace=>"Backspace",egui::Key::Space=>"Space",egui::Key::Tab=>"Tab",egui::Key::Escape=>"Escape",egui::Key::A=>"A",egui::Key::B=>"B",egui::Key::C=>"C",egui::Key::D=>"D",egui::Key::E=>"E",egui::Key::F=>"F",egui::Key::G=>"G",egui::Key::H=>"H",egui::Key::I=>"I",egui::Key::J=>"J",egui::Key::K=>"K",egui::Key::L=>"L",egui::Key::M=>"M",egui::Key::N=>"N",egui::Key::O=>"O",egui::Key::P=>"P",egui::Key::Q=>"Q",egui::Key::R=>"R",egui::Key::S=>"S",egui::Key::T=>"T",egui::Key::U=>"U",egui::Key::V=>"V",egui::Key::W=>"W",egui::Key::X=>"X",egui::Key::Y=>"Y",egui::Key::Z=>"Z",_=>"Unsupported"}}
-fn parse_key(v:&str)->Option<egui::Key>{Some(match v{"ArrowUp"=>egui::Key::ArrowUp,"ArrowDown"=>egui::Key::ArrowDown,"ArrowLeft"=>egui::Key::ArrowLeft,"ArrowRight"=>egui::Key::ArrowRight,"Enter"=>egui::Key::Enter,"Backspace"=>egui::Key::Backspace,"Space"=>egui::Key::Space,"Tab"=>egui::Key::Tab,"Escape"=>egui::Key::Escape,"A"=>egui::Key::A,"B"=>egui::Key::B,"C"=>egui::Key::C,"D"=>egui::Key::D,"E"=>egui::Key::E,"F"=>egui::Key::F,"G"=>egui::Key::G,"H"=>egui::Key::H,"I"=>egui::Key::I,"J"=>egui::Key::J,"K"=>egui::Key::K,"L"=>egui::Key::L,"M"=>egui::Key::M,"N"=>egui::Key::N,"O"=>egui::Key::O,"P"=>egui::Key::P,"Q"=>egui::Key::Q,"R"=>egui::Key::R,"S"=>egui::Key::S,"T"=>egui::Key::T,"U"=>egui::Key::U,"V"=>egui::Key::V,"W"=>egui::Key::W,"X"=>egui::Key::X,"Y"=>egui::Key::Y,"Z"=>egui::Key::Z,_=>return None})}
-#[cfg(test)]mod tests{use super::*;#[test]fn defaults_keep_existing_layout(){let b=KeyBindings{keys:DEFAULTS};assert_eq!(b.control(egui::Key::ArrowUp),Some(InputControl::Up));assert_eq!(b.control(egui::Key::Z),Some(InputControl::Action1));assert_eq!(b.control(egui::Key::Backspace),Some(InputControl::Select));}#[test]fn duplicate_key_is_rejected(){let mut b=KeyBindings{keys:DEFAULTS};assert_eq!(b.set(4,egui::Key::ArrowUp),Err(0));assert_eq!(b.control(egui::Key::Z),Some(InputControl::Action1));}#[test]fn reassignment_changes_runtime_mapping(){let mut b=KeyBindings{keys:DEFAULTS};b.set(4,egui::Key::Q).unwrap();assert_eq!(b.control(egui::Key::Q),Some(InputControl::Action1));assert_eq!(b.control(egui::Key::Z),None);}}
+
+impl KeyBindings {
+    pub(crate) fn load(config: Option<&Path>) -> Self {
+        let mut bindings = Self { keys: DEFAULTS };
+        let Some(path) = config
+            .and_then(Path::parent)
+            .map(|parent| parent.join("keybindings.conf"))
+        else {
+            return bindings;
+        };
+        let Ok(metadata) = fs::symlink_metadata(&path) else {
+            return bindings;
+        };
+        if !metadata.file_type().is_file() || metadata.len() > 4096 {
+            return bindings;
+        }
+        let Ok(contents) = fs::read_to_string(path) else {
+            return bindings;
+        };
+
+        for line in contents.lines() {
+            let Some((index, value)) = line.split_once('=') else {
+                continue;
+            };
+            let Ok(index) = index.parse::<usize>() else {
+                continue;
+            };
+            if index >= bindings.keys.len() {
+                continue;
+            }
+            let Some(key) = parse_key(value) else {
+                continue;
+            };
+            let duplicate = bindings
+                .keys
+                .iter()
+                .enumerate()
+                .any(|(other, existing)| other != index && *existing == key);
+            if !duplicate {
+                bindings.keys[index] = key;
+            }
+        }
+        bindings
+    }
+
+    pub(crate) fn set(&mut self, index: usize, key: egui::Key) -> Result<(), usize> {
+        if index >= self.keys.len() {
+            return Err(index);
+        }
+        if key_name(key) == "Unsupported" {
+            return Err(usize::MAX);
+        }
+        if let Some(other) = self.keys.iter().position(|existing| *existing == key) {
+            if other != index {
+                return Err(other);
+            }
+        }
+        self.keys[index] = key;
+        Ok(())
+    }
+
+    pub(crate) fn control(&self, key: egui::Key) -> Option<InputControl> {
+        self.keys
+            .iter()
+            .position(|candidate| *candidate == key)
+            .map(|index| match index {
+                0 => InputControl::Up,
+                1 => InputControl::Down,
+                2 => InputControl::Left,
+                3 => InputControl::Right,
+                4 => InputControl::Action1,
+                5 => InputControl::Action2,
+                6 => InputControl::Action3,
+                7 => InputControl::Action4,
+                8 => InputControl::Start,
+                _ => InputControl::Select,
+            })
+    }
+
+    pub(crate) fn reset(&mut self) {
+        self.keys = DEFAULTS;
+    }
+
+    pub(crate) fn label(&self, index: usize) -> String {
+        key_name(self.keys[index]).to_owned()
+    }
+
+    pub(crate) fn save(&self, config: Option<&Path>) -> std::io::Result<()> {
+        let directory = config
+            .and_then(Path::parent)
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "configuration directory unavailable",
+                )
+            })?;
+        fs::create_dir_all(directory)?;
+        let mut contents = String::from("# PeaceEmu keyboard bindings v1\n");
+        for (index, key) in self.keys.iter().enumerate() {
+            contents.push_str(&format!("{index}={}\n", key_name(*key)));
+        }
+        fs::write(directory.join("keybindings.conf"), contents)
+    }
+}
+
+fn key_name(key: egui::Key) -> &'static str {
+    match key {
+        egui::Key::ArrowUp => "ArrowUp",
+        egui::Key::ArrowDown => "ArrowDown",
+        egui::Key::ArrowLeft => "ArrowLeft",
+        egui::Key::ArrowRight => "ArrowRight",
+        egui::Key::Enter => "Enter",
+        egui::Key::Backspace => "Backspace",
+        egui::Key::Space => "Space",
+        egui::Key::Tab => "Tab",
+        egui::Key::Escape => "Escape",
+        egui::Key::A => "A",
+        egui::Key::B => "B",
+        egui::Key::C => "C",
+        egui::Key::D => "D",
+        egui::Key::E => "E",
+        egui::Key::F => "F",
+        egui::Key::G => "G",
+        egui::Key::H => "H",
+        egui::Key::I => "I",
+        egui::Key::J => "J",
+        egui::Key::K => "K",
+        egui::Key::L => "L",
+        egui::Key::M => "M",
+        egui::Key::N => "N",
+        egui::Key::O => "O",
+        egui::Key::P => "P",
+        egui::Key::Q => "Q",
+        egui::Key::R => "R",
+        egui::Key::S => "S",
+        egui::Key::T => "T",
+        egui::Key::U => "U",
+        egui::Key::V => "V",
+        egui::Key::W => "W",
+        egui::Key::X => "X",
+        egui::Key::Y => "Y",
+        egui::Key::Z => "Z",
+        _ => "Unsupported",
+    }
+}
+
+fn parse_key(value: &str) -> Option<egui::Key> {
+    Some(match value {
+        "ArrowUp" => egui::Key::ArrowUp,
+        "ArrowDown" => egui::Key::ArrowDown,
+        "ArrowLeft" => egui::Key::ArrowLeft,
+        "ArrowRight" => egui::Key::ArrowRight,
+        "Enter" => egui::Key::Enter,
+        "Backspace" => egui::Key::Backspace,
+        "Space" => egui::Key::Space,
+        "Tab" => egui::Key::Tab,
+        "Escape" => egui::Key::Escape,
+        "A" => egui::Key::A,
+        "B" => egui::Key::B,
+        "C" => egui::Key::C,
+        "D" => egui::Key::D,
+        "E" => egui::Key::E,
+        "F" => egui::Key::F,
+        "G" => egui::Key::G,
+        "H" => egui::Key::H,
+        "I" => egui::Key::I,
+        "J" => egui::Key::J,
+        "K" => egui::Key::K,
+        "L" => egui::Key::L,
+        "M" => egui::Key::M,
+        "N" => egui::Key::N,
+        "O" => egui::Key::O,
+        "P" => egui::Key::P,
+        "Q" => egui::Key::Q,
+        "R" => egui::Key::R,
+        "S" => egui::Key::S,
+        "T" => egui::Key::T,
+        "U" => egui::Key::U,
+        "V" => egui::Key::V,
+        "W" => egui::Key::W,
+        "X" => egui::Key::X,
+        "Y" => egui::Key::Y,
+        "Z" => egui::Key::Z,
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_keep_existing_layout() {
+        let bindings = KeyBindings { keys: DEFAULTS };
+        assert_eq!(
+            bindings.control(egui::Key::ArrowUp),
+            Some(InputControl::Up)
+        );
+        assert_eq!(
+            bindings.control(egui::Key::Z),
+            Some(InputControl::Action1)
+        );
+        assert_eq!(
+            bindings.control(egui::Key::Backspace),
+            Some(InputControl::Select)
+        );
+    }
+
+    #[test]
+    fn duplicate_key_is_rejected() {
+        let mut bindings = KeyBindings { keys: DEFAULTS };
+        assert_eq!(bindings.set(4, egui::Key::ArrowUp), Err(0));
+        assert_eq!(
+            bindings.control(egui::Key::Z),
+            Some(InputControl::Action1)
+        );
+    }
+
+    #[test]
+    fn reassignment_changes_runtime_mapping() {
+        let mut bindings = KeyBindings { keys: DEFAULTS };
+        bindings.set(4, egui::Key::Q).unwrap();
+        assert_eq!(
+            bindings.control(egui::Key::Q),
+            Some(InputControl::Action1)
+        );
+        assert_eq!(bindings.control(egui::Key::Z), None);
+    }
+}
