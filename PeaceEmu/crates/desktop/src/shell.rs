@@ -201,17 +201,20 @@ impl DesktopApp {
     }
 
     fn show_library_sidebar(&mut self, ui: &mut egui::Ui, palette: &Palette) {
-        let mut all = 0usize;
-        let mut game_boy = 0usize;
-        let mut nes = 0usize;
-        for entry in self.controller.library().entries() {
-            all += 1;
-            if LibraryFormat::GameBoy.matches(entry.path()) {
-                game_boy += 1;
-            }
-            if LibraryFormat::Nes.matches(entry.path()) {
-                nes += 1;
-            }
+        let entries: Vec<_> = self.controller.library().entries().collect();
+        let all = entries.len();
+        let installed_formats = self.installed_library_formats();
+        let mut categories = vec![(
+            LibraryFormat::All,
+            self.language_pack.text("ui.shell.005"),
+            all,
+        )];
+        for format in installed_formats {
+            let count = entries.iter().filter(|entry| format.matches(entry.path())).count();
+            categories.push((format, format.label(self.language == "fr"), count));
+        }
+        if !categories.iter().any(|(format, _, _)| *format == self.library_format) {
+            self.library_format = LibraryFormat::All;
         }
         ui.label(
             egui::RichText::new(self.language_pack.text("ui.shell.003"))
@@ -225,19 +228,7 @@ impl DesktopApp {
         );
         ui.add_space(8.0);
         ui.spacing_mut().item_spacing.y = 2.0;
-        for (format, label, count) in [
-            (
-                LibraryFormat::All,
-                self.language_pack.text("ui.shell.005"),
-                all,
-            ),
-            (
-                LibraryFormat::GameBoy,
-                "Game Boy (GB / GBC / GBA)",
-                game_boy,
-            ),
-            (LibraryFormat::Nes, "Nintendo (NES)", nes),
-        ] {
+        for (format, label, count) in categories {
             if theme::nav_item(
                 ui,
                 palette,
@@ -266,23 +257,22 @@ impl DesktopApp {
         );
         ui.add_space(8.0);
         ui.spacing_mut().item_spacing.y = 2.0;
-        for (section, label, icon) in [
+        let mut sections = vec![
             (
                 SettingsSection::Appearance,
                 self.language_pack.text("ui.shell.008"),
                 Icon::Settings,
             ),
-            (
-                SettingsSection::Controls,
-                if self.language == "fr" {
-                    "Commandes"
-                } else {
-                    "Controls"
-                },
-                Icon::Game,
-            ),
             (SettingsSection::Application, "Application", Icon::Systems),
-        ] {
+        ];
+        if !self.installed_module_ids().is_empty() {
+            sections.insert(1, (
+                SettingsSection::Controls,
+                if self.language == "fr" { "Commandes par console" } else { "Console controls" },
+                Icon::Game,
+            ));
+        }
+        for (section, label, icon) in sections {
             if theme::nav_item(
                 ui,
                 palette,
