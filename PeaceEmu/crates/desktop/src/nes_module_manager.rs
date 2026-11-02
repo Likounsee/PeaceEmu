@@ -490,7 +490,7 @@ mod tests {
         assert_eq!(remove_installed_versions(&root).unwrap(), 2);
         assert!(!old.exists());
         assert!(!current.exists());
-        assert_eq!(fs::read(keep.join("notes.txt")).unwrap(), b"user data");
+        assert_eq!(fs::read(keep.join("notes.txt")).unwrap(), b"user data".to_vec());
         fs::remove_dir_all(root).unwrap();
     }
 
