@@ -5,7 +5,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use ureq::ResponseExt;
 
@@ -155,6 +155,61 @@ fn parse_version_component(component: &str) -> Option<u64> {
         return None;
     }
     component.parse().ok()
+}
+
+/// Returns module IDs that can actually be installed on this host and app version.
+pub(crate) fn available_module_ids() -> Vec<String> {
+    let Ok(module) = nes_module_descriptor() else {
+        return Vec::new();
+    };
+    let platform = current_platform_id();
+    let app_version = parse_semver(env!("CARGO_PKG_VERSION"));
+    let minimum_version = parse_semver(&module.minimum_peaceemu_version);
+    match (app_version, minimum_version) {
+        (Some(app), Some(minimum))
+            if module.platforms.iter().any(|supported| supported == platform)
+                && app >= minimum => vec![module.id],
+        _ => Vec::new(),
+    }
+}
+
+/// Removes only versioned NES module package directories. User data lives elsewhere.
+pub(crate) fn uninstall_all() -> Result<usize, String> {
+    let root = module_root()?;
+    remove_installed_versions(&root)
+}
+
+fn remove_installed_versions(root: &Path) -> Result<usize, String> {
+    let metadata = match fs::symlink_metadata(root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(format!("Could not inspect NES module directory: {error}")),
+    };
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err("NES module path is not a safe, regular directory.".to_owned());
+    }
+
+    let entries = fs::read_dir(root)
+        .map_err(|error| format!("Could not list installed NES modules: {error}"))?;
+    let mut removed = 0usize;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("Could not inspect NES module entry: {error}"))?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if version_number(name).is_none() {
+            continue;
+        }
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("Could not inspect installed NES package: {error}"))?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            continue;
+        }
+        fs::remove_dir_all(&path)
+            .map_err(|error| format!("Could not uninstall NES package {}: {error}", path.display()))?;
+        removed += 1;
+    }
+    Ok(removed)
 }
 
 /// Returns the newest installed NES executable whose persisted digest still matches.
@@ -414,6 +469,52 @@ fn download_asset(agent: &ureq::Agent, url: &str, maximum: u64) -> Result<Vec<u8
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn uninstall_removes_only_versioned_module_directories() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock must be valid")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("peaceemu-nes-uninstall-{nonce}"));
+        let old = root.join("nes-module-0.1.0");
+        let current = root.join("nes-module-0.2.3");
+        let keep = root.join("manual-files");
+        fs::create_dir_all(&old).unwrap();
+        fs::create_dir_all(&current).unwrap();
+        fs::create_dir_all(&keep).unwrap();
+        fs::write(old.join(EXE_NAME), b"old module").unwrap();
+        fs::write(current.join(EXE_NAME), b"current module").unwrap();
+        fs::write(keep.join("notes.txt"), b"user data").unwrap();
+
+        assert_eq!(remove_installed_versions(&root).unwrap(), 2);
+        assert!(!old.exists());
+        assert!(!current.exists());
+        assert_eq!(fs::read(keep.join("notes.txt")).unwrap(), b"user data");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn uninstall_of_a_missing_module_directory_is_idempotent() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock must be valid")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("peaceemu-nes-uninstall-missing-{nonce}"));
+        assert_eq!(remove_installed_versions(&root).unwrap(), 0);
+    }
+
+    #[test]
+    fn catalogue_availability_matches_the_current_host_target() {
+        let available = available_module_ids();
+        if current_platform_id() == "windows-x86_64"
+            && env!("CARGO_PKG_VERSION") >= "0.2.3"
+        {
+            assert!(available.iter().any(|id| id == "nes"));
+        } else {
+            assert!(!available.iter().any(|id| id == "nes"));
+        }
+    }
 
     #[test]
     fn installed_module_checksum_must_match_the_binary() {
