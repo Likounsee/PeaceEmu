@@ -27,7 +27,8 @@ const DEFAULTS: [egui::Key; 10] = [
     egui::Key::A,
     egui::Key::S,
     egui::Key::Enter,
-    egui::Key::Backspace,
+    // Space is reliably delivered as a normal key event by egui in the game viewport.
+    egui::Key::Space,
 ];
 
 pub(crate) struct KeyBindings {
@@ -291,7 +292,7 @@ mod tests {
         assert_eq!(bindings.control(egui::Key::ArrowUp), Some(InputControl::Up));
         assert_eq!(bindings.control(egui::Key::Z), Some(InputControl::Action1));
         assert_eq!(
-            bindings.control(egui::Key::Backspace),
+            bindings.control(egui::Key::Space),
             Some(InputControl::Select)
         );
     }
