@@ -19,6 +19,7 @@ use host_app::controller::{ApplicationController, SessionCommand};
 use preferences::{config_file_path, load_preferences, write_preferences_with_language};
 
 mod appearance_page;
+mod controls_page;
 mod audio_output;
 mod game_covers;
 mod game_names;
