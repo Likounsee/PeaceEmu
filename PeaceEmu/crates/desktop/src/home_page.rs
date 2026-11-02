@@ -57,7 +57,7 @@ impl DesktopApp {
                 self.language_pack.text("ui.home_page.010"),
             ),
             (
-                if french { "SESSIONS" } else { "SESSIONS" },
+                "SESSIONS",
                 self.controller.session_count().to_string(),
                 self.language_pack.text("ui.home_page.011"),
             ),

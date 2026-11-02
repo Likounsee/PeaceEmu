@@ -306,7 +306,7 @@ impl DesktopApp {
 
         ui.add_space(14.0);
         ui.label(
-            egui::RichText::new(if french { "MODULES" } else { "MODULES" })
+            egui::RichText::new("MODULES")
                 .strong()
                 .size(13.0),
         );
@@ -366,19 +366,19 @@ impl DesktopApp {
                             if is_installed {
                                 status_badge(
                                     ui,
-                                    &if french { "Installé" } else { "Installed" },
+                                    if french { "Installé" } else { "Installed" },
                                     palette.success,
                                 );
                             } else if is_available {
                                 status_badge(
                                     ui,
-                                    &if french { "Disponible" } else { "Available" },
+                                    if french { "Disponible" } else { "Available" },
                                     palette.accent,
                                 );
                             } else {
                                 status_badge(
                                     ui,
-                                    &if french {
+                                    if french {
                                         "Indisponible"
                                     } else {
                                         "Unavailable"
@@ -389,7 +389,7 @@ impl DesktopApp {
                             if is_bundled {
                                 status_badge(
                                     ui,
-                                    &if french { "Inclus" } else { "Built in" },
+                                    if french { "Inclus" } else { "Built in" },
                                     palette.accent,
                                 );
                             }
@@ -400,8 +400,8 @@ impl DesktopApp {
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if id == "nes" {
-                            if is_installed {
-                                if ui
+                            if is_installed
+                                && ui
                                     .add_enabled(
                                         !self.nes_installing && !self.nes_uninstalling,
                                         egui::Button::new(if french {
@@ -411,9 +411,8 @@ impl DesktopApp {
                                         }),
                                     )
                                     .clicked()
-                                {
-                                    self.nes_uninstall_confirm_open = true;
-                                }
+                            {
+                                self.nes_uninstall_confirm_open = true;
                             }
                             let label = if self.nes_installing {
                                 if french {
@@ -455,7 +454,7 @@ impl DesktopApp {
                         } else if is_bundled {
                             status_badge(
                                 ui,
-                                &if french {
+                                if french {
                                     "Prêt à l’emploi"
                                 } else {
                                     "Ready to use"
