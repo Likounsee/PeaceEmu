@@ -383,11 +383,15 @@ impl DesktopApp {
             egui::ComboBox::from_id_source("library_format_filter")
                 .selected_text(self.library_format.label(french))
                 .show_ui(ui, |ui| {
-                    for format in [
+                    if !self.installed_library_formats().contains(&self.library_format) {
+                        self.library_format = LibraryFormat::All;
+                    }
+                    ui.selectable_value(
+                        &mut self.library_format,
                         LibraryFormat::All,
-                        LibraryFormat::GameBoy,
-                        LibraryFormat::Nes,
-                    ] {
+                        LibraryFormat::All.label(french),
+                    );
+                    for format in self.installed_library_formats() {
                         ui.selectable_value(&mut self.library_format, format, format.label(french));
                     }
                 });
