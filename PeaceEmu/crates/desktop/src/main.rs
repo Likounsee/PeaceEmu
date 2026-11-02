@@ -2381,6 +2381,8 @@ mod preference_tests {
         assert!(LibraryFormat::GameBoy.matches(Path::new("Pokemon.GbC")));
         assert!(LibraryFormat::GameBoy.matches(Path::new("Pokemon.GBA")));
         assert!(!LibraryFormat::GameBoy.matches(Path::new("Pokemon.zip")));
+        assert_eq!(LibraryFormat::Nes.label(true), "Nintendo (NES)");
+        assert_eq!(LibraryFormat::Nes.label(false), "Nintendo (NES)");
         assert!(LibraryFormat::Nes.matches(Path::new("Super-Mario.nes")));
         assert!(LibraryFormat::Nes.matches(Path::new("Zelda.NES")));
         assert!(!LibraryFormat::Nes.matches(Path::new("Super-Mario.zip")));
