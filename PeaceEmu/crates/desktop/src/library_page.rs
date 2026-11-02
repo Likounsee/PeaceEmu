@@ -383,7 +383,10 @@ impl DesktopApp {
             egui::ComboBox::from_id_source("library_format_filter")
                 .selected_text(self.library_format.label(french))
                 .show_ui(ui, |ui| {
-                    if !self.installed_library_formats().contains(&self.library_format) {
+                    if !self
+                        .installed_library_formats()
+                        .contains(&self.library_format)
+                    {
                         self.library_format = LibraryFormat::All;
                     }
                     ui.selectable_value(
