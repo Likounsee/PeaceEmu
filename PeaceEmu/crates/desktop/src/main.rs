@@ -2478,6 +2478,11 @@ mod preference_tests {
         assert!(LibraryFormat::Nes.matches(Path::new("Zelda.NES")));
         assert!(!LibraryFormat::Nes.matches(Path::new("Super-Mario.zip")));
         assert!(LibraryFormat::All.matches(Path::new("archive.zip")));
+        assert_eq!(LibraryFormat::GameBoy.module_id(), Some("game-boy"));
+        assert_eq!(LibraryFormat::Nes.module_id(), Some("nes"));
+        assert_eq!(LibraryFormat::for_path(Path::new("pokemon.GBC")), Some(LibraryFormat::GameBoy));
+        assert_eq!(LibraryFormat::for_path(Path::new("mario.NES")), Some(LibraryFormat::Nes));
+        assert_eq!(LibraryFormat::for_path(Path::new("archive.zip")), None);
     }
 
     #[test]
