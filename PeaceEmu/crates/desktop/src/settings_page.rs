@@ -92,7 +92,8 @@ impl DesktopApp {
         let config_path = self.config_path.clone();
         for module_id in installed {
             if !self.key_bindings.contains_key(&module_id) {
-                let bindings = key_bindings::KeyBindings::load(config_path.as_deref(), &module_id);
+                let bindings =
+                    key_bindings::KeyBindings::load(config_path.as_deref(), &module_id);
                 self.key_bindings.insert(module_id.clone(), bindings);
             }
 
@@ -104,9 +105,12 @@ impl DesktopApp {
                     .filter(|part| !part.is_empty())
                     .map(|part| {
                         let mut chars = part.chars();
-                        chars.next().map(|first| {
-                            first.to_uppercase().collect::<String>() + chars.as_str()
-                        }).unwrap_or_default()
+                        chars
+                            .next()
+                            .map(|first| {
+                                first.to_uppercase().collect::<String>() + chars.as_str()
+                            })
+                            .unwrap_or_default()
                     })
                     .collect::<Vec<_>>()
                     .join(" "),
@@ -130,14 +134,22 @@ impl DesktopApp {
                         for (index, (fr, en)) in key_bindings::ACTIONS.iter().enumerate() {
                             ui.horizontal(|ui| {
                                 ui.label(if french { *fr } else { *en });
-                                let is_capturing = self.binding_capture.as_ref()
+                                let is_capturing = self
+                                    .binding_capture
+                                    .as_ref()
                                     .is_some_and(|(capturing_id, capturing_index)| {
                                         capturing_id == &module_id && *capturing_index == index
                                     });
                                 let label = if is_capturing {
-                                    if french { "Appuyez sur une touche…" } else { "Press a key…" }.to_owned()
+                                    if french {
+                                        "Appuyez sur une touche…"
+                                    } else {
+                                        "Press a key…"
+                                    }
+                                    .to_owned()
                                 } else {
-                                    self.key_bindings.get(&module_id)
+                                    self.key_bindings
+                                        .get(&module_id)
                                         .map(|bindings| bindings.label(index))
                                         .unwrap_or_default()
                                 };
@@ -148,14 +160,23 @@ impl DesktopApp {
                         }
 
                         ui.horizontal(|ui| {
-                            if ui.button(if french { "Réinitialiser" } else { "Restore defaults" }).clicked() {
+                            if ui
+                                .button(if french {
+                                    "Réinitialiser"
+                                } else {
+                                    "Restore defaults"
+                                })
+                                .clicked()
+                            {
                                 if let Some(bindings) = self.key_bindings.get_mut(&module_id) {
                                     bindings.reset();
                                 }
                                 self.binding_capture = None;
                                 self.persist_key_bindings(&module_id);
                             }
-                            let capturing_this_module = self.binding_capture.as_ref()
+                            let capturing_this_module = self
+                                .binding_capture
+                                .as_ref()
                                 .is_some_and(|(capturing_id, _)| capturing_id == &module_id);
                             if capturing_this_module
                                 && ui.button(if french { "Annuler" } else { "Cancel" }).clicked()
@@ -184,7 +205,8 @@ impl DesktopApp {
         }
 
         if let Some((module_id, index, key)) = captured {
-            let result = self.key_bindings
+            let result = self
+                .key_bindings
                 .get_mut(&module_id)
                 .ok_or(usize::MAX)
                 .and_then(|bindings| bindings.set(index, key));
@@ -196,9 +218,15 @@ impl DesktopApp {
                 Err(other) => {
                     self.message = if other < key_bindings::ACTIONS.len() {
                         if french {
-                            format!("Touche déjà utilisée par {}.", key_bindings::ACTIONS[other].0)
+                            format!(
+                                "Touche déjà utilisée par {}.",
+                                key_bindings::ACTIONS[other].0
+                            )
                         } else {
-                            format!("Key already assigned to {}.", key_bindings::ACTIONS[other].1)
+                            format!(
+                                "Key already assigned to {}.",
+                                key_bindings::ACTIONS[other].1
+                            )
                         }
                     } else if french {
                         "Cette touche n’est pas prise en charge.".to_owned()
