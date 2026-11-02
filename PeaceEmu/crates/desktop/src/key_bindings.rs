@@ -7,7 +7,7 @@ const DEFAULTS:[egui::Key;10]=[egui::Key::ArrowUp,egui::Key::ArrowDown,egui::Key
 pub(crate) struct KeyBindings{keys:[egui::Key;10]}
 impl KeyBindings{
 pub(crate) fn load(config:Option<&Path>)->Self{let mut b=Self{keys:DEFAULTS};let Some(path)=config.and_then(Path::parent).map(|p|p.join("keybindings.conf"))else{return b};let Ok(meta)=fs::symlink_metadata(&path)else{return b};if !meta.file_type().is_file()||meta.len()>4096{return b}let Ok(data)=fs::read_to_string(path)else{return b};for line in data.lines(){if let Some((i,v))=line.split_once('='){if let Ok(i)=i.parse::<usize>(){if i<10{if let Some(k)=parse_key(v){if !b.keys.iter().enumerate().any(|(j,x)|j!=i&&*x==k){b.keys[i]=k}}}}}}b}
-pub(crate) fn set(&mut self,i:usize,k:egui::Key)->Result<(),usize>{if i>=10{return Err(i)}if let Some(j)=self.keys.iter().position(|x|*x==k){if j!=i{return Err(j)}}self.keys[i]=k;Ok(())}
+pub(crate) fn set(&mut self,i:usize,k:egui::Key)->Result<(),usize>{if i>=10{return Err(i)}if key_name(k)=="Unsupported"{return Err(usize::MAX)}if let Some(j)=self.keys.iter().position(|x|*x==k){if j!=i{return Err(j)}}self.keys[i]=k;Ok(())}
 pub(crate) fn control(&self,k:egui::Key)->Option<InputControl>{self.keys.iter().position(|x|*x==k).map(|i|match i{0=>InputControl::Up,1=>InputControl::Down,2=>InputControl::Left,3=>InputControl::Right,4=>InputControl::Action1,5=>InputControl::Action2,6=>InputControl::Action3,7=>InputControl::Action4,8=>InputControl::Start,_=>InputControl::Select})}
 pub(crate) fn reset(&mut self){self.keys=DEFAULTS}
 pub(crate) fn label(&self,i:usize)->String{key_name(self.keys[i]).to_owned()}
