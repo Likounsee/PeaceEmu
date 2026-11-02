@@ -51,11 +51,16 @@ fn keycap(
             palette.text,
         )
     };
-    let button = egui::Button::new(egui::RichText::new(text).monospace().size(13.0).color(color))
-        .fill(fill)
-        .stroke(stroke)
-        .rounding(egui::Rounding::same(8.0))
-        .min_size(egui::vec2(150.0, 32.0));
+    let button = egui::Button::new(
+        egui::RichText::new(text)
+            .monospace()
+            .size(13.0)
+            .color(color),
+    )
+    .fill(fill)
+    .stroke(stroke)
+    .rounding(egui::Rounding::same(8.0))
+    .min_size(egui::vec2(150.0, 32.0));
     ui.add(button)
         .on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -96,7 +101,7 @@ impl DesktopApp {
         let stored: Option<String> = ui.data_mut(|data| data.get_temp(selection_id));
         let mut selected = match stored {
             Some(id) if installed.contains(&id) => id,
-            _ => installed[0].clone(),
+            _ => installed.iter().next().cloned().unwrap_or_default(),
         };
 
         // ------------------------------------------------------ console tabs
@@ -174,25 +179,22 @@ impl DesktopApp {
                     let (fr, en) = key_bindings::ACTIONS[index];
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(if french { fr } else { en }).size(14.0));
-                        ui.with_layout(
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                let is_capturing = capturing == Some(index);
-                                let text: String = if is_capturing {
-                                    (if french {
-                                        "Appuyez sur une touche…"
-                                    } else {
-                                        "Press a key…"
-                                    })
-                                    .to_owned()
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let is_capturing = capturing == Some(index);
+                            let text: String = if is_capturing {
+                                (if french {
+                                    "Appuyez sur une touche…"
                                 } else {
-                                    labels.get(index).cloned().unwrap_or_default()
-                                };
-                                if keycap(ui, &palette, &text, is_capturing).clicked() {
-                                    clicked = Some(index);
-                                }
-                            },
-                        );
+                                    "Press a key…"
+                                })
+                                .to_owned()
+                            } else {
+                                labels.get(index).cloned().unwrap_or_default()
+                            };
+                            if keycap(ui, &palette, &text, is_capturing).clicked() {
+                                clicked = Some(index);
+                            }
+                        });
                     });
                 }
             }
