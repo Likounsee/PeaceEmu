@@ -58,8 +58,42 @@ impl DesktopApp {
     pub(super) fn show_settings(&mut self, ui: &mut egui::Ui, context: &egui::Context) {
         match self.settings_section {
             SettingsSection::Appearance => self.show_appearance(ui),
+            SettingsSection::Controls => self.show_controls(ui),
             SettingsSection::Application => self.show_application_settings(ui, context),
         }
+    }
+
+    fn show_controls(&mut self, ui: &mut egui::Ui) {
+        let palette = theme::Palette::new(self.dark_mode, self.accent_color);
+        let french = self.language == "fr";
+        ui.heading(if french { "Commandes clavier" } else { "Keyboard controls" });
+        ui.label(if french { "Sélectionnez une action, puis appuyez sur la touche à lui attribuer." } else { "Select an action, then press the key you want to assign." });
+        let mut captured = None;
+        if let Some(index) = self.binding_capture {
+            for event in ui.input(|input| input.events.clone()) {
+                if let egui::Event::Key { key, pressed: true, repeat: false, .. } = event { captured = Some((index,key)); break; }
+            }
+        }
+        egui::Frame::group(ui.style()).show(ui, |ui| {
+            for (index,(fr,en)) in key_bindings::ACTIONS.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(if french { *fr } else { *en });
+                    let label = if self.binding_capture == Some(index) { if french { "Appuyez sur une touche…" } else { "Press a key…" }.to_owned() } else { self.key_bindings.label(index) };
+                    if ui.button(label).clicked() { self.binding_capture=Some(index); }
+                });
+            }
+            ui.horizontal(|ui| {
+                if ui.button(if french { "Réinitialiser" } else { "Restore defaults" }).clicked() { self.key_bindings.reset(); self.binding_capture=None; self.persist_key_bindings(); }
+                if self.binding_capture.is_some() && ui.button(if french { "Annuler" } else { "Cancel" }).clicked() { self.binding_capture=None; }
+            });
+        });
+        if let Some((index,key))=captured {
+            match self.key_bindings.set(index,key) {
+                Ok(())=>{self.binding_capture=None;self.persist_key_bindings();}
+                Err(other)=>{self.message=if french {format!("Touche déjà utilisée par {}.",key_bindings::ACTIONS[other].0)} else {format!("Key already assigned to {}.",key_bindings::ACTIONS[other].1)};self.binding_capture=None;}
+            }
+        }
+        ui.label(egui::RichText::new(if french { "Les réglages sont enregistrés localement et appliqués aux fenêtres de jeu." } else { "Bindings are saved locally and apply to game windows." }).small().color(palette.text_dim));
     }
 
     fn show_application_settings(&mut self, ui: &mut egui::Ui, context: &egui::Context) {
