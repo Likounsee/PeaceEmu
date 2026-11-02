@@ -4,7 +4,7 @@
 //! own sessions, schedule execution, or assume that any particular core emits media.
 
 use eframe::egui;
-use emulation_core::core_io::{InputControl, PixelFormat, VideoFrame};
+use emulation_core::core_io::{PixelFormat, VideoFrame};
 
 /// Converts a validated runtime video frame into a packed egui image.
 ///
