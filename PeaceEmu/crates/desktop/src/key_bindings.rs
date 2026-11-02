@@ -94,6 +94,26 @@ impl KeyBindings {
         Ok(())
     }
 
+    /// Assigns `key` to the action at `index`. When another action already
+    /// uses that key, the two actions swap keys instead of refusing.
+    ///
+    /// Returns the other action when a swap happened. The error value is the
+    /// same as [`KeyBindings::set`]: `usize::MAX` for an unsupported key.
+    pub(crate) fn assign_or_swap(
+        &mut self,
+        index: usize,
+        key: egui::Key,
+    ) -> Result<Option<usize>, usize> {
+        match self.set(index, key) {
+            Ok(()) => Ok(None),
+            Err(other) if other < self.keys.len() => {
+                self.keys.swap(index, other);
+                Ok(Some(other))
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     pub(crate) fn control(&self, key: egui::Key) -> Option<InputControl> {
         self.keys
             .iter()
@@ -120,6 +140,22 @@ impl KeyBindings {
         key_name(self.keys[index]).to_owned()
     }
 
+    /// Human-readable key name for the settings page: arrows as symbols and
+    /// translated names for the common special keys.
+    pub(crate) fn display_label(&self, index: usize, french: bool) -> String {
+        match self.keys[index] {
+            egui::Key::ArrowUp => "↑".to_owned(),
+            egui::Key::ArrowDown => "↓".to_owned(),
+            egui::Key::ArrowLeft => "←".to_owned(),
+            egui::Key::ArrowRight => "→".to_owned(),
+            egui::Key::Enter if french => "Entrée".to_owned(),
+            egui::Key::Backspace if french => "Retour arrière".to_owned(),
+            egui::Key::Space if french => "Espace".to_owned(),
+            egui::Key::Escape if french => "Échap".to_owned(),
+            _ => self.label(index),
+        }
+    }
+
     pub(crate) fn save(&self, config: Option<&Path>, module_id: &str) -> std::io::Result<()> {
         let directory = config.and_then(Path::parent).ok_or_else(|| {
             std::io::Error::new(
@@ -139,7 +175,12 @@ impl KeyBindings {
         for (index, key) in self.keys.iter().enumerate() {
             contents.push_str(&format!("{index}={}\n", key_name(*key)));
         }
-        fs::write(directory.join(format!("{module_id}.conf")), contents)
+        // Write to a temporary file first so a crash cannot leave a truncated
+        // mapping behind.
+        let target = directory.join(format!("{module_id}.conf"));
+        let temporary = directory.join(format!("{module_id}.conf.tmp"));
+        fs::write(&temporary, contents)?;
+        fs::rename(&temporary, &target)
     }
 }
 
@@ -259,6 +300,27 @@ mod tests {
     fn duplicate_key_is_rejected() {
         let mut bindings = KeyBindings { keys: DEFAULTS };
         assert_eq!(bindings.set(4, egui::Key::ArrowUp), Err(0));
+        assert_eq!(bindings.control(egui::Key::Z), Some(InputControl::Action1));
+    }
+
+    #[test]
+    fn duplicate_key_is_swapped_by_assign_or_swap() {
+        let mut bindings = KeyBindings { keys: DEFAULTS };
+        assert_eq!(bindings.assign_or_swap(4, egui::Key::ArrowUp), Ok(Some(0)));
+        assert_eq!(
+            bindings.control(egui::Key::ArrowUp),
+            Some(InputControl::Action1)
+        );
+        assert_eq!(bindings.control(egui::Key::Z), Some(InputControl::Up));
+    }
+
+    #[test]
+    fn assign_or_swap_rejects_unsupported_keys() {
+        let mut bindings = KeyBindings { keys: DEFAULTS };
+        assert_eq!(
+            bindings.assign_or_swap(4, egui::Key::F1),
+            Err(usize::MAX)
+        );
         assert_eq!(bindings.control(egui::Key::Z), Some(InputControl::Action1));
     }
 
