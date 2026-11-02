@@ -76,7 +76,7 @@ fn persist_nes_install_state(version: Option<&str>) -> Result<(), String> {
         let selected = state
             .selected_modules()
             .iter()
-            .filter(|selected| **selected != id)
+            .filter(|selected| *selected != &id)
             .cloned()
             .collect::<Vec<_>>();
         state.set_selection(selected);
@@ -232,15 +232,12 @@ impl DesktopApp {
             } else {
                 BTreeSet::new()
             };
-        let installed_recorded: BTreeSet<String> = state
-            .installed_modules()
-            .iter()
-            .map(|module| module.id.as_str().to_owned())
-            .collect();
+        // A persisted record alone is not proof that package files still exist.
+        // The external NES executable is verified by its SHA-256 marker above;
+        // built-in cores are supplied by this running application.
         let installed_ids: BTreeSet<String> = registered
-            .union(&installed_recorded)
+            .union(&installed_external)
             .cloned()
-            .chain(installed_external.iter().cloned())
             .collect();
         let available_ids: BTreeSet<String> = registered
             .union(&catalogue_available)
@@ -342,10 +339,13 @@ impl DesktopApp {
             } else {
                 None
             };
-            let installed_version = state
-                .installed_version(&module_id)
-                .map(str::to_owned)
-                .or_else(|| nes_executable.as_ref().and_then(|path| version_from_installed_path(path)));
+            let installed_version = if id == "nes" {
+                nes_executable
+                    .as_ref()
+                    .and_then(|path| version_from_installed_path(path))
+            } else {
+                state.installed_version(&module_id).map(str::to_owned)
+            };
             let is_installed = is_bundled || installed_version.is_some();
             let is_available = available_ids.contains(&id);
             let display_name = module_display_name(&id);
