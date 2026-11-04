@@ -155,6 +155,24 @@ impl KeyBindings {
             })
     }
 
+    pub(crate) fn control_for_virtual_key(&self, virtual_key: i32) -> Option<InputControl> {
+        self.keys
+            .iter()
+            .position(|key| windows_virtual_key(*key) == virtual_key)
+            .map(|index| match index {
+                0 => InputControl::Up,
+                1 => InputControl::Down,
+                2 => InputControl::Left,
+                3 => InputControl::Right,
+                4 => InputControl::Action1,
+                5 => InputControl::Action2,
+                6 => InputControl::Action3,
+                7 => InputControl::Action4,
+                8 => InputControl::Start,
+                _ => InputControl::Select,
+            })
+    }
+
     /// Returns the Windows virtual-key codes expected by the standalone NES module,
     /// in its hardware order: A, B, Select, Start, Up, Down, Left, Right.
     pub(crate) fn nes_virtual_key_codes(&self) -> [i32; 8] {
