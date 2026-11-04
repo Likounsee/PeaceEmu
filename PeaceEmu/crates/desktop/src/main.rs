@@ -113,6 +113,30 @@ fn cli_message(argument: &str) -> Result<&'static str, String> {
     }
 }
 
+/// Keeps a press/release pair from the same host tick visible for at least one emulated frame.
+fn split_same_frame_taps(
+    events: impl IntoIterator<Item = (InputControl, bool)>,
+) -> (Vec<(InputControl, bool)>, Vec<InputControl>) {
+    let mut immediate = Vec::new();
+    let mut pressed_this_batch = Vec::new();
+    let mut deferred_releases = Vec::new();
+    for (control, pressed) in events {
+        if pressed {
+            immediate.push((control, true));
+            if !pressed_this_batch.contains(&control) {
+                pressed_this_batch.push(control);
+            }
+        } else if pressed_this_batch.contains(&control) {
+            if !deferred_releases.contains(&control) {
+                deferred_releases.push(control);
+            }
+        } else {
+            immediate.push((control, false));
+        }
+    }
+    (immediate, deferred_releases)
+}
+
 fn clear_tick_error_for_session<Id: Copy + PartialEq>(errors: &mut Vec<(Id, String)>, id: Id) {
     errors.retain(|(error_id, _)| *error_id != id);
 }
@@ -213,6 +237,7 @@ struct DesktopApp {
     display_name_edit: String,
     key_bindings: HashMap<String, key_bindings::KeyBindings>,
     binding_capture: Option<(String, usize)>,
+    pending_input_releases: Vec<InputControl>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -456,6 +481,7 @@ impl DesktopApp {
             display_name_edit: String::new(),
             key_bindings,
             binding_capture: None,
+            pending_input_releases: Vec::new(),
         };
         // Check the official stable manifest without blocking the first window render.
         // The user can still trigger another check from Settings after this completes.
@@ -1675,9 +1701,7 @@ impl DesktopApp {
                 self.message = format!("Could not release game inputs: {error}");
             }
         } else {
-            for (control, pressed) in input_events {
-                self.send_game_input(control, pressed);
-            }
+            self.send_game_input_events(input_events);
         }
         if close_requested {
             self.game_window_open = false;
@@ -1698,28 +1722,28 @@ impl DesktopApp {
 
         if self.active_page == DesktopPage::Game && !self.game_window_open {
             let events = context.input(|input| input.events.clone());
+            let mut input_events = Vec::new();
+            let mut lost_focus = false;
             for event in events {
                 match event {
-                    egui::Event::Key {
-                        key,
-                        pressed,
-                        repeat,
-                        ..
-                    } => {
+                    egui::Event::Key { key, pressed, repeat, .. } => {
                         if repeat && pressed {
                             continue;
                         }
                         if let Some(control) = self.control_for_active_session(key) {
-                            self.send_game_input(control, pressed);
+                            input_events.push((control, pressed));
                         }
                     }
-                    egui::Event::WindowFocused(false) => {
-                        if let Err(error) = self.release_game_inputs() {
-                            self.message = error;
-                        }
-                    }
+                    egui::Event::WindowFocused(false) => lost_focus = true,
                     _ => {}
                 }
+            }
+            if lost_focus {
+                if let Err(error) = self.release_game_inputs() {
+                    self.message = error;
+                }
+            } else {
+                self.send_game_input_events(input_events);
             }
         }
 
@@ -1757,6 +1781,10 @@ impl DesktopApp {
                 return;
             }
         };
+        // Deliver a deferred key-up only after the core has produced a new frame.
+        if update.newest_frame.is_some() {
+            self.flush_pending_input_releases();
+        }
         let state = update.state;
         let video_available = update.video_available;
         let audio_available = update.audio_available;
@@ -1832,6 +1860,20 @@ impl DesktopApp {
         }
     }
 
+    fn send_game_input_events(&mut self, events: Vec<(InputControl, bool)>) {
+        let (immediate, deferred_releases) = split_same_frame_taps(events);
+        for (control, pressed) in immediate {
+            self.send_game_input(control, pressed);
+        }
+        self.pending_input_releases.extend(deferred_releases);
+    }
+
+    fn flush_pending_input_releases(&mut self) {
+        for control in std::mem::take(&mut self.pending_input_releases) {
+            self.send_game_input(control, false);
+        }
+    }
+
     fn send_game_input(&mut self, control: InputControl, pressed: bool) {
         let Some(id) = self.controller.active_session() else {
             return;
@@ -1852,6 +1894,7 @@ impl DesktopApp {
     }
 
     fn release_game_inputs(&mut self) -> Result<(), String> {
+        self.pending_input_releases.clear();
         // Multiple sessions may have received input before another session was
         // selected. Release every session, not only the currently selected one,
         // before closing the runtime or switching away from emulation.
@@ -2620,5 +2663,34 @@ mod preference_tests {
         };
         assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
         fs::remove_dir_all(root).unwrap();
+    }
+}
+
+
+#[cfg(test)]
+mod input_event_tests {
+    use super::*;
+
+    #[test]
+    fn same_batch_tap_keeps_press_until_after_one_frame() {
+        let (immediate, deferred) = split_same_frame_taps([
+            (InputControl::Select, true),
+            (InputControl::Select, false),
+        ]);
+        assert_eq!(immediate, vec![(InputControl::Select, true)]);
+        assert_eq!(deferred, vec![InputControl::Select]);
+    }
+
+    #[test]
+    fn release_from_an_earlier_batch_is_not_delayed() {
+        let (immediate, deferred) = split_same_frame_taps([
+            (InputControl::Select, false),
+            (InputControl::Action1, true),
+        ]);
+        assert_eq!(immediate, vec![
+            (InputControl::Select, false),
+            (InputControl::Action1, true),
+        ]);
+        assert!(deferred.is_empty());
     }
 }
