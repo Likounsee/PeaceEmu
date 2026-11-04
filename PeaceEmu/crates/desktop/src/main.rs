@@ -238,6 +238,7 @@ struct DesktopApp {
     key_bindings: HashMap<String, key_bindings::KeyBindings>,
     binding_capture: Option<(String, usize)>,
     pending_input_releases: Vec<InputControl>,
+    modifier_pressed: [bool; 4],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -482,6 +483,7 @@ impl DesktopApp {
             key_bindings,
             binding_capture: None,
             pending_input_releases: Vec::new(),
+            modifier_pressed: [false; 4],
         };
         // Check the official stable manifest without blocking the first window render.
         // The user can still trigger another check from Settings after this completes.
@@ -957,6 +959,33 @@ impl DesktopApp {
             self.key_bindings.insert(module_id.clone(), bindings);
         }
         self.key_bindings.get(&module_id)?.control(key)
+    }
+
+    fn append_modifier_input_events(
+        &mut self,
+        modifiers: egui::Modifiers,
+        input_events: &mut Vec<(InputControl, bool)>,
+    ) {
+        // egui exposes modifier state rather than standalone Key events for these keys.
+        // mac_cmd maps to the platform's Super/Windows/Command modifier.
+        let current = [modifiers.ctrl, modifiers.alt, modifiers.shift, modifiers.mac_cmd];
+        let virtual_keys = [0x11, 0x12, 0x10, 0x5B];
+        if let Some(module_id) = self.active_session_module_id() {
+            if !self.key_bindings.contains_key(&module_id) {
+                let bindings = key_bindings::KeyBindings::load(self.config_path.as_deref(), &module_id);
+                self.key_bindings.insert(module_id.clone(), bindings);
+            }
+            if let Some(bindings) = self.key_bindings.get(&module_id) {
+                for index in 0..current.len() {
+                    if current[index] != self.modifier_pressed[index] {
+                        if let Some(control) = bindings.control_for_virtual_key(virtual_keys[index]) {
+                            input_events.push((control, current[index]));
+                        }
+                    }
+                }
+            }
+        }
+        self.modifier_pressed = current;
     }
 
     fn persist_key_bindings(&mut self, module_id: &str) {
@@ -1655,6 +1684,7 @@ impl DesktopApp {
         let mut close_requested = false;
         let mut lost_focus = false;
         let mut input_events = Vec::new();
+        let mut modifier_snapshot = egui::Modifiers::default();
         let builder = egui::ViewportBuilder::default()
             .with_title("NES")
             .with_inner_size([768.0, 720.0])
@@ -1666,7 +1696,8 @@ impl DesktopApp {
                 close_requested = true;
                 return;
             }
-            let events = viewport_context.input(|input| input.events.clone());
+            let (events, modifiers) = viewport_context.input(|input| (input.events.clone(), input.modifiers));
+            modifier_snapshot = modifiers;
             for event in events {
                 match event {
                     egui::Event::Key {
@@ -1709,10 +1740,12 @@ impl DesktopApp {
         });
 
         if lost_focus || close_requested {
+            self.modifier_pressed = [false; 4];
             if let Err(error) = self.release_game_inputs() {
                 self.message = format!("Could not release game inputs: {error}");
             }
         } else {
+            self.append_modifier_input_events(modifier_snapshot, &mut input_events);
             self.send_game_input_events(input_events);
         }
         if close_requested {
@@ -1733,7 +1766,7 @@ impl DesktopApp {
         self.last_tick = now;
 
         if self.active_page == DesktopPage::Game && !self.game_window_open {
-            let events = context.input(|input| input.events.clone());
+            let (events, modifiers) = context.input(|input| (input.events.clone(), input.modifiers));
             let mut input_events = Vec::new();
             let mut lost_focus = false;
             for event in events {
@@ -1756,10 +1789,12 @@ impl DesktopApp {
                 }
             }
             if lost_focus {
+                self.modifier_pressed = [false; 4];
                 if let Err(error) = self.release_game_inputs() {
                     self.message = error;
                 }
             } else {
+                self.append_modifier_input_events(modifiers, &mut input_events);
                 self.send_game_input_events(input_events);
             }
         }
