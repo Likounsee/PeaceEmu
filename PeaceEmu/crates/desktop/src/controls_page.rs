@@ -5,9 +5,11 @@ use super::*;
 
 /// Groups of actions, as (French title, English title, action indexes).
 /// Indexes refer to `key_bindings::ACTIONS`.
+/// The NES controller has only A/B: X/Y are not physical NES buttons and
+/// must not be offered as remappable actions in this page.
 const GROUPS: [(&str, &str, &[usize]); 3] = [
     ("Directions", "Directions", &[0, 1, 2, 3]),
-    ("Boutons", "Buttons", &[4, 5, 6, 7]),
+    ("Boutons", "Buttons", &[4, 5]),
     ("Système", "System", &[8, 9]),
 ];
 
