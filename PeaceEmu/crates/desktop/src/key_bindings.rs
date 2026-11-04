@@ -317,7 +317,8 @@ mod tests {
 
     #[test]
     fn previously_saved_default_select_binding_is_migrated_to_space() {
-        let root = std::env::temp_dir().join(format!("peaceemu-legacy-bindings-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("peaceemu-legacy-bindings-{}", std::process::id()));
         let config = root.join("preferences.json");
         let directory = root.join("keybindings");
         std::fs::create_dir_all(&directory).unwrap();
