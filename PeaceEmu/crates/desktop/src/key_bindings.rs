@@ -151,6 +151,12 @@ impl KeyBindings {
             })
     }
 
+    /// Returns the Windows virtual-key codes expected by the standalone NES module,
+    /// in its hardware order: A, B, Select, Start, Up, Down, Left, Right.
+    pub(crate) fn nes_virtual_key_codes(&self) -> [i32; 8] {
+        [4, 5, 9, 8, 0, 1, 2, 3].map(|index| windows_virtual_key(self.keys[index]))
+    }
+
     pub(crate) fn reset(&mut self) {
         self.keys = DEFAULTS;
     }
@@ -216,6 +222,30 @@ fn read_binding_file(path: &Path) -> Option<String> {
         return None;
     }
     fs::read_to_string(path).ok()
+}
+
+fn windows_virtual_key(key: egui::Key) -> i32 {
+    match key {
+        egui::Key::ArrowUp => 0x26,
+        egui::Key::ArrowDown => 0x28,
+        egui::Key::ArrowLeft => 0x25,
+        egui::Key::ArrowRight => 0x27,
+        egui::Key::Enter => 0x0D,
+        egui::Key::Backspace => 0x08,
+        egui::Key::Space => 0x20,
+        egui::Key::Tab => 0x09,
+        egui::Key::Escape => 0x1B,
+        egui::Key::A => 0x41, egui::Key::B => 0x42, egui::Key::C => 0x43,
+        egui::Key::D => 0x44, egui::Key::E => 0x45, egui::Key::F => 0x46,
+        egui::Key::G => 0x47, egui::Key::H => 0x48, egui::Key::I => 0x49,
+        egui::Key::J => 0x4A, egui::Key::K => 0x4B, egui::Key::L => 0x4C,
+        egui::Key::M => 0x4D, egui::Key::N => 0x4E, egui::Key::O => 0x4F,
+        egui::Key::P => 0x50, egui::Key::Q => 0x51, egui::Key::R => 0x52,
+        egui::Key::S => 0x53, egui::Key::T => 0x54, egui::Key::U => 0x55,
+        egui::Key::V => 0x56, egui::Key::W => 0x57, egui::Key::X => 0x58,
+        egui::Key::Y => 0x59, egui::Key::Z => 0x5A,
+        _ => 0,
+    }
 }
 
 fn key_name(key: egui::Key) -> &'static str {
