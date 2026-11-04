@@ -1726,7 +1726,12 @@ impl DesktopApp {
             let mut lost_focus = false;
             for event in events {
                 match event {
-                    egui::Event::Key { key, pressed, repeat, .. } => {
+                    egui::Event::Key {
+                        key,
+                        pressed,
+                        repeat,
+                        ..
+                    } => {
                         if repeat && pressed {
                             continue;
                         }
@@ -1867,7 +1872,8 @@ impl DesktopApp {
         for (control, pressed) in immediate {
             if pressed {
                 // A fresh key-down supersedes a delayed key-up for the same control.
-                self.pending_input_releases.retain(|pending| *pending != control);
+                self.pending_input_releases
+                    .retain(|pending| *pending != control);
             }
             self.send_game_input(control, pressed);
         }
@@ -2672,31 +2678,26 @@ mod preference_tests {
     }
 }
 
-
 #[cfg(test)]
 mod input_event_tests {
     use super::*;
 
     #[test]
     fn same_batch_tap_keeps_press_until_after_one_frame() {
-        let (immediate, deferred) = split_same_frame_taps([
-            (InputControl::Select, true),
-            (InputControl::Select, false),
-        ]);
+        let (immediate, deferred) =
+            split_same_frame_taps([(InputControl::Select, true), (InputControl::Select, false)]);
         assert_eq!(immediate, vec![(InputControl::Select, true)]);
         assert_eq!(deferred, vec![InputControl::Select]);
     }
 
     #[test]
     fn release_from_an_earlier_batch_is_not_delayed() {
-        let (immediate, deferred) = split_same_frame_taps([
-            (InputControl::Select, false),
-            (InputControl::Action1, true),
-        ]);
-        assert_eq!(immediate, vec![
-            (InputControl::Select, false),
-            (InputControl::Action1, true),
-        ]);
+        let (immediate, deferred) =
+            split_same_frame_taps([(InputControl::Select, false), (InputControl::Action1, true)]);
+        assert_eq!(
+            immediate,
+            vec![(InputControl::Select, false), (InputControl::Action1, true),]
+        );
         assert!(deferred.is_empty());
     }
 }
