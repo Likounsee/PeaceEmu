@@ -205,23 +205,29 @@ impl EmulationCore for NesCoreAdapter {
     }
 
     fn send_input(&mut self, event: InputEvent) -> Result<(), CoreError> {
+        // The NES pad has exactly eight hardware buttons. Generic Action3/4
+        // controls must not alias Select/Start: doing so lets releasing one
+        // semantic control accidentally release the other hardware button.
         let bit = match event.control {
-            InputControl::Action1 => 0,
-            InputControl::Action2 => 1,
-            InputControl::Select | InputControl::Action3 => 2,
-            InputControl::Start | InputControl::Action4 => 3,
-            InputControl::Up => 4,
-            InputControl::Down => 5,
-            InputControl::Left => 6,
-            InputControl::Right => 7,
+            InputControl::Action1 => Some(0),
+            InputControl::Action2 => Some(1),
+            InputControl::Select => Some(2),
+            InputControl::Start => Some(3),
+            InputControl::Up => Some(4),
+            InputControl::Down => Some(5),
+            InputControl::Left => Some(6),
+            InputControl::Right => Some(7),
+            InputControl::Action3 | InputControl::Action4 => None,
         };
-        if event.pressed {
-            self.controller_1 |= 1 << bit;
-        } else {
-            self.controller_1 &= !(1 << bit);
+        if let Some(bit) = bit {
+            if event.pressed {
+                self.controller_1 |= 1 << bit;
+            } else {
+                self.controller_1 &= !(1 << bit);
+            }
+            let buttons = self.controller_1;
+            self.session_mut()?.set_controller_state(0, buttons);
         }
-        let buttons = self.controller_1;
-        self.session_mut()?.set_controller_state(0, buttons);
         Ok(())
     }
 
@@ -360,6 +366,46 @@ mod tests {
             session.state(),
             emulation_core::runtime::SessionState::Running
         );
+    }
+
+    #[test]
+    fn adapter_ignores_extra_generic_buttons_without_aliasing_select_or_start() {
+        let mut core = NesCoreAdapter::new();
+        core.load_content(&looping_rom()).unwrap();
+
+        core.send_input(InputEvent {
+            control: InputControl::Select,
+            pressed: true,
+        })
+        .unwrap();
+        core.send_input(InputEvent {
+            control: InputControl::Action3,
+            pressed: true,
+        })
+        .unwrap();
+        core.send_input(InputEvent {
+            control: InputControl::Action3,
+            pressed: false,
+        })
+        .unwrap();
+        assert_eq!(core.controller_1, 1 << 2);
+
+        core.send_input(InputEvent {
+            control: InputControl::Start,
+            pressed: true,
+        })
+        .unwrap();
+        core.send_input(InputEvent {
+            control: InputControl::Action4,
+            pressed: true,
+        })
+        .unwrap();
+        core.send_input(InputEvent {
+            control: InputControl::Action4,
+            pressed: false,
+        })
+        .unwrap();
+        assert_eq!(core.controller_1, (1 << 2) | (1 << 3));
     }
 
     #[test]
