@@ -823,7 +823,19 @@ impl DesktopApp {
                 self.navigate_to(DesktopPage::Systems);
                 return;
             };
-            match std::process::Command::new(&executable).arg(&path).spawn() {
+            if !self.key_bindings.contains_key("nes") {
+                let bindings = key_bindings::KeyBindings::load(self.config_path.as_deref(), "nes");
+                self.key_bindings.insert("nes".to_owned(), bindings);
+            }
+            let key_codes = self.key_bindings["nes"].nes_virtual_key_codes();
+            let key_argument = key_codes
+                .iter()
+                .map(i32::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            let mut command = std::process::Command::new(&executable);
+            command.arg(&path).arg("--keys").arg(key_argument);
+            match command.spawn() {
                 Ok(_) => {
                     self.message = if self.language == "fr" {
                         "Jeu NES lancé dans la fenêtre du module.".to_owned()
