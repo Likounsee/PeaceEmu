@@ -181,6 +181,10 @@ impl KeyBindings {
             egui::Key::Backspace if french => "Retour arrière".to_owned(),
             egui::Key::Space if french => "Espace".to_owned(),
             egui::Key::Escape if french => "Échap".to_owned(),
+            egui::Key::F25 if french => "Ctrl".to_owned(),
+            egui::Key::F26 if french => "Alt".to_owned(),
+            egui::Key::F27 if french => "Maj".to_owned(),
+            egui::Key::F28 if french => "Windows".to_owned(),
             _ => self.label(index),
         }
     }
@@ -272,18 +276,34 @@ fn windows_virtual_key(key: egui::Key) -> i32 {
         egui::Key::F19 => 0x82, egui::Key::F20 => 0x83,
         egui::Key::F21 => 0x84, egui::Key::F22 => 0x85,
         egui::Key::F23 => 0x86, egui::Key::F24 => 0x87,
-        egui::Key::F25 | egui::Key::F26 | egui::Key::F27 | egui::Key::F28 |
+        // Reserved egui key slots represent standalone modifier keys.
+        egui::Key::F25 => 0x11, // VK_CONTROL
+        egui::Key::F26 => 0x12, // VK_MENU (Alt)
+        egui::Key::F27 => 0x10, // VK_SHIFT
+        egui::Key::F28 => 0x5B, // VK_LWIN
         egui::Key::F29 | egui::Key::F30 | egui::Key::F31 | egui::Key::F32 |
         egui::Key::F33 | egui::Key::F34 | egui::Key::F35 => 0,
     }
 }
 
 fn key_name(key: egui::Key) -> &'static str {
-    key.name()
+    match key {
+        egui::Key::F25 => "Ctrl",
+        egui::Key::F26 => "Alt",
+        egui::Key::F27 => "Shift",
+        egui::Key::F28 => "Super",
+        _ => key.name(),
+    }
 }
 
 fn parse_key(value: &str) -> Option<egui::Key> {
-    egui::Key::from_name(value)
+    match value.trim().to_ascii_lowercase().as_str() {
+        "ctrl" | "control" => Some(egui::Key::F25),
+        "alt" => Some(egui::Key::F26),
+        "shift" => Some(egui::Key::F27),
+        "super" | "windows" | "win" | "meta" => Some(egui::Key::F28),
+        _ => egui::Key::from_name(value),
+    }
 }
 
 #[cfg(test)]
@@ -360,6 +380,14 @@ mod tests {
         assert_eq!(bindings.label(4), "F13");
         assert_eq!(parse_key("F24"), Some(egui::Key::F24));
         assert_eq!(parse_key("Questionmark"), Some(egui::Key::Questionmark));
+        assert_eq!(windows_virtual_key(egui::Key::F25), 0x11);
+        assert_eq!(windows_virtual_key(egui::Key::F26), 0x12);
+        assert_eq!(windows_virtual_key(egui::Key::F27), 0x10);
+        assert_eq!(windows_virtual_key(egui::Key::F28), 0x5B);
+        assert_eq!(parse_key("Ctrl"), Some(egui::Key::F25));
+        assert_eq!(parse_key("Alt"), Some(egui::Key::F26));
+        assert_eq!(parse_key("Shift"), Some(egui::Key::F27));
+        assert_eq!(parse_key("Windows"), Some(egui::Key::F28));
         assert_eq!(windows_virtual_key(egui::Key::F35), 0);
     }
 
