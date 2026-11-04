@@ -80,11 +80,14 @@ impl KeyBindings {
             let Some(key) = parse_key(value) else {
                 continue;
             };
+            let virtual_key = windows_virtual_key(key);
             let duplicate = bindings
                 .keys
                 .iter()
                 .enumerate()
-                .any(|(other, existing)| other != index && *existing == key);
+                .any(|(other, existing)| {
+                    other != index && windows_virtual_key(*existing) == virtual_key
+                });
             if !duplicate {
                 bindings.keys[index] = key;
             }
