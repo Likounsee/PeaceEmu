@@ -1748,6 +1748,7 @@ impl DesktopApp {
         }
 
         let Some(id) = self.controller.active_session() else {
+            self.pending_input_releases.clear();
             self.frame_cadence.reset();
             self.frame_texture = None;
             self.video_size = None;
@@ -1776,6 +1777,7 @@ impl DesktopApp {
                 self.last_tick_errors
                     .retain(|(error_id, _)| *error_id != id);
                 self.last_tick_errors.push((id, self.media_status.clone()));
+                self.pending_input_releases.clear();
                 self.frame_texture = None;
                 self.video_size = None;
                 return;
@@ -1863,6 +1865,10 @@ impl DesktopApp {
     fn send_game_input_events(&mut self, events: Vec<(InputControl, bool)>) {
         let (immediate, deferred_releases) = split_same_frame_taps(events);
         for (control, pressed) in immediate {
+            if pressed {
+                // A fresh key-down supersedes a delayed key-up for the same control.
+                self.pending_input_releases.retain(|pending| *pending != control);
+            }
             self.send_game_input(control, pressed);
         }
         self.pending_input_releases.extend(deferred_releases);
