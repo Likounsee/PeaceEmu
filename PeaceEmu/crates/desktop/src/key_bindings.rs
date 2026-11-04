@@ -335,6 +335,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn exports_nes_hardware_order_as_windows_virtual_keys() {
+        let bindings = KeyBindings { keys: DEFAULTS };
+        assert_eq!(
+            bindings.nes_virtual_key_codes(),
+            [0x5A, 0x58, 0x20, 0x0D, 0x26, 0x28, 0x25, 0x27]
+        );
+
+        let mut customized = KeyBindings { keys: DEFAULTS };
+        customized.set(9, egui::Key::Backspace).unwrap();
+        assert_eq!(customized.nes_virtual_key_codes()[2], 0x08);
+    }
+
+    #[test]
     fn defaults_keep_existing_layout() {
         let bindings = KeyBindings { keys: DEFAULTS };
         assert_eq!(bindings.control(egui::Key::ArrowUp), Some(InputControl::Up));
