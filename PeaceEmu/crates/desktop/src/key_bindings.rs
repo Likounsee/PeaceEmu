@@ -104,7 +104,8 @@ impl KeyBindings {
         if windows_virtual_key(key) == 0 {
             return Err(usize::MAX);
         }
-        if let Some(other) = self.keys.iter().position(|existing| *existing == key) {
+        let virtual_key = windows_virtual_key(key);
+        if let Some(other) = self.keys.iter().position(|existing| windows_virtual_key(*existing) == virtual_key) {
             if other != index {
                 return Err(other);
             }
