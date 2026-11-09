@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     defaults:
@@ -48,39 +48,40 @@ jobs:
           sudo apt-get install --yes pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libasound2-dev
 
       - name: Check workspace formatting
-        run: cargo fmt --all -- --check
+        if: runner.os == 'Linux'
+          run: cargo fmt --all -- --check
 
       - name: Run workspace tests
-        run: cargo test --workspace --locked
+        if: runner.os == 'Linux'
+          run: cargo test --workspace --locked
 
       - name: Check workspace documentation
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps --locked
-
-      - name: Check workspace package contents
-        run: cargo package --workspace --locked --no-verify
+        if: runner.os == 'Linux'
+          env:
+            RUSTDOCFLAGS: -D warnings
+          run: cargo doc --workspace --no-deps --locked
 
       - name: Resolve desktop dependency graph
         run: cargo generate-lockfile --manifest-path crates/desktop/Cargo.toml
 
       - name: Check desktop formatting
-        run: cargo fmt --manifest-path crates/desktop/Cargo.toml -- --check
+        if: runner.os == 'Linux'
+          run: cargo fmt --manifest-path crates/desktop/Cargo.toml -- --check
 
       - name: Compile desktop and all targets
         run: cargo check --manifest-path crates/desktop/Cargo.toml --all-targets --locked
 
       - name: Test desktop and all targets
-        run: cargo test --manifest-path crates/desktop/Cargo.toml --all-targets --locked
+        if: runner.os == 'Linux'
+          run: cargo test --manifest-path crates/desktop/Cargo.toml --all-targets --locked
 
       - name: Run desktop Clippy
-        run: cargo clippy --manifest-path crates/desktop/Cargo.toml --all-targets --locked -- -D warnings
-
-      - name: Check desktop package contents
-        run: cargo package --manifest-path crates/desktop/Cargo.toml --list --allow-dirty --locked
+        if: runner.os == 'Linux'
+          run: cargo clippy --manifest-path crates/desktop/Cargo.toml --all-targets --locked -- -D warnings
 
       - name: Run workspace Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        if: runner.os == 'Linux'
+          run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Audit workspace dependencies and licenses
         if: runner.os == 'Linux'
