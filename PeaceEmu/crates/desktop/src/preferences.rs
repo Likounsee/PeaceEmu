@@ -41,7 +41,11 @@ pub(crate) fn config_file_path() -> Option<PathBuf> {
                 .filter(|value| !value.is_empty())
                 .map(|home| PathBuf::from(home).join(".config"))
         });
-    base.map(|directory| directory.join("PeaceEmu").join("desktop.conf"))
+    let profile = match option_env!("PEACEEMU_CHANNEL").unwrap_or("stable") {
+        "dev" => "PeaceEmu-Dev",
+        _ => "PeaceEmu",
+    };
+    base.map(|directory| directory.join(profile).join("desktop.conf"))
 }
 
 fn ensure_regular_preferences_file(path: &Path) -> std::io::Result<()> {
