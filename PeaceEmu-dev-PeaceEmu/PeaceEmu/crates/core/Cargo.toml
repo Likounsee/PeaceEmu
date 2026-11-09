@@ -1,0 +1,13 @@
+[package]
+name = "emulation-core"
+version = "0.1.0"
+description = "Shared contracts and metadata for PeaceEmu emulation cores"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[target.'cfg(windows)'.dependencies]
+windows-durability = { version = "0.1.0", path = "../windows-durability" }

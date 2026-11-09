@@ -1,0 +1,10 @@
+[package]
+name = "windows-app-identity"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+rust-version = "1.78"
+description = "Shared Windows taskbar identity helper for PeaceEmu processes"
+
+[lib]
+path = "src/lib.rs"

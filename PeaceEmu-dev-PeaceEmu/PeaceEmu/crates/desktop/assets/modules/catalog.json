@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "modules": [
+    {
+      "id": "nes",
+      "name": "PeaceEmu NES",
+      "description": "Nintendo Entertainment System emulation core",
+      "repository": "Likounsee/PeaceEmu-NES",
+      "release_api": "https://api.github.com/repos/Likounsee/PeaceEmu-NES/releases?per_page=20",
+      "tag_prefix": "nes-module-",
+      "minimum_peaceemu_version": "0.2.3",
+      "platforms": ["windows-x86_64"],
+      "assets": {
+        "executable": "peaceemu-nes-desktop.exe",
+        "sha256": "peaceemu-nes-desktop.exe.sha256"
+      },
+      "max_download_bytes": 104857600
+    }
+  ]
+}

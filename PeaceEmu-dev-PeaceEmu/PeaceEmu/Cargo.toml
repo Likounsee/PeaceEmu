@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/app",
+    "crates/windows-durability",
+    "crates/windows-app-identity",
+]
+exclude = ["crates/desktop"]
+
+[workspace.package]
+edition = "2021"
+license = "LicenseRef-Proprietary"
+rust-version = "1.78"
+repository = "https://github.com/Likounsee/PeaceEmu"

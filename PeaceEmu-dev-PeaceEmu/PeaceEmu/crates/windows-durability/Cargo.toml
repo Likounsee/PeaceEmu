@@ -1,0 +1,10 @@
+[package]
+name = "windows-durability"
+version = "0.1.0"
+description = "Write-through filesystem rename helper for PeaceEmu on Windows"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]

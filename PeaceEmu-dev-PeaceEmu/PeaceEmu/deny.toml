@@ -1,0 +1,44 @@
+[advisories]
+# Treat known vulnerable dependencies and unmaintained advisories as failures.
+yanked = "deny"
+# Temporary, narrowly scoped exceptions for the experimental desktop dependency graph.
+# ttf-parser is currently marked unmaintained with no safe upstream upgrade available.
+# webbrowser is pulled transitively by egui-winit; PeaceEmu does not open external URLs.
+# Revisit both exceptions when the pinned eframe/egui stack is upgraded.
+ignore = [
+    { id = "RUSTSEC-2025-0141", reason = "The pinned bincode 1.3.3 release is considered complete by its maintainers; the advisory is maintenance status, not a known vulnerability. Re-evaluate before adopting a replacement with compatible MSRV and bounded decoding." },
+    { id = "RUSTSEC-2026-0192", reason = "Transitive epaint font parser; upstream reports no safe upgrade currently available." },
+    { id = "RUSTSEC-2026-0257", reason = "Transitive egui-winit browser helper; the desktop prototype does not invoke URL launching." },
+    { id = "RUSTSEC-2026-0370", reason = "Transitive zvariant dependency from rfd 0.14.1 via ashpd/zbus 4; advisory reports no safe upgrade until the upstream stack migrates to zbus 6." },
+    { id = "RUSTSEC-2026-0371", reason = "Transitive zbus_names dependency from rfd 0.14.1 via ashpd/zbus 4; advisory reports no safe upgrade until the upstream stack migrates to zbus 6." },
+    { id = "RUSTSEC-2026-0372", reason = "Transitive zvariant_derive dependency from rfd 0.14.1 via ashpd/zbus 4; advisory reports no safe upgrade until the upstream stack migrates to zbus 6." },
+]
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "MIT",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "BSL-1.0",
+    "OFL-1.1",
+    "LicenseRef-UFL-1.0",
+    "LicenseRef-Proprietary",
+]
+# Do not silently accept dependencies whose license could not be identified.
+
+[bans]
+# New dependencies should not silently introduce duplicate versions.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# The NES core is an intentional first-party dependency pinned to an immutable commit
+# in crates/desktop/Cargo.toml; no other Git source is allowed.
+allow-git = ["https://github.com/Likounsee/PeaceEmu-NES"]

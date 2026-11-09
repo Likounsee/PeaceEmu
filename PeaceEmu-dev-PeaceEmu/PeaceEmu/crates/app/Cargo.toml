@@ -1,0 +1,13 @@
+[package]
+name = "host-app"
+version = "0.1.0"
+description = "Minimal terminal host application for PeaceEmu"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+autobins = false
+
+[dependencies]
+emulation-core = { version = "0.1.0", path = "../core" }
+
