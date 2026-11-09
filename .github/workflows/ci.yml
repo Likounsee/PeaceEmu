@@ -1,8 +1,9 @@
-name: CI
+name: CI and Release
 
 on:
   push:
     branches: [PeaceEmu]
+    tags: ["v*"]
   pull_request:
     branches: [PeaceEmu]
   workflow_dispatch:
@@ -143,3 +144,453 @@ jobs:
             kill "$app_pid" 2>/dev/null || true
             wait "$app_pid" 2>/dev/null || true
           '
+
+build-installer:
+    name: Build and publish Windows installer
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            PeaceEmu/crates/desktop -> PeaceEmu/crates/desktop/target
+
+      - name: Resolve and record desktop dependency graph
+        run: cargo generate-lockfile --manifest-path PeaceEmu/crates/desktop/Cargo.toml
+
+      - name: Check desktop host without bundled console cores
+        run: cargo check --locked --no-default-features --manifest-path PeaceEmu/crates/desktop/Cargo.toml
+
+      - name: Build desktop executable with static MSVC runtime
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --locked --release --manifest-path PeaceEmu/crates/desktop/Cargo.toml
+
+      - name: Verify executable Windows identity and embedded icon
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = (Resolve-Path "PeaceEmu/crates/desktop/target/release/peaceemu.exe").Path
+          $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
+          foreach ($field in @("FileDescription", "ProductName", "InternalName")) {
+            if ($version.$field -ne "PeaceEmu") {
+              throw "Executable $field metadata is '$($version.$field)', expected 'PeaceEmu'."
+            }
+          }
+          if ($version.OriginalFilename -ne "PeaceEmu.exe") {
+            throw "Executable OriginalFilename is '$($version.OriginalFilename)', expected 'PeaceEmu.exe'."
+          }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
+          if ($null -eq $icon) { throw "Windows could not extract an associated icon from PeaceEmu.exe." }
+          try {
+            if ($icon.Width -lt 1 -or $icon.Height -lt 1) {
+              throw "Embedded executable icon has invalid dimensions."
+            }
+            Write-Host "Verified PE metadata: ProductName=PeaceEmu, FileDescription=PeaceEmu, OriginalFilename=PeaceEmu.exe."
+            Write-Host "Verified embedded executable icon: $($icon.Width)x$($icon.Height)."
+          } finally { $icon.Dispose() }
+
+      - name: Stage application and determine version
+        id: stage
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content "PeaceEmu/crates/desktop/Cargo.toml" -Raw
+          $match = [regex]::Match($manifest, '(?m)^version\s*=\s*"([^"]+)"')
+          if (-not $match.Success) { throw "Could not read desktop package version from Cargo.toml" }
+          $version = $match.Groups[1].Value
+          $exe = "PeaceEmu/crates/desktop/target/release/peaceemu.exe"
+          if (!(Test-Path $exe)) {
+            throw "Expected desktop executable was not produced: $exe"
+          }
+          $stageDir = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE "stage"))
+          New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+          Copy-Item $exe (Join-Path $stageDir "PeaceEmu.exe")
+          Copy-Item "PeaceEmu/crates/desktop/assets/languages" (Join-Path $stageDir "languages") -Recurse
+          Copy-Item "PeaceEmu/crates/desktop/assets/branding/bird.png" (Join-Path $stageDir "bird.png")
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Generate Windows icon from the project logo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.Drawing
+          $source = [System.Drawing.Image]::FromFile((Join-Path $env:GITHUB_WORKSPACE "PeaceEmu/crates/desktop/assets/branding/bird.png"))
+          $bitmap = New-Object System.Drawing.Bitmap(256, 256, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          try {
+            $graphics.Clear([System.Drawing.Color]::Transparent)
+            $scale = [Math]::Min(232.0 / $source.Width, 232.0 / $source.Height)
+            $width = [int][Math]::Round($source.Width * $scale)
+            $height = [int][Math]::Round($source.Height * $scale)
+            $x = [int][Math]::Floor((256 - $width) / 2)
+            $y = [int][Math]::Floor((256 - $height) / 2)
+            $graphics.DrawImage($source, $x, $y, $width, $height)
+            $stream = New-Object System.IO.MemoryStream
+            try {
+              $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+              $png = $stream.ToArray()
+            } finally { $stream.Dispose() }
+          } finally {
+            $graphics.Dispose()
+            $bitmap.Dispose()
+            $source.Dispose()
+          }
+          $iconPath = Join-Path $env:GITHUB_WORKSPACE "stage/PeaceEmu.ico"
+          $header = [byte[]](0,0,1,0,1,0,0,0,0,0,1,0,32,0)
+          $sizeBytes = [BitConverter]::GetBytes([uint32]$png.Length)
+          $offsetBytes = [BitConverter]::GetBytes([uint32]22)
+          $icon = New-Object byte[] (22 + $png.Length)
+          [Array]::Copy($header, 0, $icon, 0, 14)
+          [Array]::Copy($sizeBytes, 0, $icon, 14, 4)
+          [Array]::Copy($offsetBytes, 0, $icon, 18, 4)
+          [Array]::Copy($png, 0, $icon, 22, $png.Length)
+          [System.IO.File]::WriteAllBytes($iconPath, $icon)
+          # Validate the ICO directory and embedded PNG payload, not just file existence.
+          $iconBytes = [System.IO.File]::ReadAllBytes($iconPath)
+          if ($iconBytes.Length -lt 30) { throw "Generated ICO is too small to contain a valid image." }
+          if ([BitConverter]::ToUInt16($iconBytes, 0) -ne 0 -or
+              [BitConverter]::ToUInt16($iconBytes, 2) -ne 1 -or
+              [BitConverter]::ToUInt16($iconBytes, 4) -ne 1) {
+            throw "Generated ICO has an invalid directory header."
+          }
+          $entryWidth = [int]$iconBytes[6]
+          $entryHeight = [int]$iconBytes[7]
+          if (($entryWidth -ne 0 -and $entryWidth -ne 256) -or
+              ($entryHeight -ne 0 -and $entryHeight -ne 256)) {
+            throw "Generated ICO directory entry does not declare a 256x256 image."
+          }
+          if ([BitConverter]::ToUInt16($iconBytes, 10) -ne 1 -or
+              [BitConverter]::ToUInt16($iconBytes, 12) -ne 32) {
+            throw "Generated ICO directory entry must declare one 32-bit image plane."
+          }
+          $payloadSize = [BitConverter]::ToUInt32($iconBytes, 14)
+          $payloadOffset = [BitConverter]::ToUInt32($iconBytes, 18)
+          if ($payloadOffset -ne 22 -or $payloadSize -ne ($iconBytes.Length - $payloadOffset)) {
+            throw "Generated ICO image payload has inconsistent size or offset."
+          }
+          $pngSignature = [byte[]](137, 80, 78, 71, 13, 10, 26, 10)
+          for ($i = 0; $i -lt $pngSignature.Length; $i++) {
+            if ($iconBytes[$payloadOffset + $i] -ne $pngSignature[$i]) {
+              throw "Generated ICO payload is not a PNG image."
+            }
+          }
+          if ([System.Text.Encoding]::ASCII.GetString($iconBytes, 12 + $payloadOffset, 4) -ne "IHDR") {
+            throw "Embedded PNG is missing its IHDR chunk."
+          }
+          $pngWidth = [System.Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($iconBytes, $payloadOffset + 16))
+          $pngHeight = [System.Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($iconBytes, $payloadOffset + 20))
+          if ($pngWidth -ne 256 -or $pngHeight -ne 256) {
+            throw "Embedded icon PNG has unexpected dimensions: ${pngWidth}x${pngHeight}."
+          }
+          Write-Host "Validated generated PeaceEmu.ico: 256x256 RGBA PNG payload, $payloadSize bytes."
+      - name: Compile Windows installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            $iscc = "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          }
+          if (!(Test-Path $iscc)) {
+            throw "Inno Setup compiler (ISCC.exe) was not found."
+          }
+          $stageDir = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE "stage"))
+          $distDir = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE "dist"))
+          New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+          if (!(Test-Path (Join-Path $stageDir "PeaceEmu.ico"))) { throw "Generated application icon is missing." }
+          Copy-Item (Join-Path $stageDir "PeaceEmu.ico") (Join-Path $distDir "PeaceEmu.ico") -Force
+          & $iscc "/DAppVersion=${{ steps.stage.outputs.version }}" "/DStageDir=$stageDir" "/DIconFile=$(Join-Path $distDir 'PeaceEmu.ico')" "/O$distDir" "PeaceEmu/packaging/windows/PeaceEmu.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+
+      - name: Verify installer output
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "$env:GITHUB_WORKSPACE/dist" -Filter "PeaceEmu-Setup-*.exe" | Select-Object -First 1
+          if (!$installer) { throw "Installer output is missing." }
+          if ($installer.Length -lt 1MB) { throw "Installer is unexpectedly small ($($installer.Length) bytes)." }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256" -Encoding ascii
+
+          # Ship provenance beside the executable so a teacher/reviewer can identify
+          # the exact source commit and CI run that produced this installer.
+          $buildInfo = @(
+            "Application: PeaceEmu"
+            "Version: ${{ steps.stage.outputs.version }}"
+            "Source branch/ref: $env:GITHUB_REF_NAME"
+            "Source commit: $env:GITHUB_SHA"
+            "Workflow run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            "Run attempt: $env:GITHUB_RUN_ATTEMPT"
+            "Built (UTC): $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss'))"
+            "Installer SHA-256: $hash"
+          )
+          $buildInfo | Set-Content "$env:GITHUB_WORKSPACE/dist/PeaceEmu-Build-Info.txt" -Encoding utf8
+
+          # Keep the exact dependency graph used by this build available for auditing.
+          $lockfile = "PeaceEmu/crates/desktop/Cargo.lock"
+          if (!(Test-Path $lockfile)) { throw "Resolved desktop Cargo.lock is missing." }
+          Copy-Item $lockfile "$($installer.FullName).Cargo.lock"
+          $lockHash = (Get-FileHash $lockfile -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Verified installer: $($installer.FullName) ($($installer.Length) bytes)"
+          Write-Host "SHA-256: $hash"
+          Write-Host "Dependency lockfile SHA-256: $lockHash"
+
+      - name: Smoke-test install and uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "$env:GITHUB_WORKSPACE/dist" -Filter "PeaceEmu-Setup-*.exe" | Select-Object -First 1
+          if (!$installer) { throw "Installer output is missing for smoke test." }
+
+          # Validate the published integrity metadata before executing the installer.
+          $checksumPath = "$($installer.FullName).sha256"
+          if (!(Test-Path $checksumPath)) { throw "Installer SHA-256 sidecar is missing." }
+          $checksumParts = (Get-Content $checksumPath -Raw).Trim() -split '\s+', 2
+          $actualHash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($checksumParts.Count -ne 2 -or $checksumParts[0] -ne $actualHash -or $checksumParts[1] -ne $installer.Name) {
+            throw "Installer SHA-256 sidecar does not match the generated installer."
+          }
+          $lockfileArtifact = "$($installer.FullName).Cargo.lock"
+          if (!(Test-Path $lockfileArtifact) -or (Get-Item $lockfileArtifact).Length -lt 1000) {
+            throw "Archived desktop dependency lockfile is missing or unexpectedly small."
+          }
+
+          $installDir = Join-Path $env:RUNNER_TEMP "PeaceEmu Installer Smoke"
+          $install = Start-Process -FilePath $installer.FullName -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/DIR=`"$installDir`"") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Silent install failed with exit code $($install.ExitCode)." }
+          $installedExe = Join-Path $installDir "PeaceEmu.exe"
+          if (!(Test-Path $installedExe)) {
+            Get-ChildItem -Force $installDir -ErrorAction SilentlyContinue | Format-List FullName, Length
+            throw "Installed PeaceEmu executable is missing at expected path: $installedExe"
+          }
+          if (Test-Path (Join-Path $installDir "desktop-app.exe")) {
+            throw "The legacy desktop-app.exe name must not be installed."
+          }
+
+          $installedIcon = Join-Path $installDir "PeaceEmu.ico"
+          $generatedIcon = Join-Path $env:GITHUB_WORKSPACE "dist/PeaceEmu.ico"
+          if (!(Test-Path $installedIcon)) {
+            throw "Installed application icon is missing at expected path: $installedIcon"
+          }
+          $installedIconHash = (Get-FileHash $installedIcon -Algorithm SHA256).Hash
+          $generatedIconHash = (Get-FileHash $generatedIcon -Algorithm SHA256).Hash
+          if ($installedIconHash -ne $generatedIconHash) {
+            throw "Installed application icon does not match the icon generated by the workflow."
+          }
+
+          # Verify that the Start Menu shortcut points to the installed binary, not the build tree.
+          $startMenuRoots = @(
+            (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"),
+            (Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs")
+          )
+          $startMenuShortcut = Get-ChildItem -Path $startMenuRoots -Filter "PeaceEmu.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (!$startMenuShortcut) { throw "Start Menu shortcut was not created." }
+          $shell = New-Object -ComObject WScript.Shell
+          $shortcut = $shell.CreateShortcut($startMenuShortcut.FullName)
+          $shortcutTarget = $shortcut.TargetPath
+          if ([IO.Path]::GetFullPath($shortcutTarget) -ne [IO.Path]::GetFullPath($installedExe)) {
+            throw "Start Menu shortcut targets '$shortcutTarget' instead of the installed executable."
+          }
+          $shortcutIconPath = ($shortcut.IconLocation -split ",", 2)[0].Trim('"')
+          if ([IO.Path]::GetFullPath($shortcutIconPath) -ne [IO.Path]::GetFullPath($installedIcon)) {
+            throw "Start Menu shortcut icon '$shortcutIconPath' does not point to the installed PeaceEmu.ico."
+          }
+
+          # Capture CLI output to files rather than PowerShell pipes. Rust's stdout
+          # panics if PowerShell closes a native-process pipe before it finishes writing.
+          function Invoke-CapturedExecutable {
+            param([string]$Name, [string[]]$Arguments)
+            $stdoutPath = Join-Path $env:RUNNER_TEMP "$Name.stdout.txt"
+            $stderrPath = Join-Path $env:RUNNER_TEMP "$Name.stderr.txt"
+            $process = Start-Process -FilePath $installedExe -ArgumentList $Arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+            $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { "" }
+            $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { "" }
+            return [PSCustomObject]@{
+              ExitCode = $process.ExitCode
+              StdOut = $stdout
+              StdErr = $stderr
+              Text = "$stdout`n$stderr"
+            }
+          }
+
+          # Exercise the installed binary without requiring a display or OpenGL context.
+          $versionResult = Invoke-CapturedExecutable -Name "host-app-version" -Arguments @("--version")
+          if ($versionResult.ExitCode -ne 0) { throw "Installed executable --version failed with exit code $($versionResult.ExitCode): $($versionResult.Text)" }
+          $versionText = $versionResult.StdOut.Trim()
+          if ($versionText -ne "PeaceEmu ${{ steps.stage.outputs.version }}") {
+            throw "Installed executable reported unexpected version: $versionText"
+          }
+
+          $helpResult = Invoke-CapturedExecutable -Name "host-app-help" -Arguments @("--help")
+          $helpText = $helpResult.Text
+          if ($helpResult.ExitCode -ne 0 -or $helpText -notmatch "Usage:" -or $helpText -notmatch "PeaceEmu") {
+            Write-Host "Installed executable --help output (exit=$($helpResult.ExitCode)):"
+            Write-Host $helpText
+            throw "Installed executable --help smoke test failed."
+          }
+          if ($helpText -notmatch "--version" -or $helpText -notmatch "--help") {
+            throw "Installed executable --help does not document both supported options."
+          }
+
+          # Invalid CLI arguments must fail clearly rather than opening the GUI or exiting successfully.
+          $unknownResult = Invoke-CapturedExecutable -Name "host-app-invalid-option" -Arguments @("--host-app-smoke-invalid-option")
+          if ($unknownResult.ExitCode -eq 0) {
+            throw "Installed executable unexpectedly accepted an unknown command-line option."
+          }
+          if ($unknownResult.Text -notmatch "unknown argument" -or $unknownResult.Text -notmatch "--help") {
+            Write-Host "Unknown-option output:"
+            Write-Host $unknownResult.Text
+            throw "Unknown-option failure did not provide actionable CLI guidance."
+          }
+          # Hosted Windows runners may not expose an OpenGL 2.0+ context.
+          # Installation is validated here; GUI startup is covered by the desktop smoke workflow
+          # on a runner with a usable display rather than treating headless graphics as app failure.
+          $uninstaller = Join-Path $installDir "unins000.exe"
+          if (!(Test-Path $uninstaller)) { throw "Uninstaller executable is missing." }
+
+          # Silent uninstall must preserve per-user settings; deleting them requires explicit consent.
+          $userDataDir = Join-Path $env:APPDATA "PeaceEmu"
+          New-Item -ItemType Directory -Force -Path $userDataDir | Out-Null
+          $userSettings = Join-Path $userDataDir "desktop.conf"
+          $settingsSentinel = "installer-smoke-test-user-data"
+          Set-Content -Path $userSettings -Value $settingsSentinel -NoNewline -Encoding utf8
+
+          # Re-run the same installer over an existing install to exercise the
+          # in-place upgrade/reinstall path before testing removal. User data must
+          # survive this operation, and the executable must remain launchable.
+          $reinstall = Start-Process -FilePath $installer.FullName -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/DIR=`"$installDir`"") -Wait -PassThru
+          if ($reinstall.ExitCode -ne 0) { throw "In-place reinstall failed with exit code $($reinstall.ExitCode)." }
+          if (!(Test-Path $installedExe)) { throw "Installed executable disappeared after in-place reinstall." }
+          $reinstalledSettings = Get-Content -Path $userSettings -Raw
+          if ($reinstalledSettings -ne $settingsSentinel) {
+            throw "In-place reinstall modified or removed existing user settings."
+          }
+          $reinstalledVersion = Invoke-CapturedExecutable -Name "host-app-version-after-reinstall" -Arguments @("--version")
+          if ($reinstalledVersion.ExitCode -ne 0 -or $reinstalledVersion.StdOut.Trim() -ne "PeaceEmu ${{ steps.stage.outputs.version }}") {
+            throw "Installed executable failed its version check after in-place reinstall: $($reinstalledVersion.Text)"
+          }
+
+          $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES") -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "Silent uninstall failed with exit code $($uninstall.ExitCode)." }
+          if (Test-Path $installedExe) { throw "Installed executable remains after uninstall." }
+          if (Test-Path $startMenuShortcut.FullName) { throw "Start Menu shortcut remains after uninstall." }
+          if (!(Test-Path $userSettings)) { throw "Silent uninstall unexpectedly removed user settings." }
+          $preservedSettings = Get-Content -Path $userSettings -Raw
+          if ($preservedSettings -ne $settingsSentinel) {
+            throw "Silent uninstall modified user settings unexpectedly."
+          }
+          Write-Host "Silent install/uninstall smoke test passed; per-user settings were preserved."
+          # PowerShell can propagate the expected non-zero exit code from the
+          # invalid-argument test as the script's final status. Reset it after
+          # every assertion has passed so the workflow reports the real outcome.
+          $global:LASTEXITCODE = 0
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PeaceEmu-Windows-x64-${{ steps.stage.outputs.version }}
+          path: |
+            dist/PeaceEmu-Setup-*.exe
+            dist/PeaceEmu-Setup-*.exe.sha256
+            dist/PeaceEmu-Setup-*.exe.Cargo.lock
+            dist/PeaceEmu-Build-Info.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish installer on tagged releases
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/PeaceEmu-Setup-*.exe
+            dist/PeaceEmu-Setup-*.exe.sha256
+
+      - name: Publish verified Windows update manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tagVersion = $env:GITHUB_REF_NAME.Substring(1)
+          $branch = "PeaceEmu"
+          $manifestPath = "PeaceEmu/update/stable.json"
+          $desktopManifest = Get-Content "PeaceEmu/crates/desktop/Cargo.toml" -Raw
+          $versionMatch = [regex]::Match($desktopManifest, '(?m)^version\s*=\s*"([^"]+)"')
+          if (!$versionMatch.Success) { throw "Could not read desktop package version." }
+          $packageVersion = $versionMatch.Groups[1].Value
+          if ($tagVersion -ne $packageVersion) {
+            throw "Release tag v$tagVersion does not match desktop package version $packageVersion."
+          }
+
+          $assetName = "PeaceEmu-Setup-$packageVersion.exe"
+          $assetPath = Join-Path $env:GITHUB_WORKSPACE "dist/$assetName"
+          $checksumPath = "$assetPath.sha256"
+          if (!(Test-Path $assetPath) -or !(Test-Path $checksumPath)) {
+            throw "Release installer or SHA-256 sidecar is missing."
+          }
+          $actualSize = (Get-Item $assetPath).Length
+          $actualHash = (Get-FileHash $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksumParts = (Get-Content $checksumPath -Raw).Trim() -split '\s+', 2
+          if ($checksumParts.Count -ne 2 -or $checksumParts[0] -ne $actualHash -or $checksumParts[1] -ne $assetName) {
+            throw "Installer checksum sidecar does not match the release artifact."
+          }
+
+          # Ensure the release asset really exists before advertising it to clients.
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:GITHUB_REF_NAME" | ConvertFrom-Json
+          $asset = @($release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1)
+          if ($asset.Count -ne 1 -or $asset[0].size -ne $actualSize) {
+            throw "Published GitHub release asset is missing or has an unexpected size."
+          }
+
+          $manifest = [ordered]@{
+            schema_version = 1
+            version = $packageVersion
+            release_notes_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$env:GITHUB_REF_NAME"
+            downloads = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$assetName"
+                size_bytes = [long]$actualSize
+                sha256 = $actualHash
+              }
+            }
+          }
+          $json = $manifest | ConvertTo-Json -Depth 8
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json + "`n"))
+
+          # Read the manifest from the stable branch, not from the release tag checkout.
+          $existing = gh api --method GET -f "ref=$branch" "repos/$env:GITHUB_REPOSITORY/contents/$manifestPath"
+          if ($LASTEXITCODE -ne 0) { throw "Could not read stable update manifest from branch $branch." }
+          $existingObject = $existing | ConvertFrom-Json
+          $payload = @{
+            message = "chore(release): publish PeaceEmu $packageVersion update manifest"
+            content = $encoded
+            sha = $existingObject.sha
+            branch = $branch
+          } | ConvertTo-Json -Compress
+          $payloadPath = Join-Path $env:RUNNER_TEMP "peaceemu-manifest-payload.json"
+          Set-Content -Path $payloadPath -Value $payload -Encoding utf8
+          try {
+            gh api --method PUT "repos/$env:GITHUB_REPOSITORY/contents/$manifestPath" --input $payloadPath | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "GitHub rejected the stable update manifest commit." }
+          } finally {
+            Remove-Item $payloadPath -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "Published stable update manifest for v$packageVersion ($actualSize bytes, SHA-256 $actualHash)."
+
