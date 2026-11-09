@@ -175,6 +175,7 @@ jobs:
 
       - name: Build desktop executable with static MSVC runtime
         env:
+          PEACEEMU_CHANNEL: stable
           RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --locked --release --manifest-path PeaceEmu/crates/desktop/Cargo.toml
 
