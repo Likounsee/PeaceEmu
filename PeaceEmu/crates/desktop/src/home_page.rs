@@ -219,6 +219,136 @@ impl DesktopApp {
                 });
             });
         });
+        ui.add_space(18.0);
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(if french {
+                    "ACTUALITÉS & INFORMATIONS"
+                } else {
+                    "NEWS & INFORMATION"
+                })
+                .size(theme::FONT_SECTION)
+                .strong(),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    egui::RichText::new(if french {
+                        "CENTRE PEACEEMU"
+                    } else {
+                        "PEACEEMU HUB"
+                    })
+                    .size(10.0)
+                    .strong()
+                    .color(palette.text_dim),
+                );
+            });
+        });
+
+        let current_version = env!("CARGO_PKG_VERSION");
+        let channel = option_env!("PEACEEMU_CHANNEL").unwrap_or("dev");
+        let edition = if channel == "stable" {
+            if french { "Stable" } else { "Stable" }
+        } else if french {
+            "Développement"
+        } else {
+            "Development"
+        };
+        let update_status = self.update_status.clone();
+        let published_version = self
+            .update_manifest
+            .as_ref()
+            .map(|manifest| manifest.version.clone());
+        let module_count = nes_module_manager::available_module_ids().len();
+
+        theme::card(ui, &palette, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(
+                egui::RichText::new(if french {
+                    "Les dernières informations de votre émulateur"
+                } else {
+                    "The latest information about your emulator"
+                })
+                .size(14.0)
+                .color(palette.text_dim),
+            );
+            ui.add_space(8.0);
+
+            egui::CollapsingHeader::new(if french {
+                format!("Version installée · {current_version} ({edition})")
+            } else {
+                format!("Installed version · {current_version} ({edition})")
+            })
+            .id_source("home_news_installed_version")
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.label(if french {
+                    format!("Vous utilisez PeaceEmu {current_version}, édition {edition}.")
+                } else {
+                    format!("You are using PeaceEmu {current_version}, {edition} edition.")
+                });
+                ui.label(
+                    egui::RichText::new(if french {
+                        "Les informations de version sont calculées à partir de cette compilation."
+                    } else {
+                        "Version information is read from this application build."
+                    })
+                    .size(12.0)
+                    .color(palette.text_dim),
+                );
+            });
+
+            ui.separator();
+            egui::CollapsingHeader::new(if french {
+                "Mises à jour".to_owned()
+            } else {
+                "Updates".to_owned()
+            })
+            .id_source("home_news_updates")
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.label(&update_status);
+                if let Some(version) = published_version.as_deref() {
+                    ui.label(if french {
+                        format!("Version annoncée par le canal : {version}")
+                    } else {
+                        format!("Version announced by the channel: {version}")
+                    });
+                }
+                if ui
+                    .link(if french {
+                        "Ouvrir les paramètres de mise à jour"
+                    } else {
+                        "Open update settings"
+                    })
+                    .clicked()
+                {
+                    self.navigate_to(DesktopPage::Settings);
+                }
+            });
+
+            ui.separator();
+            egui::CollapsingHeader::new(if french {
+                format!("Systèmes et modules · {module_count} module(s) disponible(s)")
+            } else {
+                format!("Systems and modules · {module_count} module(s) available")
+            })
+            .id_source("home_news_modules")
+            .default_open(false)
+            .show(ui, |ui| {
+                ui.label(if french {
+                    "Consultez la page Systèmes pour découvrir les cœurs intégrés et les modules installables."
+                } else {
+                    "Visit the Systems page to explore built-in cores and installable modules."
+                });
+                if ui
+                    .link(if french { "Voir les systèmes" } else { "View systems" })
+                    .clicked()
+                {
+                    self.navigate_to(DesktopPage::Systems);
+                }
+            });
+        });
+
         ui.add_space(16.0);
     }
 }
