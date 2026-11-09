@@ -145,7 +145,7 @@ jobs:
             wait "$app_pid" 2>/dev/null || true
           '
 
-build-installer:
+  build-installer:
     name: Build and publish Windows installer
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
