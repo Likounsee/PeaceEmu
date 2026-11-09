@@ -53,7 +53,7 @@ jobs:
 
       - name: Run workspace tests
         if: runner.os == 'Linux'
-          run: cargo test --workspace --locked
+        run: cargo test --workspace --locked
 
       - name: Check workspace documentation
         if: runner.os == 'Linux'
@@ -66,22 +66,22 @@ jobs:
 
       - name: Check desktop formatting
         if: runner.os == 'Linux'
-          run: cargo fmt --manifest-path crates/desktop/Cargo.toml -- --check
+        run: cargo fmt --manifest-path crates/desktop/Cargo.toml -- --check
 
       - name: Compile desktop and all targets
         run: cargo check --manifest-path crates/desktop/Cargo.toml --all-targets --locked
 
       - name: Test desktop and all targets
         if: runner.os == 'Linux'
-          run: cargo test --manifest-path crates/desktop/Cargo.toml --all-targets --locked
+        run: cargo test --manifest-path crates/desktop/Cargo.toml --all-targets --locked
 
       - name: Run desktop Clippy
         if: runner.os == 'Linux'
-          run: cargo clippy --manifest-path crates/desktop/Cargo.toml --all-targets --locked -- -D warnings
+        run: cargo clippy --manifest-path crates/desktop/Cargo.toml --all-targets --locked -- -D warnings
 
       - name: Run workspace Clippy
         if: runner.os == 'Linux'
-          run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Audit workspace dependencies and licenses
         if: runner.os == 'Linux'
