@@ -4,44 +4,71 @@
   <img src="PeaceEmu/crates/desktop/assets/branding/bird + text.png" alt="PeaceEmu" width="420">
 </p>
 
-<p align="center"><strong>A modular multi-console emulation application.</strong></p>
+<p align="center"><strong>A modular, Rust-based emulation application.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/Likounsee/PeaceEmu/releases">Stable releases</a> ·
+  <a href="https://github.com/Likounsee/PeaceEmu/releases">Download stable releases</a> ·
   <a href="https://github.com/Likounsee/PeaceEmu-dev">Development repository</a>
 </p>
 
-**PeaceEmu** is a Rust-based modular emulation application. This repository is the stable distribution and release source: tagged versions and their published assets are the official releases. Active development, experiments and in-progress changes take place in [PeaceEmu-dev](https://github.com/Likounsee/PeaceEmu-dev).
+PeaceEmu is a desktop application designed around a host-and-module architecture. The desktop host manages the game library, installed modules and emulation sessions, while console-specific emulation is provided through core/module implementations.
 
-## Getting PeaceEmu
+This repository is the **stable release repository**. Day-to-day development, experiments and unfinished changes belong in [PeaceEmu-dev](https://github.com/Likounsee/PeaceEmu-dev).
 
-1. Open the [Releases page](https://github.com/Likounsee/PeaceEmu/releases).
-2. Choose the latest non-prerelease version.
-3. Download the installer or package attached to that release.
-4. Verify the published SHA-256 checksum when one is provided.
+## Download
 
-If no release is listed yet, there is no official stable build published from this repository.
+1. Open [GitHub Releases](https://github.com/Likounsee/PeaceEmu/releases).
+2. Download the latest release that is not marked as a pre-release.
+3. Follow the release notes and installation instructions attached to that version.
+4. Verify the SHA-256 checksum when one is published.
 
-## Project structure
+If no stable release is listed, there is currently no official stable build available here.
 
-- `PeaceEmu/` — Rust workspace, application crates, packaging and technical documentation.
-- `.github/workflows/` — automated quality gates and release-related workflows.
-- `docs/` — project website.
-- `README.md` — stable-repository overview.
+## What PeaceEmu provides
 
-Console implementations are maintained as separate modules. A system is only described as supported when its module and compatibility tests demonstrate that support; the presence of a module or a successful build alone is not sufficient.
+- A native desktop interface built with Rust, eframe and egui.
+- A local game library with content import and format validation.
+- Module discovery, installation and management.
+- Emulation session controls, including pause, resume, reset and stop.
+- Input, video and audio interfaces shared between the host and emulation cores.
+- Save-state and persistent-save contracts where the active core supports them.
+- A bounded worker protocol for communicating with external core processes.
+- French and English interface language packs.
 
-## Building from source
+**Important:** a feature being present in the host does not mean every console is fully emulated. Actual compatibility depends on the corresponding module and its tested implementation. Consult the release notes for the systems supported by a specific version.
 
-The source tree is organized as a Cargo workspace plus a separate desktop application crate. For development instructions, architecture, testing requirements and current implementation status, see the [development repository](https://github.com/Likounsee/PeaceEmu-dev).
+## Project layout
 
-## Release policy
+- `PeaceEmu/crates/core` — platform-neutral emulation contracts, session lifecycle, content validation, module metadata and worker protocol.
+- `PeaceEmu/crates/app` — frontend-independent application controller and game-library model.
+- `PeaceEmu/crates/desktop` — native desktop application.
+- `PeaceEmu/crates/windows-*` — Windows-specific integration helpers.
+- `PeaceEmu/packaging` — Windows installer configuration.
+- `PeaceEmu/update` — stable update-channel metadata.
+- `.github/workflows` — automated build, test and quality checks.
 
-- Stable builds are published as GitHub Releases with versioned tags.
-- Release assets should include checksums and only be published after the matching source revision has passed the required CI checks.
-- Development commits are not automatically stable releases.
-- Do not distribute copyrighted game images, firmware or BIOS files without authorization.
+For the internal design and the path from importing a game to running a session, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## License
+## Build from source
 
-PeaceEmu is distributed under the terms described in [LICENSE-PROPRIETARY](LICENSE-PROPRIETARY). Third-party components retain their respective licenses.
+Install the Rust toolchain specified in `PeaceEmu/rust-toolchain.toml`.
+
+From the repository root:
+
+```sh
+cargo test --manifest-path PeaceEmu/Cargo.toml --workspace
+cargo run --manifest-path PeaceEmu/crates/desktop/Cargo.toml
+cargo test --manifest-path PeaceEmu/crates/desktop/Cargo.toml --all-targets
+```
+
+The desktop crate is intentionally kept outside the shared Cargo workspace and has its own manifest. On Linux, the desktop build may require system libraries for the windowing and audio backends.
+
+## Development and contributions
+
+Please use [PeaceEmu-dev](https://github.com/Likounsee/PeaceEmu-dev) for development work. This repository should contain reviewed, release-ready source revisions and official release assets rather than experimental commits.
+
+## Legal notice
+
+PeaceEmu does not provide commercial game ROMs, copyrighted game images, firmware or BIOS files. Only use content that you are legally entitled to use. Third-party components remain subject to their respective licenses.
+
+The project is distributed under the terms in [LICENSE-PROPRIETARY](LICENSE-PROPRIETARY).
