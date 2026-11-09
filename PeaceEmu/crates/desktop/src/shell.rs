@@ -7,7 +7,18 @@ const RAIL_WIDTH: f32 = 72.0;
 const SIDEBAR_PADDING: f32 = 16.0;
 
 impl DesktopPage {
-    /// Pages with sub-sections show the contextual sidebar next to the navigation bar.
+    fn icon(self) -> Icon {
+        match self {
+            Self::Home => Icon::Home,
+            Self::Library => Icon::Library,
+            Self::Sessions => Icon::Game,
+            Self::Game => Icon::Game,
+            Self::Systems => Icon::Systems,
+            Self::Settings => Icon::Settings,
+        }
+    }
+
+    /// Pages with sub-sections show the contextual sidebar next to the rail.
     fn has_sidebar(self) -> bool {
         matches!(self, Self::Library | Self::Settings)
     }
@@ -16,77 +27,83 @@ impl DesktopPage {
 impl DesktopApp {
     pub(super) fn show_shell(&mut self, context: &egui::Context) {
         let palette = Palette::new(self.dark_mode, self.accent_color);
-        self.show_top_navigation(context, &palette);
+        self.show_rail(context, &palette);
         self.show_context_sidebar(context, &palette);
     }
 
-    /// Persistent horizontal navigation with edition and version information.
-    fn show_top_navigation(&mut self, context: &egui::Context, palette: &Palette) {
-        egui::TopBottomPanel::top("peaceemu_top_navigation")
-            .exact_height(64.0)
+    fn show_rail(&mut self, context: &egui::Context, palette: &Palette) {
+        egui::SidePanel::left("rail")
+            .resizable(false)
+            .exact_width(RAIL_WIDTH)
             .frame(
                 egui::Frame::none()
                     .fill(palette.rail)
-                    .inner_margin(egui::Margin::symmetric(22.0, 8.0)),
+                    .inner_margin(egui::Margin::symmetric(14.0, 16.0)),
             )
             .show(context, |ui| {
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(14.0, 0.0);
-                    ui.label(
-                        egui::RichText::new("PeaceEmu")
-                            .size(20.0)
-                            .strong()
-                            .color(palette.text),
-                    );
-                    ui.separator();
-
+                // Center every rail item horizontally in the full sidebar,
+                // including the top navigation group and the bottom controls.
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 8.0);
+                    // Logo box at the top of the rail.
+                    if let Some(texture) = theme::logo_texture(context) {
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
+                        let texture_size = texture.size_vec2();
+                        let scale = 36.0 / texture_size.x.max(texture_size.y).max(1.0);
+                        let image_rect =
+                            egui::Rect::from_center_size(rect.center(), texture_size * scale);
+                        ui.painter().image(
+                            texture.id(),
+                            image_rect,
+                            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                            egui::Color32::WHITE,
+                        );
+                        ui.add_space(8.0);
+                    }
                     for page in [
                         DesktopPage::Home,
                         DesktopPage::Library,
                         DesktopPage::Sessions,
                         DesktopPage::Systems,
                     ] {
-                        let response = ui.selectable_label(
+                        if theme::rail_button(
+                            ui,
+                            palette,
+                            page.icon(),
                             self.active_page == page,
                             page.title(&self.language_pack),
-                        );
-                        if response.clicked() {
+                        )
+                        .clicked()
+                        {
                             self.navigate_to(page);
                         }
                     }
-
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            let channel = option_env!("PEACEEMU_CHANNEL").unwrap_or("dev");
-                            let (edition, edition_color) = if channel == "stable" {
-                                (
-                                    if self.language == "fr" { "STABLE" } else { "STABLE" },
-                                    palette.accent,
-                                )
-                            } else {
-                                (
-                                    if self.language == "fr" { "DÉVELOPPEMENT" } else { "DEVELOPMENT" },
-                                    palette.accent,
-                                )
-                            };
-                            ui.label(
-                                egui::RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
-                                    .size(12.0)
-                                    .color(palette.text_dim),
-                            );
-                            theme::badge(ui, edition, edition_color);
-                            if ui
-                                .selectable_label(
-                                    self.active_page == DesktopPage::Settings,
-                                    DesktopPage::Settings.title(&self.language_pack),
-                                )
-                                .clicked()
-                            {
-                                self.navigate_to(DesktopPage::Settings);
-                            }
-                        },
-                    );
+                    ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                        if theme::rail_button(
+                            ui,
+                            palette,
+                            Icon::Settings,
+                            self.active_page == DesktopPage::Settings,
+                            DesktopPage::Settings.title(&self.language_pack),
+                        )
+                        .clicked()
+                        {
+                            self.navigate_to(DesktopPage::Settings);
+                        }
+                        if self.active_page.has_sidebar()
+                            && theme::rail_button(
+                                ui,
+                                palette,
+                                Icon::Sidebar,
+                                self.sidebar_open,
+                                self.language_pack.text("ui.shell.002"),
+                            )
+                            .clicked()
+                        {
+                            self.sidebar_open = !self.sidebar_open;
+                        }
+                    });
                 });
             });
     }
