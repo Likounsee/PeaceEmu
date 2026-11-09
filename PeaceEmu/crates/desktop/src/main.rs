@@ -67,9 +67,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     #[cfg(windows)]
-    if let Err(error) =
-        windows_app_identity::set_current_process_app_user_model_id("Likounsee.PeaceEmu")
-    {
+    let channel = option_env!("PEACEEMU_CHANNEL").unwrap_or("stable");
+    let app_id = match channel {
+        "dev" => "Likounsee.PeaceEmu.Dev",
+        _ => "Likounsee.PeaceEmu.Stable",
+    };
+    if let Err(error) = windows_app_identity::set_current_process_app_user_model_id(app_id) {
         eprintln!("PeaceEmu: could not set Windows taskbar identity: {error}");
     }
 
