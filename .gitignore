@@ -1,0 +1,14 @@
+# Rust build artifacts
+/PeaceEmu/target/
+**/target/
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example

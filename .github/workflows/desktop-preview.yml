@@ -1,0 +1,69 @@
+name: Desktop smoke test
+
+on:
+  push:
+    branches:
+      - PeaceEmu
+    paths:
+      - "PeaceEmu/crates/desktop/**"
+      - "PeaceEmu/crates/app/**"
+      - "PeaceEmu/crates/core/**"
+      - "PeaceEmu/crates/windows-durability/**"
+      - "PeaceEmu/Cargo.toml"
+      - "PeaceEmu/Cargo.lock"
+      - ".github/workflows/desktop-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout PeaceEmu branch
+        uses: actions/checkout@v4
+        with:
+          ref: PeaceEmu
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libx11-dev libxkbcommon-x11-dev libwayland-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev libasound2-dev xvfb
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build desktop application
+        run: cargo build --manifest-path PeaceEmu/crates/desktop/Cargo.toml
+
+      - name: Smoke-test application startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="PeaceEmu/target/debug/peaceemu"
+          if [ ! -x "$BIN" ]; then
+            BIN="PeaceEmu/crates/desktop/target/debug/peaceemu"
+          fi
+          if [ ! -x "$BIN" ]; then
+            BIN="$(find PeaceEmu -path '*/target/debug/peaceemu' -type f -executable -print -quit 2>/dev/null || true)"
+          fi
+          if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
+            echo "Could not locate the compiled desktop binary." >&2
+            exit 1
+          fi
+          export BIN
+          xvfb-run -a bash -lc '
+            set -euo pipefail
+            "$BIN" >/tmp/peaceemu-smoke.log 2>&1 &
+            app_pid=$!
+            sleep 5
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              echo "Desktop application exited during startup."
+              cat /tmp/peaceemu-smoke.log
+              exit 1
+            fi
+            kill "$app_pid" 2>/dev/null || true
+            wait "$app_pid" 2>/dev/null || true
+          '

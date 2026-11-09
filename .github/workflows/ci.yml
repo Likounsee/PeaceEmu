@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [PeaceEmu]
+  pull_request:
+    branches: [PeaceEmu]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust quality gates (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: PeaceEmu
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: PeaceEmu -> target
+      - name: Install Linux desktop build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libasound2-dev
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Run tests
+        run: cargo test --workspace --locked
+      - name: Check documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --locked
+      - name: Check package contents
+        run: cargo package --workspace --locked --no-verify
+      - name: Resolve desktop dependency graph once
+        run: cargo generate-lockfile --manifest-path crates/desktop/Cargo.toml
+      - name: Check desktop prototype formatting
+        run: cargo fmt --manifest-path crates/desktop/Cargo.toml -- --check
+      - name: Compile desktop prototype
+        run: cargo check --manifest-path crates/desktop/Cargo.toml --all-targets --locked
+      - name: Test desktop prototype
+        run: cargo test --manifest-path crates/desktop/Cargo.toml --all-targets --locked
+      - name: Run Clippy (desktop prototype)
+        run: cargo clippy --manifest-path crates/desktop/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Check desktop package contents
+        run: cargo package --manifest-path crates/desktop/Cargo.toml --list --allow-dirty --locked
+      - name: Run Clippy (workspace)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Audit dependencies and licenses
+        if: runner.os == 'Linux'
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: PeaceEmu/Cargo.toml
+          command: check
+      - name: Audit desktop prototype dependencies and licenses
+        if: runner.os == 'Linux'
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: PeaceEmu/crates/desktop/Cargo.toml
+          command: check
