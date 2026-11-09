@@ -22,58 +22,124 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: PeaceEmu
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: PeaceEmu -> target
+
       - name: Install Linux desktop build dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install --yes pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libasound2-dev
-      - name: Check formatting
+
+      - name: Check workspace formatting
         run: cargo fmt --all -- --check
-      - name: Run tests
+
+      - name: Run workspace tests
         run: cargo test --workspace --locked
-      - name: Check documentation
+
+      - name: Check workspace documentation
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --no-deps --locked
-      - name: Check package contents
+
+      - name: Check workspace package contents
         run: cargo package --workspace --locked --no-verify
-      - name: Resolve desktop dependency graph once
+
+      - name: Resolve desktop dependency graph
         run: cargo generate-lockfile --manifest-path crates/desktop/Cargo.toml
-      - name: Check desktop prototype formatting
+
+      - name: Check desktop formatting
         run: cargo fmt --manifest-path crates/desktop/Cargo.toml -- --check
-      - name: Compile desktop prototype
+
+      - name: Compile desktop and all targets
         run: cargo check --manifest-path crates/desktop/Cargo.toml --all-targets --locked
-      - name: Test desktop prototype
+
+      - name: Test desktop and all targets
         run: cargo test --manifest-path crates/desktop/Cargo.toml --all-targets --locked
-      - name: Run Clippy (desktop prototype)
+
+      - name: Run desktop Clippy
         run: cargo clippy --manifest-path crates/desktop/Cargo.toml --all-targets --locked -- -D warnings
+
       - name: Check desktop package contents
         run: cargo package --manifest-path crates/desktop/Cargo.toml --list --allow-dirty --locked
-      - name: Run Clippy (workspace)
+
+      - name: Run workspace Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Audit dependencies and licenses
+
+      - name: Audit workspace dependencies and licenses
         if: runner.os == 'Linux'
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: PeaceEmu/Cargo.toml
           command: check
-      - name: Audit desktop prototype dependencies and licenses
+
+      - name: Audit desktop dependencies and licenses
         if: runner.os == 'Linux'
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: PeaceEmu/crates/desktop/Cargo.toml
           command: check
+
+  desktop-smoke:
+    name: Desktop startup smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes pkg-config libx11-dev libxkbcommon-x11-dev libwayland-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev libasound2-dev xvfb
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build desktop application
+        run: cargo build --manifest-path PeaceEmu/crates/desktop/Cargo.toml
+
+      - name: Smoke-test application startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="PeaceEmu/target/debug/peaceemu"
+          if [ ! -x "$BIN" ]; then
+            BIN="PeaceEmu/crates/desktop/target/debug/peaceemu"
+          fi
+          if [ ! -x "$BIN" ]; then
+            BIN="$(find PeaceEmu -path '*/target/debug/peaceemu' -type f -executable -print -quit 2>/dev/null || true)"
+          fi
+          if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
+            echo "Could not locate the compiled desktop binary." >&2
+            exit 1
+          fi
+          export BIN
+          xvfb-run -a bash -lc '
+            set -euo pipefail
+            "$BIN" >/tmp/peaceemu-smoke.log 2>&1 &
+            app_pid=$!
+            sleep 5
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              echo "Desktop application exited during startup."
+              cat /tmp/peaceemu-smoke.log
+              exit 1
+            fi
+            kill "$app_pid" 2>/dev/null || true
+            wait "$app_pid" 2>/dev/null || true
+          '
